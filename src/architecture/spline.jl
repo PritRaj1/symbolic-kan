@@ -1,5 +1,3 @@
-ENV["GPU"] = "true"
-
 module Spline
 
 include("../utils.jl")
@@ -29,7 +27,7 @@ function extend_grid(grid, k_extend=0)
     return grid
 end
 
-function B_batch(x, grid; k::Int64, extend=true)
+function B_batch(x, grid; k::Int64, extend=true, eps=1e-4)
     """
     Compute the B-spline basis functions for a batch of points x and a grid of knots.
 
@@ -65,7 +63,8 @@ function B_batch(x, grid; k::Int64, extend=true)
             end
         end
     end
-    
+
+    B = replace(B, NaN=>eps)
     return B
 end
 
@@ -100,18 +99,11 @@ function curve2coef(x_eval, y_eval, grid; k::Int64)
     Returns:
         A matrix of size (d, p) containing the B-spline coefficients.
     """
-    batch, in_dim = size(x_eval)
+    b_size, in_dim = size(x_eval)
     out_dim = size(y_eval, 2)
-    n_coef = size(grid, 2) - k - 1
-    
-    matrix = B_batch(x_eval, grid; k) 
-    matrix = permutedims(matrix, (2, 1, 3)) 
-    matrix = reshape(matrix, in_dim, out_dim, batch, n_coef)  
-    y_eval = permutedims(y_eval, (2, 1))  
-    
-    # Perform least squares
-    coef = matrix \ y_eval
+    B = B_batch(x_eval, grid; k)
+    coefs = @tullio coef[d, p] := y_eval[d, n] / B[d, p, n] 
     return coef
 end
-    
+
 end

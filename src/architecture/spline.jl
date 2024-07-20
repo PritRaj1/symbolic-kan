@@ -1,8 +1,14 @@
 ENV["GPU"] = "true"
 
+module Spline
+
 include("../utils.jl")
 
+export extend_grid, B_batch, coef2curve, curve2coef
+
 using .Utils: device
+using CUDA, KernelAbstractions
+using Tullio
 
 function extend_grid(grid, k_extend=0)
     """
@@ -63,12 +69,49 @@ function B_batch(x, grid; k::Int64, extend=true)
     return B
 end
 
-# Test
-num_spline = 5
-num_sample = 100
-num_grid_interval = 10
-k = 3
-x = randn(num_spline, num_sample) |> device
-grids = randn(num_spline, 11) |> device
-u = B_batch(x, grids; k=k)
-println(size(u))  # Expected output: [5, 14, 100]
+function coef2curve(x_eval, grid, coef; k::Int64)
+    """
+    Compute the B-spline curves from the B-spline coefficients.
+
+    Args:
+        x_eval: A matrix of size (d, n) where d is the number of splines and n is the number of samples.
+        grid: A matrix of size (d, m) where d is the number of splines and m is the number of grid points.
+        coef: A matrix of size (d, p) where d is the number of splines and p is the number of coefficients.
+        k: The degree of the B-spline basis functions.
+
+    Returns:
+        A matrix of size (d, n) containing the B-spline curves evaluated at the points x_eval.
+    """
+    b_splines = B_batch(x_eval, grid; k)
+    y_eval = @tullio out[i, j] := b_splines[i, k, j] * coef[i, k] 
+    return y_eval
+end
+
+function curve2coef(x_eval, y_eval, grid; k::Int64)
+    """
+    Convert B-spline curves to B-spline coefficients using least squares.
+
+    Args:
+        x_eval: A matrix of size (d, n) where d is the number of splines and n is the number of samples.
+        y_eval: A matrix of size (d, n) where d is the number of splines and n is the number of samples.
+        grid: A matrix of size (d, m) where d is the number of splines and m is the number of grid points.
+        k: The piecewise polynomial order of splines.
+
+    Returns:
+        A matrix of size (d, p) containing the B-spline coefficients.
+    """
+    batch, in_dim = size(x_eval)
+    out_dim = size(y_eval, 2)
+    n_coef = size(grid, 2) - k - 1
+    
+    matrix = B_batch(x_eval, grid; k) 
+    matrix = permutedims(matrix, (2, 1, 3)) 
+    matrix = reshape(matrix, in_dim, out_dim, batch, n_coef)  
+    y_eval = permutedims(y_eval, (2, 1))  
+    
+    # Perform least squares
+    coef = matrix \ y_eval
+    return coef
+end
+    
+end

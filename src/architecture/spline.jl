@@ -54,14 +54,9 @@ function B_batch(x, grid; degree::Int64, eps=1e-6)
     grid_1 = grid[:, :, 1:end-1] # grid[p] # expand you bitch
     grid_2 = grid[:, :, 2:end] # grid[p+1]
 
-    grid_1 = repeat(grid_1, size(x, 1), 1, 1) 
-    grid_2 = repeat(grid_2, size(x, 1), 1, 1) 
-    x = repeat(x, 1, 1, size(grid_1, 3))
-
-    term1 = @tullio term1[i, j, k] := (x[i, j, k] >= grid_1[i, j, k] ? 1.0 : 0.0) 
-    term2 = @tullio term2[i, j, k] := (x[i, j, k] < grid_2[i, j, k] ? 1.0 : 0.0)
-    # println(typeof(term1), " ", typeof(term2))
-    out = @tullio res[i, j, k] := term1[i, j, k] * term2[i, j, k]
+    term1 = @tullio term1[d, n, m] := (x[d, n, 1] >= grid_1[1, d, m] ? 1.0 : 0.0) 
+    term2 = @tullio term2[d, n, m] := (x[d, n, 1] < grid_2[1, d, m] ? 1.0 : 0.0)
+    B = @tullio res[d, n, m] := term1[d, n, m] * term2[d, n, m]
 
     for k in 1:degree
         # Compute the B-spline basis functions of degree k:
@@ -74,8 +69,8 @@ function B_batch(x, grid; degree::Int64, eps=1e-6)
         # out = numer1 ./ denom1 .* B[:, :, 1:end - 1] .+ numer2 ./ denom2 .* B[:, :, 2:end]
     end
 
-    replace!(out, NaN=>eps)
-    return out |> device
+    replace!(B, NaN=>eps)
+    return B |> device
 end
 
 function coef2curve(x_eval, grid, coef; k::Int64)

@@ -2,8 +2,12 @@ module Spline
 
 export extend_grid, B_batch, coef2curve, curve2coef
 
+using Flux
 using CUDA, KernelAbstractions
 using Tullio
+
+include("../utils.jl")
+using .Utils: device, sparse_mask
 
 function extend_grid(grid, k_extend=0)
     """
@@ -42,14 +46,25 @@ function B_batch(x, grid; k::Int64, eps=1e-6)
 
     d, m = size(grid)
     n = size(x, 2)
-    x = reshape(x, size(x)..., 1)
-    grid = reshape(grid, 1, size(grid)...)
+    x = reshape(x, size(x)..., 1) 
+    grid = reshape(grid, 1, size(grid)...) 
 
     if k == 0
         # B-spline basis functions of degree 0 are piecewise constant functions: B = 1 if x in [grid[p], grid[p+1]) else 0
-        grid_1 = grid[:, :, 1:end-1] # grid[p]
+       
+        grid_1 = grid[:, :, 1:end-1] # grid[p] # expand you bitch
         grid_2 = grid[:, :, 2:end] # grid[p+1]
-        out = @tullio res[i, j, k] := (x[i, j, 1] >= grid_1[1, j, k]) * (x[i, j, 1] < grid_2[1, j, k])
+
+        grid_1 = repeat(grid_1, size(x, 1), 1, 1) 
+        grid_2 = repeat(grid_2, size(x, 1), 1, 1) 
+        x = repeat(x, 1, 1, size(grid_1, 3))
+        println(size(grid_1), " ", size(grid_2), " ", size(x))
+        
+        term1 = @tullio term1[i, j, k] := (x[i, j, k] >= grid_1[i, j, k] ? 1.0 : 0.0) 
+        term2 = @tullio term2[i, j, k] := (x[i, j, k] < grid_2[i, j, k] ? 1.0 : 0.0)
+
+        println(typeof(term1), " ", typeof(term2))
+        out = @tullio res[i, j, k] := term1[i, j, k] * term2[i, j, k]
     else
         # Compute the B-spline basis functions of degree 0:
         B_deg0 =  B_batch(x[:, :, 1], grid[1, :, :]; k=k-1) # Recurse through higher degree B-splines
@@ -63,7 +78,7 @@ function B_batch(x, grid; k::Int64, eps=1e-6)
     end
 
     replace!(out, NaN=>eps)
-    return out
+    return out |> device
 end
 
 function coef2curve(x_eval, grid, coef; k::Int64)
@@ -79,8 +94,8 @@ function coef2curve(x_eval, grid, coef; k::Int64)
     Returns:
         A matrix of size (d, n) containing the B-spline curves evaluated at the points x_eval.
     """
-    b_splines = B_batch(x_eval, grid; k)
-    y_eval = @tullio out[i, j] := b_splines[i, k, j] * coef[i, k] 
+    b_splines = B_batch(x_eval, grid; k) 
+    y_eval = @tullio out[i, j, l] := b_splines[i, j, k] * coef[j, l, k]
     return y_eval
 end
 

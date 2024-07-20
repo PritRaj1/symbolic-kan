@@ -30,7 +30,7 @@ function extend_grid(grid, k_extend=0)
     return grid
 end
 
-function B_batch(x, grid; k::Int64, eps=1e-6)
+function B_batch(x, grid; degree::Int64, eps=1e-6)
     """
     Compute the B-spline basis functions for a batch of points x and a grid of knots.
 
@@ -49,32 +49,29 @@ function B_batch(x, grid; k::Int64, eps=1e-6)
     x = reshape(x, size(x)..., 1) 
     grid = reshape(grid, 1, size(grid)...) 
 
-    if k == 0
-        # B-spline basis functions of degree 0 are piecewise constant functions: B = 1 if x in [grid[p], grid[p+1]) else 0
-       
-        grid_1 = grid[:, :, 1:end-1] # grid[p] # expand you bitch
-        grid_2 = grid[:, :, 2:end] # grid[p+1]
+    # B-spline basis functions of degree 0 are piecewise constant functions: B = 1 if x in [grid[p], grid[p+1]) else 0
 
-        grid_1 = repeat(grid_1, size(x, 1), 1, 1) 
-        grid_2 = repeat(grid_2, size(x, 1), 1, 1) 
-        x = repeat(x, 1, 1, size(grid_1, 3))
-        println(size(grid_1), " ", size(grid_2), " ", size(x))
-        
-        term1 = @tullio term1[i, j, k] := (x[i, j, k] >= grid_1[i, j, k] ? 1.0 : 0.0) 
-        term2 = @tullio term2[i, j, k] := (x[i, j, k] < grid_2[i, j, k] ? 1.0 : 0.0)
+    grid_1 = grid[:, :, 1:end-1] # grid[p] # expand you bitch
+    grid_2 = grid[:, :, 2:end] # grid[p+1]
 
-        println(typeof(term1), " ", typeof(term2))
-        out = @tullio res[i, j, k] := term1[i, j, k] * term2[i, j, k]
-    else
-        # Compute the B-spline basis functions of degree 0:
-        B_deg0 =  B_batch(x[:, :, 1], grid[1, :, :]; k=k-1) # Recurse through higher degree B-splines
+    grid_1 = repeat(grid_1, size(x, 1), 1, 1) 
+    grid_2 = repeat(grid_2, size(x, 1), 1, 1) 
+    x = repeat(x, 1, 1, size(grid_1, 3))
 
+    term1 = @tullio term1[i, j, k] := (x[i, j, k] >= grid_1[i, j, k] ? 1.0 : 0.0) 
+    term2 = @tullio term2[i, j, k] := (x[i, j, k] < grid_2[i, j, k] ? 1.0 : 0.0)
+    # println(typeof(term1), " ", typeof(term2))
+    out = @tullio res[i, j, k] := term1[i, j, k] * term2[i, j, k]
+
+    for k in 1:degree
         # Compute the B-spline basis functions of degree k:
         numer1 = x .- grid[:, :, 1:(end - k - 1)]
         denom1 = grid[:, :, (k + 1):end-1] .- grid[:, :, 1:(end - k - 1)]
         numer2 = grid[:, :, (k + 2):end] .- x
         denom2 = grid[:, :, (k + 2):end] .- grid[:, :, 2:(end - k)]
-        out = numer1 ./ denom1 .* B_deg0[:, :, 1:end - 1] .+ numer2 ./ denom2 .* B_deg0[:, :, 2:end]
+        B_i1 = B[:, :, 1:end - 1]
+        B_i2 = B[:, :, 2:end]
+        # out = numer1 ./ denom1 .* B[:, :, 1:end - 1] .+ numer2 ./ denom2 .* B[:, :, 2:end]
     end
 
     replace!(out, NaN=>eps)

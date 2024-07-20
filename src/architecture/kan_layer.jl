@@ -1,4 +1,4 @@
-ENV["GPU"] = "true"
+ENV["GPU"] = "false"
 
 using Flux
 using CUDA, KernelAbstractions
@@ -64,6 +64,16 @@ function (l::kan_dense)(x)
     y = sum(y, dims=2)
 
     return y, pre_acts, post_acts, post_spline
+end
+
+function update_grid!(l::kan_dense, x, y)
+    b_size = size(x, 1)
+    x_pos, _ = sort(x, dims=1)
+    y_eval = coef2curve(x_pos, l.grid, l.coef; k=l.degree)
+    num_interval = size(l.grid, 2) - 2*l.degree - 1
+    ids = [Int(batch / num_interval * i) for i in 0:num_interval-1]  
+    ids = [ids...]  
+    ids = vcat(ids, -1)
 end
 
 # Test the KAN layer

@@ -21,16 +21,19 @@ function sparse_mask(in_dim, out_dim)
     Returns:
         A sparse mask of size (in_dim, out_dim) with 1s at the nearest connections.
     """
-    
-    in_coord = (collect(0:in_dim-1) .+ 0.5) ./ in_dim
-    out_coord = (collect(0:out_dim-1) .+ 0.5) ./ out_dim
 
+    in_coord = range(1, in_dim, step=1) |> collect
+    out_coord = range(1, out_dim, step=1) |> collect
+    in_coord = in_coord .* (1 / (2 * in_dim^2))
+    out_coord = out_coord .* (1 / (2 * out_dim^2))
+    
     dist_mat = abs.(out_coord' .- in_coord)
     in_nearest = argmin(dist_mat, dims=1)
     in_connection = hcat(collect(1:in_dim), in_nearest')
 
     out_nearest = argmin(dist_mat, dims=2)
     out_connection = hcat(out_nearest, collect(1:out_dim))
+
 
     all_connection = vcat(in_connection, out_connection)
     mask = zeros(in_dim, out_dim)

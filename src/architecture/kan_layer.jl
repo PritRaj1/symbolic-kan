@@ -65,7 +65,7 @@ function (l::kan_dense)(x)
     y = @tullio out[b, i, o] := (l.w_base[i, o] * base[b, i] + l.w_sp[i, o] * y[b, i, o]) * l.mask[i, o]
     post_acts = permutedims(copy(y), [1, 3, 2])
 
-    y = sum(y, dims=2)
+    y = sum(y, dims=2)[:, 1, :]
 
     return y, pre_acts, post_acts, post_spline
 end

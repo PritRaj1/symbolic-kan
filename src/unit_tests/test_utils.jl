@@ -13,5 +13,5 @@ params, R2 = fit_params(x, y, fcn)
 @test R2 >= 0.9
 @test abs(params[1] - 2) < 0.01
 @test abs(params[2] - 1) < 0.01
-@test abs(params[1] - 1) < 0.01
+@test abs(params[3] - 1) < 0.01
 @test abs(params[4] - 0) < 0.01

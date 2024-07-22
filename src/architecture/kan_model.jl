@@ -1,13 +1,32 @@
-using FLux, CUDA, KernelAbstractions, Tullio, NNlib, Random
-using Flux: Chain, Dense
+module KolmogorovArnoldNets
+
+export KAN, update_grid!
+
+using Flux, CUDA, KernelAbstractions, Tullio, NNlib, Random, Statistics
+using FunctionWrappers: FunctionWrapper
 
 include("kan_layer.jl")
-using .kan_dense: b_spline_layer, update_grid!
+include("symbolic_layer.jl")
+using .dense_kan: b_spline_layer, update_grid!
+using .symbolic_layer: symbolic_kan_layer
 
-struct KAN
+mutable struct KAN_
+    widths::Vector{Int}
+    depth::Int
+    grid_interval::Int
+    base_fcn::FunctionWrapper{Float64, Tuple{Float64}}
+    act_fcns::Vector{Any}
+    biases::Vector{Any}
+    symbolic_fcns::Vector{Any}
+    symbolic_enabled::Bool
+    acts::Vector{AbstractArray}
+    pre_acts::Vector{AbstractArray}
+    post_acts::Vector{AbstractArray}
+    post_splines::Vector{AbstractArray}
+    acts_scale::Vector{AbstractArray}
 end
 
-function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=1.0, base_act=NNlib.selu, symbolic=true, grid_eps=1.0, grid_range=(-1, 1), sparse_init=false, init_seed=0)
+function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=1.0, base_act=NNlib.selu, symbolic_enabled=true, grid_eps=1.0, grid_range=(-1, 1), sparse_init=false, init_seed=0)
     Random.seed!(init_seed)
 
     biases = []
@@ -16,21 +35,58 @@ function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=
 
     for i in 1:depth
         base_scale = (μ_scale * (1 / √(widths[i])) 
-        + σ_scale * (randn(width[i], width[i + 1]) * 2 .- 1) * (1 / √(width[i])))
+        .+ σ_scale .* (randn(widths[i], widths[i + 1]) .* 2 .- 1) .* (1 / √(widths[i])))
         spline = b_spline_layer(widths[i], widths[i + 1]; num_splines=grid_interval, degree=k, ε_scale=ε_scale, σ_base=base_scale, σ_sp=base_scale, base_act=base_act, grid_eps=grid_eps, grid_range=grid_range, sparse_init=sparse_init)
         push!(act_fcns, spline)
-        bias = Chain(
-            permutedims,
-            Dense(widths[i + 1] => widths[i + 1], identity; bias=false, init=zeros32),
-            permutedims,
-        )
+        bias = zeros(widths[i + 1], 1)
         push!(biases, bias)
     end
 
+    symbolic = []
+    for i in 1:depth
+        push!(symbolic, symbolic_kan_layer(widths[i], widths[i + 1]))
+    end
 
+    return KAN_(widths, depth, grid_interval, base_act, act_fcns, biases, symbolic, symbolic_enabled, [], [], [], [], [])
+end
 
-    
-    
+Flux.@functor KAN_
 
+function (model::KAN_)(x)
+    model.acts = [x]
+    model.pre_acts = []
+    model.post_acts = []
+    model.post_splines = []
+    model.acts_scale = []
+
+    for i in 1:model.depth
+        # Evaluate b_spline at x
+        x_numerical, pre_acts, post_acts_numerical, postspline = model.act_fcns[i](model.acts[i])
+
+        # Evaluate symbolic layer at x
+        if model.symbolic_enabled
+            x_symbolic, post_acts_symbolic = model.symbolic_fcns[i](model.acts[i])
+        else
+            x_symbolic, post_acts_symbolic = 0.0, 0.0
+        end
+
+        x = x_numerical .+ x_symbolic
+        post_acts = post_acts_numerical .+ post_acts_symbolic
+
+        in_range = std(pre_acts, dims=1)[1, :, :] .+ 0.1
+        out_range = std(post_acts, dims=1)[1, :, :] .+ 0.1
+        push!(model.acts_scale, (out_range ./ in_range)) 
+        push!(model.pre_acts, pre_acts)
+        push!(model.post_acts, post_acts)
+        push!(model.post_splines, postspline)
+
+        # Add bias
+        b = model.biases[i]
+        @tullio x[n, m] += b[m, 1]
+        push!(model.acts, x)
+    end
+
+    return x
+end
 
 end

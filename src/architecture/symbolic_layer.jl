@@ -13,12 +13,12 @@ using .Utils: device, fit_params
 mutable struct symbolic_dense
     in_dim::Int
     out_dim::Int
-    mask
+    mask::AbstractArray
     fcns::Vector{Vector{FunctionWrapper{Float64, Tuple{Float64}}}}
     fcns_avoid_singular::Vector{Vector{FunctionWrapper{Tuple{Float64, Float64}, Tuple{Tuple{}, Float64}}}}
     fcn_names::Vector{Vector{String}}
     fcn_sympys::Vector{Vector{FunctionWrapper{Float64, Tuple{Float64}}}}   
-    affine
+    affine::AbstractArray
 end
 
 function symbolic_kan_layer(in_dim::Int, out_dim::Int)

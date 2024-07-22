@@ -16,13 +16,13 @@ mutable struct kan_dense
     out_dim::Int
     num_splines::Int
     degree::Int
-    grid
-    ε
-    coef
-    w_base
-    w_sp
+    grid::AbstractArray
+    ε::AbstractArray
+    coef::AbstractArray
+    w_base::AbstractArray
+    w_sp::AbstractArray
     base_act::Function
-    mask
+    mask::AbstractArray
     grid_eps::Float32
     grid_range::Tuple{Float32, Float32}
 end

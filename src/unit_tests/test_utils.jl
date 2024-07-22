@@ -37,8 +37,6 @@ function test_sin_fitting()
     y = 5 .* sin.(3 .* x .+ 2) .+ 0.7 .+ noises
     fcn(x) = sin(x)
     params, R2 = fit_params(x, y, fcn)
-    println(params) # should be close to [2.9982, 1.9996, 5.0053, 0.7011]
-    println(R2) # should be close to 1.0
 
     # Plot
     plot(x, y, label="data")
@@ -47,5 +45,5 @@ function test_sin_fitting()
     savefig("figures/test_sin_fitting.png")
 end
 
-# test_param_fitting()
+test_param_fitting()
 test_sin_fitting()

@@ -75,11 +75,11 @@ function expand_apply(fcn, x, α, β; grid_number)
     x = reshape(x, length(x), 1, 1)
     α = reshape(α, 1, grid_number, grid_number)
     β = reshape(β, 1, grid_number, grid_number)
-    eval = @tullio res[i, j, k] := fcn(α[1, j, k] .* x[i, 1, 1] .+ β[1, j, k])
+    eval = @tullio res[i, j, k] := fcn(α[1, j, k] * x[i, 1, 1] + β[1, j, k])
     return fcn.(eval)
 end
 
-function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_number=100, iterations=6, μ=1.0, verbose=true)
+function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_number=101, iterations=3, μ=1.0, verbose=true)
     """
     Optimises the parameters of a symbolic function to minismise l2-norm error (or maximise R2).
         
@@ -153,7 +153,7 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_numb
         println("Best b: ", b_best)
         println("Best R2: ", R2_best)
         println("Squared Error: ", squared_err)
-        R2_best >= 0.9 ? println("Good fit!") : println("Poor fit! Check symbolic function.")
+        squared_err <= 1.0 ? println("Good fit!") : println("Poor fit! Check symbolic function.")
     end
 
     return [α_best, β_best, w_best, b_best], R2_best

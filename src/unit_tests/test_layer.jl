@@ -18,7 +18,7 @@ function test_spline_lyr()
     @test all(size(postspline) .== (100, 5, 3))
     @test all(size(layer.grid) .== (3, 12))
 
-    update_grid!(layer, x)
+    update_lyr_grid!(layer, x)
 
     @test all(size(layer.grid) .== (3, 12))
 end

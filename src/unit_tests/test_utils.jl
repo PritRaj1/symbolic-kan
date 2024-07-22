@@ -1,4 +1,5 @@
-using Test
+using Test, Random
+using Plots; pythonplot()
 
 include("../utils.jl")
 using .Utils: fit_params
@@ -19,4 +20,32 @@ function test_param_fitting()
     @test abs(params[4] - 0) < 0.01
 end
 
-test_param_fitting()
+"""
+num = 100
+x = torch.linspace(-1,1,steps=num)
+# noises = torch.normal(0,1,(num,)) * 0.02
+y = 5.0*torch.sin(3.0*x + 2.0) + 0.7 #+ noises
+fit_params(x, y, torch.sin)
+# r2 is 0.9999727010726929
+# (tensor([2.9982, 1.9996, 5.0053, 0.7011]), tensor(1.0000))"""
+
+function test_sin_fitting()
+    num = 100
+    x = range(-1, 1, length=num) |> collect
+    Random.seed!(123)
+    noises = randn(num) .* 0.02
+    y = 5 .* sin.(3 .* x .+ 2) .+ 0.7 .+ noises
+    fcn(x) = sin(x)
+    params, R2 = fit_params(x, y, fcn)
+    println(params) # should be close to [2.9982, 1.9996, 5.0053, 0.7011]
+    println(R2) # should be close to 1.0
+
+    # Plot
+    plot(x, y, label="data")
+    plot!(x, fcn.(3 .* x .+ 2) .* 5 .+ 0.7, label="true")
+    plot!(x, fcn.(params[1] .* x .+ params[2]) .* params[3] .+ params[4], label="fit")
+    savefig("figures/test_sin_fitting.png")
+end
+
+# test_param_fitting()
+test_sin_fitting()

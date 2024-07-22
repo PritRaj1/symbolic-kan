@@ -144,7 +144,7 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_numb
     model = lm(@formula(Y ~ X), df)
     b_best, w_best = coef(model)
     f_approx_best = y_approx .* w_best .+ b_best
-    l2 = sum((y .- f_approx_best).^2)
+    squared_err = sum((y .- f_approx_best).^2)
 
     if verbose == true
         println("Best α: ", α_best)
@@ -152,7 +152,7 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_numb
         println("Best w: ", w_best)
         println("Best b: ", b_best)
         println("Best R2: ", R2_best)
-        println("MSE: ", l2)
+        println("Squared Error: ", squared_err)
         R2_best >= 0.9 ? println("Good fit!") : println("Poor fit! Check symbolic function.")
     end
 

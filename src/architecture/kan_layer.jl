@@ -1,6 +1,6 @@
 module dense_kan
 
-export b_spline_layer, update_grid!
+export b_spline_layer, update_lyr_grid!
 
 using Flux
 using CUDA, KernelAbstractions
@@ -70,7 +70,7 @@ function (l::kan_dense)(x)
     return y, pre_acts, post_acts, post_spline
 end
 
-function update_grid!(l::kan_dense, x; margin=0.01)
+function update_lyr_grid!(l::kan_dense, x; margin=0.01)
     """
     Adapt the grid to the distribution of the input data
 

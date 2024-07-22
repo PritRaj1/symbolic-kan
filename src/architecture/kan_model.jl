@@ -2,7 +2,6 @@ using FLux, CUDA, KernelAbstractions, Tullio, NNlib, Random
 using Flux: Chain, Dense
 
 include("kan_layer.jl")
-
 using .kan_dense: b_spline_layer, update_grid!
 
 struct KAN

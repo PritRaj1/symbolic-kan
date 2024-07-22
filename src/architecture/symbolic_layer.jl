@@ -2,12 +2,12 @@ module symbolic_layer
 
 export symbolic_kan_kayer
 
+using Flux, CUDA, KernelAbstractions, Tullio
+
 include("../symbolic_lib.jl")
 include("../utils.jl")
-
-using Flux, CUDA, KernelAbstractions, Tullio
 using .SymbolicLib: SYMBOLIC_LIB
-using .Utils: device
+using .Utils
 
 struct symbolic_dense
     in_dim::Int

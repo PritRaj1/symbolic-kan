@@ -1,6 +1,6 @@
 module SymbolicLib
 
-export f_inv, f_inv2, f_inv3, f_inv4, f_inv5, f_sqrt, f_power1d5, f_invsqrt, f_log, f_tan, f_arctanh, f_arcsin, f_arccos, f_exp, SYMBOLIC_LIB
+export SYMBOLIC_LIB
 
 using Flux, LinearAlgebra, SymPy
 

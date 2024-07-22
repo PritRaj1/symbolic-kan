@@ -1,7 +1,7 @@
+using Test
+
 include("../architecture/kan_layer.jl")
 include("../architecture/symbolic_layer.jl")
-
-using Test
 using .dense_kan
 using .symbolic_layer
 

@@ -23,7 +23,7 @@ function test_spline_lyr()
     @test all(size(layer.grid) .== (3, 12))
 end
 
-# Test symbolic_dense
+# Test symbolic layer
 function test_symb_lyr()
     layer = symbolic_kan_layer(3, 5)
     x = randn(100, 3) 

@@ -1,6 +1,6 @@
 module dense_kan
 
-export b_spline_layer, update_lyr_grid!
+export b_spline_layer, update_lyr_grid!, get_subset
 
 using Flux
 using CUDA, KernelAbstractions
@@ -107,4 +107,46 @@ function update_lyr_grid!(l::kan_dense, x; margin=0.01)
     l.coef = curve2coef(x_sort, current_splines, l.grid; k=l.degree)
 end
 
+function get_subset(l::kan_dense, in_indices, out_indices)
+    """
+    Extract smaller subset of the layer for pruning.
+
+    Args:
+        l: The KAN layer.
+        in_indices: The indices of the input neurons to keep.
+        out_indices: The indices of the output neurons to keep.
+
+    Returns:
+        l_subset: The subset KAN layer.
+    """
+    l_sub = b_spline_layer(l.in_dim, l.out_dim; num_splines=l.num_splines, degree=l.degree, ε_scale=0.1, σ_base=1.0, σ_sp=1.0, base_act=l.base_act, grid_eps=l.grid_eps, grid_range=l.grid_range, sparse_init=false)
+    l_sub.in_dim = length(in_indices)
+    l_sub.out_dim = length(out_indices)
+
+    new_grid = zeros(0, size(l.grid, 2)) |> device
+    for i in in_indices
+        new_grid = vcat(new_grid, l.grid[i:i, :])
+    end
+    l_sub.grid = new_grid
+
+    l_sub.ε = zeros(size(l.ε, 1), l_sub.in_dim, l_sub.out_dim) |> device
+    l_sub.coef = zeros(l_sub.in_dim, l_sub.out_dim, size(l.coef, 3)) |> device
+    l_sub.w_base = zeros(l_sub.in_dim, l_sub.out_dim) |> device
+    l_sub.w_sp = zeros(l_sub.in_dim, l_sub.out_dim) |> device
+    l_sub.mask = zeros(l_sub.in_dim, l_sub.out_dim) |> device
+    
+    for in_idx in eachindex(in_indices)
+        for out_idx in eachindex(out_indices)
+            i, j = in_indices[in_idx], out_indices[out_idx]
+
+            l_sub.ε[:, in_idx, out_idx] .= l.ε[:, i, j]
+            l_sub.coef[in_idx, out_idx, :] .= l.coef[i, j, :]
+            l_sub.w_base[in_idx, out_idx] = l.w_base[i, j]
+            l_sub.w_sp[in_idx, out_idx] = l.w_sp[i, j]
+            l_sub.mask[in_idx, out_idx] = l.mask[i, j]
+        end
+    end
+
+    return l_sub
+end
 end

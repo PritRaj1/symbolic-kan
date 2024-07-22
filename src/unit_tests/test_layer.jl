@@ -21,6 +21,14 @@ function test_spline_lyr()
     update_lyr_grid!(layer, x)
 
     @test all(size(layer.grid) .== (3, 12))
+
+    layer = b_spline_layer(10, 10)
+    layer = get_subset(layer, [1,10],[2,3,4])
+
+    @test all(size(layer.mask) .== (2, 3))
+    @test layer.in_dim == 2
+    @test layer.out_dim == 3
+    @test all(size(layer.grid) .== (2, 12))
 end
 
 # Test symbolic layer
@@ -33,7 +41,7 @@ function test_symb_lyr()
     @test all(size(postacts) .== (100, 5, 3))
 
     layer = symbolic_kan_layer(10, 10)
-    layer = get_subset(layer, [1,10],[2,3,4])
+    layer = get_symb_subset(layer, [1,10],[2,3,4])
 
     @test all(size(layer.mask) .== (3, 2))
     @test layer.in_dim == 2

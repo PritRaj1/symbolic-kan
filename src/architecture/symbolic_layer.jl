@@ -1,6 +1,6 @@
 module symbolic_layer
 
-export symbolic_kan_layer, get_subset, lock_symbolic!
+export symbolic_kan_layer, lock_symbolic!, get_symb_subset
 
 using Flux, CUDA, KernelAbstractions, Tullio, Random
 using FunctionWrappers: FunctionWrapper
@@ -74,7 +74,7 @@ function (l::symbolic_dense)(x; avoid_singular=false, y_th=10.0)
     return sum(post_acts, dims=3)[:, :, 1], post_acts
 end
 
-function get_subset(l::symbolic_dense, in_indices, out_indices)
+function get_symb_subset(l::symbolic_dense, in_indices, out_indices)
     """
     Extract smaller symbolic dense layer from larger layer for pruning.
     

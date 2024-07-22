@@ -38,6 +38,29 @@ function test_symb_lyr()
     @test all(size(layer.mask) .== (3, 2))
     @test layer.in_dim == 2
     @test layer.out_dim == 3
+
+    layer = symbolic_kan_layer(3, 2)
+    lock_symbolic!(layer, 3, 2, "sin")
+
+    @test layer.fcns[2][3](2.4) == sin(2.4)
+    @test layer.fcn_names[2][3] == "sin"
+    @test all(layer.affine[2, 3, :] == [1.0, 0.0, 1.0, 0.0])
+
+    layer = symbolic_kan_layer(3, 2)
+    num = 100
+    x = range(-1, 1, length=num) |> collect
+    noises = randn(num) .* 0.02
+    y = 2 .* x .+ 1 .+ noises
+    fcn = "x"
+    R2 = lock_symbolic!(layer, 3, 2, fcn; x, y, random=true, seed=123)
+
+    @test layer.fcns[2][3](2.4) == 2.4
+    @test layer.fcn_names[2][3] == "x"
+    @test layer.affine[2, 3, 1] - 2 < 0.01
+    @test layer.affine[2, 3, 2] - 1 < 0.01
+    @test layer.affine[2, 3, 3] - 1 < 0.01
+    @test layer.affine[2, 3, 4] - 0 < 0.01
+    @test R2 >= 0.9
 end
 
 test_spline_lyr()

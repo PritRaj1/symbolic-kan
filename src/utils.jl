@@ -79,7 +79,7 @@ function expand_apply(fcn, x, α, β; grid_number)
     return fcn.(eval)
 end
 
-function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_number=100, iterations=6, μ=3.0, verbose=true)
+function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_number=100, iterations=6, μ=1.0, verbose=true)
     """
     Optimises the parameters of a symbolic function to minismise l2-norm error (or maximise R2).
         

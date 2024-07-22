@@ -1,8 +1,9 @@
 module symbolic_layer
 
-export symbolic_kan_layer, get_subset
+export symbolic_kan_layer, get_subset, lock_symbolic!
 
 using Flux, CUDA, KernelAbstractions, Tullio, Random
+using FunctionWrappers: FunctionWrapper
 
 include("../symbolic_lib.jl")
 include("../utils.jl")
@@ -13,17 +14,17 @@ mutable struct symbolic_dense
     in_dim::Int
     out_dim::Int
     mask
-    fcns
-    fcns_avoid_singular
-    fcn_names
-    fcn_sympys
+    fcns::Vector{Vector{FunctionWrapper{Float64, Tuple{Float64}}}}
+    fcns_avoid_singular::Vector{Vector{FunctionWrapper{Tuple{Float64, Float64}, Tuple{Tuple{}, Float64}}}}
+    fcn_names::Vector{Vector{String}}
+    fcn_sympys::Vector{Vector{FunctionWrapper{Float64, Tuple{Float64}}}}   
     affine
 end
 
 function symbolic_kan_layer(in_dim::Int, out_dim::Int)
     mask = ones(out_dim, in_dim)
     fcns = [[x -> 0.0 for i in 1:in_dim] for j in 1:out_dim] 
-    fcns_avoid_singular = [[(x, y_th) -> ((), x * 0.0) for i in 1:in_dim] for j in 1:out_dim]
+    fcns_avoid_singular = [[(x, y_th) -> ((), 0.0) for i in 1:in_dim] for j in 1:out_dim]
     fcn_names = [["0" for i in 1:in_dim] for j in 1:out_dim]
     fcn_sympys = [[x -> 0.0 for i in 1:in_dim] for j in 1:out_dim] 
     affine = zeros(out_dim, in_dim, 4)
@@ -127,7 +128,7 @@ function set_affine!(l::symbolic_dense, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)
     l.affine[j, i, 4] = a4
 end
 
-function lock_symbolic!(l::symbolic_dense, i, j, fun_name; x=nothing, y=nothing, random=false, seed=nothing, α_range=(-10, 10), β_range=(-10, 10), verbose=true)
+function lock_symbolic!(l::symbolic_dense, i, j, fun_name; x=nothing, y=nothing, random=false, seed=nothing, α_range=(-10, 10), β_range=(-10, 10), μ=1.0, verbose=true)
     """
     Fix a symbolic function for a particular input-output pair, 
     
@@ -148,6 +149,7 @@ function lock_symbolic!(l::symbolic_dense, i, j, fun_name; x=nothing, y=nothing,
     Returns:
     - R2: coefficient of determination.
     """
+    # fun_name is a name of a symbolic function
     if fun_name isa String
         fcn = SYMBOLIC_LIB[fun_name][1]
         fcn_sympy = SYMBOLIC_LIB[fun_name][2]
@@ -156,22 +158,47 @@ function lock_symbolic!(l::symbolic_dense, i, j, fun_name; x=nothing, y=nothing,
         l.fcn_sympys[j][i] = fcn_sympy
         l.fcn_names[j][i] = fun_name
 
+        # If x and y are not provided, just set the function
         if isnothing(x) || isnothing(y)
             l.fcns[j][i] = fcn
             l.fcns_avoid_singular[j][i] = fcn_avoid_singular
 
-            # Set affine parameters
+            # Set affine parameters either to random values or to default values
             if !random
                 set_affine!(l, j, i)
             else
                 Random.seed!(seed)
-                params = rand(4)
+                params = rand(4) .* 2 .- 1
                 set_affine!(l, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
             end
-            return nothing
+
+        # If x and y are provided, fit the function
         else
+            params, R2 = fit_params(x, y, fcn; α_range=α_range, β_range=β_range, μ=μ, verbose=verbose)
+            l.fcns[j][i] = fcn
+            l.fcns_avoid_singular[j][i] = fcn_avoid_singular
+            set_affine!(l, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
+            return R2
+        end
+
+    # fun_name is a symbolic function
+    else
+        l.fcns[j][i] = fun_name
+        l.fcn_sympys[j][i] = fun_name
+        l.fcns_avoid_singular[j][i] = fun_name
+        l.fcn_names[j][i] = "anonymous"
+
+        # Set affine parameters either to random values or to default values
+        if !random
+            set_affine!(l, j, i)
+        else
+            Random.seed!(seed)
+            params = rand(4) .* 2 .- 1
+            set_affine!(l, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
         end
     end
+
+    return nothing
 end
 
 end

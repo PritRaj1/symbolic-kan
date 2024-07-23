@@ -2,7 +2,9 @@ using Test, Random
 using Plots; pythonplot()
 
 include("../utils.jl")
-using .Utils: fit_params, create_loaders
+include("../pipeline/utils.jl")
+using .Utils: fit_params
+using .PipelineUtils
 
 # Test parameter fitting for symbolic reg
 function test_param_fitting()
@@ -60,6 +62,14 @@ function test_loaders()
     @test all(x .- y .== 0.0)
 end
 
-# test_param_fitting()
-# test_sin_fitting()
+function test_optimisers()
+    optimiser, scheduler = create_optimiser("adam"; LR=0.01)
+    @test scheduler(1, 0.01) ≈ 0.01
+    optimiser, scheduler = create_optimiser("lbfgs"; schedule_LR=true, LR=0.01, step=10, decay=0.1, min_LR=0.001)
+    @test scheduler(50, 0.01) ≈ 0.001
+end
+
+test_param_fitting()
+test_sin_fitting()
 test_loaders()
+test_optimisers()

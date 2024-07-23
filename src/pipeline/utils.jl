@@ -53,11 +53,10 @@ function create_loaders(fcn; N_var=2, x_range=(-1,1), N_train=1000, N_test=1000,
     return train_loader, test_loader
 end
 
-
-
-struct optimiser
+mutable struct optimiser
     OPT::Optim.Optimizer
     LR_scheduler::Function
+    LR::Float32
 end
 
 function create_opt(type="lbfgs"; history=100, line_search="strong_wolfe", c1=1e-4, c2=0.9, ρ=2.0, LR=0.01, schedule_LR=false, step=10, decay=0.1, min_LR=0.001)
@@ -90,10 +89,10 @@ function create_opt(type="lbfgs"; history=100, line_search="strong_wolfe", c1=1e
     line_search = line_search_map[line_search](c1, c2, ρ)
     opt = optimiser_map[type](line_search, history)
 
-    return optimiser(opt, schedule_fcn)
+    return optimiser(opt, schedule_fcn, LR)
 end
 
-function step!(opt::optimiser, model, loss_fcn, epoch, x, y, LR; tol=1e-32)
+function step!(opt::optimiser, model, loss_fcn, epoch, x, y; tol=1e-32)
     """
     Perform one step of optimisation.
 
@@ -119,8 +118,8 @@ function step!(opt::optimiser, model, loss_fcn, epoch, x, y, LR; tol=1e-32)
     init_params = Flux.params(model)
     grad = θ -> Zygote.gradient(loss, θ)[1]
 
-    results = Optim.optimize(loss, grad, init_params, opt.OPT(LR), Optim.Options(iterations=1, x_abstol=tol, f_abstol=tol, g_abstol=tol))
-    LR = opt.LR_scheduler(epoch, LR)
+    results = Optim.optimize(loss, grad, init_params, opt.OPT(opt.LR), Optim.Options(iterations=1, x_abstol=tol, f_abstol=tol, g_abstol=tol))
+    opt.LR = opt.LR_scheduler(epoch, opt.LR)
 
     Flux.loadparams!(model, results.minimizer)
 

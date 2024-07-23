@@ -3,7 +3,7 @@ using Flux, CUDA, KernelAbstractions, Optim, ProgressBars, Dates
 include("utils.jl")
 include("../architecture/kan_model.jl")
 using .PipelineUtils
-using .KolmogorovArnoldNets: fwd!
+using .KolmogorovArnoldNets: fwd!, update_grid!
 
 function L2_loss(model, x, y)
     """
@@ -56,7 +56,7 @@ function init_trainer(train_loader, test_loader, optimiser; loss_fn:nothing, max
     return trainer(train_loader, test_loader, optimiser, loss_fn, max_epochs, verbose)
 end
 
-function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", update_grid=true, grid_update_num=10, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
+function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", update_grid_bool=true, grid_update_num=10, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
     λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0)
     """
     Train symbolic model.
@@ -93,7 +93,7 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", update_g
         t.loss_fn = L2_loss
     end
 
-    grid_updated_freq = fld(stop_grid_update_step, grid_update_num)
+    grid_update_freq = fld(stop_grid_update_step, grid_update_num)
     file_name = log_log * "_" string(now()) * ".csv"
 
     # Create csv with header
@@ -101,7 +101,35 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", update_g
         write(file, "Epoch,Time (s),Train Loss,Test Loss,Regularisation")
     end
 
+    start_time = time()
     for epoch in ProgressBar(1:t.max_epochs)
+        train_loss = 0.0
+        test_loss = 0.0
+
+        # Training
+        Flux.trainmode!(model)
+        for (x, y) in t.train_loader
+            x, y = x |> permutedims, y |> permutedims
+            loss = step!(t.optimiser, model, t.loss_fn, epoch, x, y)
+            train_loss += loss + λ*reg(model.acts_scale)
+            if (epoch % grid_update_freq == 0) && (epoch < stop_grid_update_step) && update_grid_bool
+                update_grid!(model, x)
+            end
+        end
+
+        # Testing
+        Flux.testmode!(model)
+        for (x, y) in t.test_loader
+            x, y = x |> permutedims, y |> permutedims
+            loss = loss_fn(model, x, y)
+            test_loss += loss + λ*reg(model.acts_scale)
+        end
+
+        train_loss /= length(t.train_loader.data)
+        test_loss /= length(t.test_loader.data)
+
+        time_epoch = time() - start_time
+        log_csv(epoch, time_epoch, train_loss, test_loss, reg(model.acts_scale), file_name)
 
     return model
 end

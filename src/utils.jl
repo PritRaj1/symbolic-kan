@@ -2,7 +2,7 @@ module Utils
 
 export device
 
-using Flux, CUDA, KernelAbstractions, Tullio, LinearAlgebra, Statistics, GLM, DataFrames
+using Flux, CUDA, KernelAbstractions, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random
 
 const USE_GPU = CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))
 
@@ -157,6 +157,51 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_numb
     end
 
     return [α_best, β_best, w_best, b_best], R2_best
+end
+
+function create_loaders(fcn; N_var=2, x_range=(-1,1), N_train=1000, N_test=1000, batch_size=32, normalise_x=false, normalise_y=false, init_seed=nothing)
+    """
+    Create train and test dataloaders
+
+    Args:
+    - fcn: symbolic function to generate data for.
+    - N_var: number of input variables.
+    - range: range of input variables.
+    - N_train: number of training samples.
+    - N_test: number of test samples.
+    - normalise_input: whether to normalise input.
+    - normalise_output: whether to normalise output.
+    - init_seed: random seed.
+
+    Returns:
+    - train_loader: training dataloader.
+    - test_loader: test dataloader.
+    """
+
+    Random.seed!(init_seed)
+
+    # Generate data
+    X_train = rand(x_range[1]:x_range[2], N_var, N_train)
+    y_train = fcn.(X_train)
+    X_test = rand(x_range[1]:x_range[2], N_var, N_test)
+    y_test = fcn.(X_test)
+
+    # Normalise data
+    if normalise_x
+        X_train = (X_train .- mean(X_train, dims=1)) ./ std(X_train, dims=1)
+        X_test = (X_test .- mean(X_test, dims=1)) ./ std(X_test, dims=1)
+    end
+
+    if normalise_y
+        y_train = (y_train .- mean(y_train, dims=1)) ./ std(y_train, dims=1)
+        y_test = (y_test .- mean(y_test, dims=1)) ./ std(y_test, dims=1)
+    end
+
+    # Create dataloaders
+    train_loader = Flux.Data.DataLoader((X_train, y_train); batchsize=batch_size, shuffle=true)
+    test_loader = Flux.Data.DataLoader((X_test, y_test); batchsize=batch_size, shuffle=true)
+
+    return train_loader, test_loader
 end
 
 end

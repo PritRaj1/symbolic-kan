@@ -2,6 +2,7 @@ using Pkg
 
 Pkg.add("Flux")
 Pkg.add("NNlib")
+Pkg.add("Optim")
 Pkg.add("CUDA")
 Pkg.add("cuDNN")
 Pkg.add("LinearAlgebra")

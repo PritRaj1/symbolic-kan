@@ -2,7 +2,7 @@ using Test, Random
 using Plots; pythonplot()
 
 include("../utils.jl")
-using .Utils: fit_params
+using .Utils: fit_params, create_loaders
 
 # Test parameter fitting for symbolic reg
 function test_param_fitting()
@@ -45,5 +45,21 @@ function test_sin_fitting()
     savefig("figures/test_sin_fitting.png")
 end
 
-test_param_fitting()
-test_sin_fitting()
+function test_loaders()
+    fcn = x -> x
+    train_loader, test_loader = create_loaders(fcn)
+    x, y = first(train_loader)
+    @test all(size(x |> permutedims) .== (32, 2))
+    @test all(size(y |> permutedims) .== (32, 2))
+    @test all(x .- y .== 0.0)
+
+    train_loader, test_loader = create_loaders(fcn; N_var=3)
+    x, y = first(train_loader)
+    @test all(size(x |> permutedims) .== (32, 3))
+    @test all(size(y |> permutedims) .== (32, 3))
+    @test all(x .- y .== 0.0)
+end
+
+# test_param_fitting()
+# test_sin_fitting()
+test_loaders()

@@ -1,3 +1,6 @@
+module Plotting
+
+export plot_kan!
 
 using Flux
 using Plots
@@ -214,21 +217,21 @@ function plot_kan!(model::KAN_; folder="figures/", γ=3, prune_and_mask=false, m
                     end
                 end
 
-                if in_vars != nothing
+                if isnothing(in_vars)
                     n = self.width[1]
                     for i in 1:n
                         annotate!(1 / (2 * n) + (i - 1) / n, -0.1, text(in_vars[i], 40 * scale, :center))
                     end
                 end
 
-                if out_vars != nothing
+                if isnothing(out_vars)
                     n = self.width[end]
                     for i in 1:n
                         annotate!(1 / (2 * n) + (i - 1) / n, y0 * (neuron_depth - 1) + 0.1, text(out_vars[i], 40 * scale, :center))
                     end
                 end
 
-                if title != nothing
+                if !isnothing(title)
                     annotate!(0.5, y0 * (neuron_depth - 1) + 0.2, text(title, 40 * scale, :center))
                 end
 
@@ -236,4 +239,6 @@ function plot_kan!(model::KAN_; folder="figures/", γ=3, prune_and_mask=false, m
             end
         end
     end
+end
+
 end

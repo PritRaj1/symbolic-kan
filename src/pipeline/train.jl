@@ -2,7 +2,7 @@ module Trainer
 
 export init_trainer, train!
 
-using Flux, CUDA, KernelAbstractions, Optim, ProgressBars, Dates
+using Flux, CUDA, KernelAbstractions, Optim, ProgressBars, Dates, Tullio, CSV
 
 include("utils.jl")
 include("../architecture/kan_model.jl")
@@ -24,6 +24,7 @@ function L2_loss(model, x, y)
     - loss: L2 loss.
     """
     ŷ = fwd!(model, x)
+    println("ŷ: ", ŷ)
     return sum((ŷ .- y).^2)
 end
 
@@ -43,7 +44,7 @@ mutable struct trainer
     verbose::Bool
 end
 
-function init_trainer(train_loader, test_loader, optimiser; loss_fn:nothing, max_epochs=100, verbose=true)
+function init_trainer(train_loader, test_loader, optimiser; loss_fn=nothing, max_epochs=100, verbose=true)
     """
     Initialise trainer for training symbolic model.
 
@@ -104,7 +105,8 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
     end
 
     grid_update_freq = fld(stop_grid_update_step, grid_update_num)
-    file_name = log_log * "_" * string(now()) * ".csv"
+    date_str = Dates.format(now(), "yyyy-mm-dd_HH-MM-SS")
+    file_name = log_loc * "log_" * date_str * ".csv"
 
     # Create csv with header
     open(file_name, "w") do file

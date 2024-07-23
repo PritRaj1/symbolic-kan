@@ -2,13 +2,13 @@ module PipelineUtils
 
 export create_loaders, create_opt, step!
 
-using Flux, CUDA, KernelAbstractions, Optim, Statistics, Random, Zygote
+using Flux, CUDA, KernelAbstractions, Optim, Statistics, Random, Zygote, FluxOptTools
 
 include("opt_tools.jl")
 using .OptTools: line_search_map, optimiser_map, step_decay_scheduler
 
 ### Data loaders ###
-function create_loaders(fcn; N_var=2, x_range=(-1,1), N_train=1000, N_test=1000, batch_size=32, normalise_x=false, normalise_y=false, init_seed=nothing)
+function create_loaders(fcn; N_var=2, x_range=(-1.0,1.0), N_train=1000, N_test=1000, batch_size=32, normalise_x=false, normalise_y=false, init_seed=nothing)
     """
     Create train and test dataloaders
 
@@ -30,9 +30,9 @@ function create_loaders(fcn; N_var=2, x_range=(-1,1), N_train=1000, N_test=1000,
     Random.seed!(init_seed)
 
     # Generate data
-    X_train = rand(x_range[1]:x_range[2], N_var, N_train)
+    X_train = randn(Float32, (N_var, N_train)) .* (x_range[2] - x_range[1]) .+ x_range[1]
     y_train = fcn.(X_train)
-    X_test = rand(x_range[1]:x_range[2], N_var, N_test)
+    X_test = randn(Float32, (N_var, N_test)) .* (x_range[2] - x_range[1]) .+ x_range[1]
     y_test = fcn.(X_test)
 
     # Normalise data
@@ -54,7 +54,7 @@ function create_loaders(fcn; N_var=2, x_range=(-1,1), N_train=1000, N_test=1000,
 end
 
 mutable struct optimiser
-    OPT::Optim.Optimizer
+    OPT
     LR_scheduler::Function
     LR::Float32
 end
@@ -92,7 +92,7 @@ function create_opt(type="lbfgs"; history=100, line_search="strong_wolfe", c1=1e
     return optimiser(opt, schedule_fcn, LR)
 end
 
-function step!(opt::optimiser, model, loss_fcn, epoch, x, y; tol=1e-32)
+function step!(opt, model, loss_fcn, epoch, x, y; tol=1e-32)
     """
     Perform one step of optimisation.
 
@@ -115,15 +115,23 @@ function step!(opt::optimiser, model, loss_fcn, epoch, x, y; tol=1e-32)
         return loss_fcn(model, x, y)
     end
 
-    init_params = Flux.params(model)
-    grad = θ -> Zygote.gradient(loss, θ)[1]
-
-    results = Optim.optimize(loss, grad, init_params, opt.OPT(opt.LR), Optim.Options(iterations=1, x_abstol=tol, f_abstol=tol, g_abstol=tol))
+    Zygote.refresh()
+    params = Flux.params(model)
+    # lossfun, gradfun, fg!, p0 = optfuns(loss, params)   
+    # println("Epoch: $epoch, Loss: $(loss())") 
+    # grad=Zygote.gradient(loss, p0)
+    # println("grad", grad)
+    # optimiser = opt.OPT(opt.LR)
+    # println("optimiser created", optimiser)
+    # println("params", p0)
+    # println("loss", loss(params))
+    results = Optim.optimize(loss, params, optimiser, Optim.Options(iterations=1, show_trace=true, x_abstol=tol, f_abstol=tol, g_abstol=tol))
     opt.LR = opt.LR_scheduler(epoch, opt.LR)
 
-    Flux.loadparams!(model, results.minimizer)
+    Flux.loadparams!(model, Optim.minimizer(result))
+    println("params loaded")
 
-    return loss_fcn(model, x, y)
+    return loss()
 end
 
 end

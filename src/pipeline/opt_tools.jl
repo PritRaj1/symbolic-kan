@@ -14,7 +14,7 @@ function strong_wolfe(c1=1e-4, c2=0.9, ρ=2.0)
 end
 
 function (sw::SW)()
-    return LineSearches.StrongWolfe(; c_1=sw.c1, c_2sw.c2, ρ=sw.ρ)
+    return LineSearches.StrongWolfe(; c_1=sw.c1, c_2=sw.c2, ρ=sw.ρ)
 end
 
 ### HagerZhang ###
@@ -60,7 +60,7 @@ line_search_map = Dict(
 )
 
 struct LBFGS
-    line_search::Function
+    line_search
     m::Int
 end
 
@@ -73,7 +73,7 @@ function (lb::LBFGS)(LR)
 end
 
 struct GD
-    line_search::Function
+    line_search
 end
 
 function gradient_descent(line_search, history=nothing)

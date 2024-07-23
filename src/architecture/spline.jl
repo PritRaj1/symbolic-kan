@@ -71,7 +71,7 @@ function B_batch(x, grid; degree::Int64, eps=1e-6)
         B = @tullio out[d, n, m] := (numer1[d, n, m] / denom1[1, n, m] * B_i1[d, n, m]) + (numer2[d, n, m] / denom2[1, n, m] * B_i2[d, n, m])
     end
 
-    replace!(B, NaN=>eps)
+    B = ifelse.(isnan.(B), eps, B)
     return B 
 end
 

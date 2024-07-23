@@ -3,7 +3,6 @@ module KolmogorovArnoldNets
 export KAN, fwd!, update_grid!, fix_symbolic!, prune!
 
 using Flux, CUDA, KernelAbstractions, Tullio, NNlib, Random, Statistics
-using FunctionWrappers: FunctionWrapper
 
 include("kan_layer.jl")
 include("symbolic_layer.jl")
@@ -14,10 +13,10 @@ mutable struct KAN_
     widths::Vector{Int}
     depth::Int
     grid_interval::Int
-    base_fcn::FunctionWrapper{Float64, Tuple{Float64}}
-    act_fcns::Vector{Any}
-    biases::Vector{Any}
-    symbolic_fcns::Vector{Any}
+    base_fcn
+    act_fcns
+    biases
+    symbolic_fcns
     symbolic_enabled::Bool
     acts::Vector{AbstractArray}
     pre_acts::Vector{AbstractArray}
@@ -38,7 +37,7 @@ function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=
         .+ σ_scale .* (randn(widths[i], widths[i + 1]) .* 2 .- 1) .* (1 / √(widths[i])))
         spline = b_spline_layer(widths[i], widths[i + 1]; num_splines=grid_interval, degree=k, ε_scale=ε_scale, σ_base=base_scale, σ_sp=base_scale, base_act=base_act, grid_eps=grid_eps, grid_range=grid_range, sparse_init=sparse_init)
         push!(act_fcns, spline)
-        bias = zeros(widths[i + 1], 1)
+        bias = zeros(1, widths[i + 1])
         push!(biases, bias)
     end
 
@@ -50,25 +49,30 @@ function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=
     return KAN_(widths, depth, grid_interval, base_act, act_fcns, biases, symbolic, symbolic_enabled, [], [], [], [], [])
 end
 
-Flux.@functor KAN_
+Flux.@functor KAN_ (act_fcns, biases, symbolic_fcns)
 
-function fwd!(model::KAN_, x)
-    model.acts = [x]
+using Zygote: @nograd
+
+@nograd function add_to_array!(arr, x)
+    return push!(arr, x)
+end
+
+function fwd!(model, x)
     model.pre_acts = []
     model.post_acts = []
     model.post_splines = []
     model.acts_scale = []
     x_eval = copy(x)
+    model.acts = add_to_array!([], x_eval)
 
     for i in 1:model.depth
         # Evaluate b_spline at x
         x_numerical, pre_acts, post_acts_numerical, postspline = model.act_fcns[i](model.acts[i])
 
         # Evaluate symbolic layer at x
+        x_symbolic, post_acts_symbolic = 0.0, 0.0
         if model.symbolic_enabled
             x_symbolic, post_acts_symbolic = model.symbolic_fcns[i](model.acts[i])
-        else
-            x_symbolic, post_acts_symbolic = 0.0, 0.0
         end
 
         x_eval = x_numerical .+ x_symbolic
@@ -76,21 +80,20 @@ function fwd!(model::KAN_, x)
 
         in_range = std(pre_acts, dims=1)[1, :, :] .+ 0.1
         out_range = std(post_acts, dims=1)[1, :, :] .+ 0.1
-        push!(model.acts_scale, (out_range ./ in_range)) 
-        push!(model.pre_acts, pre_acts)
-        push!(model.post_acts, post_acts)
-        push!(model.post_splines, postspline)
+        add_to_array!(model.acts_scale, out_range ./ in_range)
+        add_to_array!(model.pre_acts, pre_acts)
+        add_to_array!(model.post_acts, post_acts)
+        add_to_array!(model.post_splines, postspline)
 
         # Add bias
-        b = model.biases[i]
-        @tullio x_eval[n, m] += b[m, 1]
-        push!(model.acts, x_eval)
+        b = repeat(model.biases[i], size(x_eval, 1), 1)
+        x_eval = @tullio res[m, n] := x_eval[m, n] + b[m, n]
+        add_to_array!(model.acts, x_eval)
     end
-
     return x
 end
 
-function update_grid!(model::KAN_, x)
+function update_grid!(model, x)
     """
     Update the grid for each b-spline layer in the model.
     """
@@ -101,7 +104,7 @@ function update_grid!(model::KAN_, x)
     end
 end
 
-function set_mode!(model::KAN_, l, i, j, mode; mask_n=nothing)
+function set_mode!(model, l, i, j, mode; mask_n=nothing)
     """
     Set neuron (l, i, j) to mode.
 
@@ -135,7 +138,7 @@ function set_mode!(model::KAN_, l, i, j, mode; mask_n=nothing)
     model.symbolic_fcns[l].mask[j, i] = mask_s
 end
 
-function fix_symbolic!(model::KAN_, l, i, j, fcn_name; fit_params=true, α_range=(-10, 10), β_range=(-10, 10), grid_number=101, iterations=3, μ=1.0, random=false, seed=nothing, verbose=true)
+function fix_symbolic!(model, l, i, j, fcn_name; fit_params=true, α_range=(-10, 10), β_range=(-10, 10), grid_number=101, iterations=3, μ=1.0, random=false, seed=nothing, verbose=true)
     """
     Set the activation for element (l, i, j) to a fixed symbolic function.
 
@@ -169,7 +172,7 @@ function fix_symbolic!(model::KAN_, l, i, j, fcn_name; fit_params=true, α_range
     end 
 end
 
-function unfix_symbolic!(model::KAN_, l, i, j)
+function unfix_symbolic!(model, l, i, j)
     """
     Unfix the symbolic function for element (l, i, j).
 
@@ -181,7 +184,7 @@ function unfix_symbolic!(model::KAN_, l, i, j)
     set_mode!(model, l, i, j, "n")
 end
 
-function unfix_symb_all!(model::KAN_)
+function unfix_symb_all!(model)
     """
     Unfix all symbolic functions in the model.
     """
@@ -194,7 +197,7 @@ function unfix_symb_all!(model::KAN_)
     end
 end
 
-function prune!(model::KAN_; threshold=1e-2, mode="auto", active_neurons_id=None)
+function prune!(model; threshold=1e-2, mode="auto", active_neurons_id=None)
     """
     Prune the activation of neuron (l, i, j) based on the threshold.
     If the neuron has a small range of activation, shave off the neuron.
@@ -241,7 +244,7 @@ function prune!(model::KAN_; threshold=1e-2, mode="auto", active_neurons_id=None
 
     for i in eachindex(model.acts_scale)
         if i < length(model.acts_scale)
-            model_pruned.biases[i] = model.biases[i][active_neurons_id[i+1], :]
+            model_pruned.biases[i] = model.biases[i][:, active_neurons_id[i+1]]
         end
 
         model_pruned.act_fcns[i] = get_subset(model.act_fcns[i], active_neurons_id[i], active_neurons_id[i+1])

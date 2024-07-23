@@ -3,7 +3,6 @@ module symbolic_layer
 export symbolic_kan_layer, lock_symbolic!, get_symb_subset
 
 using Flux, CUDA, KernelAbstractions, Tullio, Random
-using FunctionWrappers: FunctionWrapper
 
 include("../symbolic_lib.jl")
 include("../utils.jl")
@@ -14,10 +13,10 @@ mutable struct symbolic_dense
     in_dim::Int
     out_dim::Int
     mask::AbstractArray
-    fcns::Vector{Vector{FunctionWrapper{Float64, Tuple{Float64}}}}
-    fcns_avoid_singular::Vector{Vector{FunctionWrapper{Tuple{Float64, Float64}, Tuple{Tuple{}, Float64}}}}
+    fcns
+    fcns_avoid_singular
     fcn_names::Vector{Vector{String}}
-    fcn_sympys::Vector{Vector{FunctionWrapper{Float64, Tuple{Float64}}}}   
+    fcn_sympys
     affine::AbstractArray
 end
 
@@ -70,6 +69,8 @@ function (l::symbolic_dense)(x; avoid_singular=false, y_th=10.0)
         post_acts_ = reshape(post_acts_, b_size, l.out_dim, 1)
         post_acts = cat(post_acts, post_acts_, dims=3)
     end
+
+    y = sum(post_acts, dims=3)[:, :, 1]
 
     return sum(post_acts, dims=3)[:, :, 1], post_acts
 end

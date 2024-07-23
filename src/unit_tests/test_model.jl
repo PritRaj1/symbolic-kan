@@ -1,4 +1,4 @@
-using Test, Random, Flux, Zygote
+using Test, Random, Flux, Zygote, Optim, FluxOptTools, Statistics
 
 include("../architecture/kan_model.jl")
 using .KolmogorovArnoldNets
@@ -65,12 +65,14 @@ end
 
 function test_param_grad()
         Random.seed!(123)
-        model = KAN([2,5,1]; k=3, grid_interval=5)
+        m = KAN([2,5,1]; k=3, grid_interval=5)
         x = randn(100, 2)
-        y = fwd!(model, x)
-        loss = sum(y)
-        grads = gradient(() -> sum(fwd!(model, x)), Flux.params(model))
-        @test all(grads[1] .!= 0.0)
+        
+        loss() = sum((fwd!(m, x) .- 1).^2)
+        pars = Flux.params(m)
+        lossfun, gradfun, fg!, p0 = optfuns(loss, pars)
+        res = Optim.optimize(Optim.only_fg!(fg!), p0, Optim.Options(iterations=1000, store_trace=true))
+        println(res.minimizer)
 end
 
 

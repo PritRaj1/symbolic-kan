@@ -2,13 +2,14 @@ module symbolic_layer
 
 export symbolic_kan_layer, lock_symbolic!, get_symb_subset
 
-using Flux, CUDA, KernelAbstractions, Tullio, Random
+using Flux, Tullio, Random
+# using CUDA, KernelAbstractions
 using FunctionWrappers: FunctionWrapper
 
 include("../symbolic_lib.jl")
 include("../utils.jl")
 using .SymbolicLib: SYMBOLIC_LIB
-using .Utils: device, fit_params
+using .Utils: fit_params
 
 mutable struct symbolic_dense
     in_dim::Int
@@ -31,8 +32,6 @@ function symbolic_kan_layer(in_dim::Int, out_dim::Int)
 
     return symbolic_dense(in_dim, out_dim, mask, fcns, fcns_avoid_singular, fcn_names, fcn_sympys, affine)
 end
-
-Flux.@functor symbolic_dense (mask, affine)
 
 function (l::symbolic_dense)(x; avoid_singular=false, y_th=10.0)
     """

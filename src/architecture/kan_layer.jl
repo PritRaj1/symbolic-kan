@@ -3,13 +3,13 @@ module dense_kan
 export b_spline_layer, update_lyr_grid!, get_subset
 
 using Flux
-using CUDA, KernelAbstractions
+# using CUDA, KernelAbstractions
 using Tullio, NNlib
 
 include("spline.jl")
 include("../utils.jl")
 using .Spline: extend_grid, coef2curve, curve2coef
-using .Utils: device, sparse_mask
+using .Utils: sparse_mask
 
 mutable struct kan_dense
     in_dim::Int
@@ -17,6 +17,7 @@ mutable struct kan_dense
     num_splines::Int
     degree::Int
     grid::AbstractArray
+    RBF_σ::Float32
     ε::AbstractArray
     coef::AbstractArray
     w_base::AbstractArray
@@ -32,8 +33,9 @@ function b_spline_layer(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_s
     grid = repeat(grid, in_dim, 1) 
     grid = extend_grid(grid, degree) 
     
+    init_σ = 1.0
     ε = ((rand(num_splines + 1, in_dim, out_dim) .- 0.5) .* ε_scale ./ num_splines)  
-    coef = curve2coef(grid[:, degree:end-degree-1] |> permutedims, ε, grid; k=degree)
+    coef = curve2coef(grid[:, degree:end-degree-1] |> permutedims, ε, grid; k=degree, scale=init_σ)
     
     if sparse_init
         mask = sparse_mask(in_dim, out_dim)
@@ -45,10 +47,10 @@ function b_spline_layer(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_s
     w_sp = ones(in_dim, out_dim) .* σ_sp .* mask
     mask = ones(in_dim, out_dim) 
 
-    return kan_dense(in_dim, out_dim, num_splines, degree, grid, ε, coef, w_base, w_sp, base_act, mask, grid_eps, grid_range)
+    return kan_dense(in_dim, out_dim, num_splines, degree, grid, init_σ, ε, coef, w_base, w_sp, base_act, mask, grid_eps, grid_range)
 end
 
-Flux.@functor kan_dense (grid, coef, w_base, w_sp, mask)
+Flux.@functor kan_dense (grid, RBF_σ, ε, coef, w_base, w_sp)
 
 function (l::kan_dense)(x)
     b_size = size(x, 1)
@@ -58,7 +60,7 @@ function (l::kan_dense)(x)
     base = l.base_act(x)
 
     # B-spline basis functions of degree k
-    y = coef2curve(x, l.grid, l.coef; k=l.degree)
+    y = coef2curve(x, l.grid, l.coef; k=l.degree, scale=l.RBF_σ)
     post_spline = permutedims(copy(y), [1, 3, 2])
 
     # w_b*b(x) + w_s*spline(x).
@@ -84,7 +86,7 @@ function update_lyr_grid!(l::kan_dense, x; margin=0.01)
     
     # Compute the B-spline basis functions of degree k
     x_sort = sortslices(x, dims=1)
-    current_splines = coef2curve(x_sort, l.grid, l.coef; k=l.degree)
+    current_splines = coef2curve(x_sort, l.grid, l.coef; k=l.degree, scale=l.RBF_σ)
 
     # Adaptive grid - concentrate grid points around regions of higher density
     num_interval = size(l.grid, 2) - 2*l.degree - 1
@@ -104,7 +106,7 @@ function update_lyr_grid!(l::kan_dense, x; margin=0.01)
     # Grid is a convex combination of the uniform and adaptive grid
     grid = @tullio out[i, j] := l.grid_eps * grid_uniform[i, j] + (1 - l.grid_eps) * grid_adaptive[i, j]
     l.grid = extend_grid(grid, l.degree)
-    l.coef = curve2coef(x_sort, current_splines, l.grid; k=l.degree)
+    l.coef = curve2coef(x_sort, current_splines, l.grid; k=l.degree, scale=l.RBF_σ)
 end
 
 function get_subset(l::kan_dense, in_indices, out_indices)

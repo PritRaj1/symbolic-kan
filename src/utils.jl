@@ -1,14 +1,15 @@
 module Utils
 
-export device
+# export device
 
-using Flux, CUDA, KernelAbstractions, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random
+using Flux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random
+# using CUDA, KernelAbstractions
 
-const USE_GPU = CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))
+# const USE_GPU = CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))
 
-function device(x)
-    return USE_GPU ? gpu(x) : x
-end
+# function device(x)
+#     return USE_GPU ? gpu(x) : x
+# end
 
 function sparse_mask(in_dim, out_dim)
     """

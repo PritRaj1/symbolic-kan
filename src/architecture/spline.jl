@@ -3,11 +3,13 @@ module Spline
 export extend_grid, B_batch, coef2curve, curve2coef
 
 using Flux
-using CUDA, KernelAbstractions
+# using CUDA, KernelAbstractions
 using Tullio
 
 include("../utils.jl")
-using .Utils: device, sparse_mask
+using .Utils: sparse_mask
+
+method = get(ENV, "METHOD", "RBF") # "spline" or "RBF"
 
 function extend_grid(grid, k_extend=0)
     """
@@ -88,12 +90,12 @@ function B_batch_RBF(x, grid; degree=nothing, σ=1.0)
     return B
 end
 
-BasisMap = Dict(
+BasisFcn = Dict(
     "spline" => B_batch,
     "RBF" => B_batch_RBF
-)
+)[method]
 
-function coef2curve(x_eval, grid, coef; k::Int64, method="RBF")
+function coef2curve(x_eval, grid, coef; k::Int64, scale=1.0)
     """
     Compute the B-spline curves from the B-spline coefficients.
 
@@ -107,12 +109,12 @@ function coef2curve(x_eval, grid, coef; k::Int64, method="RBF")
         A matrix of size (d, l, n) containing the B-spline curves evaluated at the points x_eval.
     """
     
-    b_splines = BasisMap[method](x_eval, grid; degree=k, σ=1.0)
+    b_splines = BasisFcn(x_eval, grid; degree=k, σ=scale)
     y_eval = @tullio out[i, j, l] := b_splines[i, j, k] * coef[j, l, k]
     return y_eval
 end
 
-function curve2coef(x_eval, y_eval, grid; k::Int64, method="RBF", eps=1e-6)
+function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0)
     """
     Convert B-spline curves to B-spline coefficients using least squares.
 
@@ -127,8 +129,7 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, method="RBF", eps=1e-6)
     """
     n_coeffs = size(grid, 2) - k - 1
     out_dim = size(y_eval, 3)
-    B = BasisMap[method](x_eval, grid; degree=k, σ=1.0)
-
+    B = BasisFcn(x_eval, grid; degree=k, σ=scale)
     # Compute the B-spline coefficients using least squares with \ operator
     coef = @tullio out[j, q, p] := B[i, j, p] \ y_eval[i, j, q]
 

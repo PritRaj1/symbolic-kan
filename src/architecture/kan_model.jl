@@ -2,7 +2,8 @@ module KolmogorovArnoldNets
 
 export KAN, fwd!, update_grid!, fix_symbolic!, prune!
 
-using Flux, CUDA, KernelAbstractions, Tullio, NNlib, Random, Statistics, FunctionWrappers
+using Flux, Tullio, NNlib, Random, Statistics
+# using CUDA, KernelAbstractions
 
 include("kan_layer.jl")
 include("symbolic_layer.jl")
@@ -49,7 +50,7 @@ function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=
     return KAN_(widths, depth, grid_interval, base_act, act_fcns, biases, symbolic, symbolic_enabled, [], [], [], [], [])
 end
 
-Flux.@functor KAN_ (act_fcns, biases, symbolic_fcns)
+Flux.@functor KAN_ (biases, act_fcns)
 
 using Zygote: @nograd
 

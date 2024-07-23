@@ -2,7 +2,8 @@ module PipelineUtils
 
 export create_loaders, create_opt, step!
 
-using Flux, CUDA, KernelAbstractions, Optim, Statistics, Random, Zygote, FluxOptTools
+using Flux, Optim, Statistics, Random, Zygote, FluxOptTools
+# using CUDA, KernelAbstractions
 
 include("opt_tools.jl")
 using .OptTools: line_search_map, optimiser_map, step_decay_scheduler

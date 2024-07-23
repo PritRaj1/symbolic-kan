@@ -2,7 +2,8 @@ module Trainer
 
 export init_trainer, train!
 
-using Flux, CUDA, KernelAbstractions, Optim, ProgressBars, Dates, Tullio, CSV
+using Flux, Optim, ProgressBars, Dates, Tullio, CSV
+# using CUDA, KernelAbstractions
 
 include("utils.jl")
 include("../architecture/kan_model.jl")

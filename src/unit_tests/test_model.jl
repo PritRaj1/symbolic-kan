@@ -1,4 +1,4 @@
-using Test, Random
+using Test, Random, Flux, Zygote
 
 include("../architecture/kan_model.jl")
 using .KolmogorovArnoldNets
@@ -63,6 +63,18 @@ function test_lock()
     @test all(mask2[:, 1] .== [1.0, 1.0, 1.0, 1.0, 1.0])
 end
 
-test_fwd()
-test_grid()
-test_lock()
+function test_param_grad()
+        Random.seed!(123)
+        model = KAN([2,5,1]; k=3, grid_interval=5)
+        x = randn(100, 2)
+        y = fwd!(model, x)
+        loss = sum(y)
+        grads = gradient(() -> sum(fwd!(model, x)), Flux.params(model))
+        @test all(grads[1] .!= 0.0)
+end
+
+
+# test_fwd()
+# test_grid()
+# test_lock()
+test_param_grad()

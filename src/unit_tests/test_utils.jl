@@ -22,15 +22,6 @@ function test_param_fitting()
     @test abs(params[4] - 0) < 0.01
 end
 
-"""
-num = 100
-x = torch.linspace(-1,1,steps=num)
-# noises = torch.normal(0,1,(num,)) * 0.02
-y = 5.0*torch.sin(3.0*x + 2.0) + 0.7 #+ noises
-fit_params(x, y, torch.sin)
-# r2 is 0.9999727010726929
-# (tensor([2.9982, 1.9996, 5.0053, 0.7011]), tensor(1.0000))"""
-
 function test_sin_fitting()
     num = 100
     x = range(-1, 1, length=num) |> collect

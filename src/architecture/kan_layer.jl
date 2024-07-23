@@ -29,10 +29,10 @@ end
 
 function b_spline_layer(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=0.1, σ_base=1.0, σ_sp=1.0, base_act=NNlib.selu, grid_eps=0.02, grid_range=(-1, 1), sparse_init=false)
     grid = range(grid_range[1], grid_range[2], length=num_splines + 1) |> collect |> x -> reshape(x, 1, length(x))
-    grid = repeat(grid, in_dim, 1) |> device
+    grid = repeat(grid, in_dim, 1) 
     grid = extend_grid(grid, degree) 
     
-    ε = ((rand(num_splines + 1, in_dim, out_dim) .- 0.5) .* ε_scale ./ num_splines)  |> device
+    ε = ((rand(num_splines + 1, in_dim, out_dim) .- 0.5) .* ε_scale ./ num_splines)  
     coef = curve2coef(grid[:, degree:end-degree-1] |> permutedims, ε, grid; k=degree)
     
     if sparse_init
@@ -89,7 +89,7 @@ function update_lyr_grid!(l::kan_dense, x; margin=0.01)
     # Adaptive grid - concentrate grid points around regions of higher density
     num_interval = size(l.grid, 2) - 2*l.degree - 1
     ids = [div(b_size * i, num_interval) for i in 1:num_interval]
-    grid_adaptive = zeros(0, size(x, 2)) |> device
+    grid_adaptive = zeros(0, size(x, 2)) 
     for idx in ids
         grid_adaptive = vcat(grid_adaptive, x_sort[idx:idx, :])
     end
@@ -98,7 +98,7 @@ function update_lyr_grid!(l::kan_dense, x; margin=0.01)
 
     # Uniform grid
     h = (grid_adaptive[:, end:end] .- grid_adaptive[:, 1:1]) ./ num_interval # step size
-    range = device(collect(0:num_interval))[:, :] |> permutedims 
+    range = collect(0:num_interval)[:, :] |> permutedims 
     grid_uniform = h .* range .+ grid_adaptive[:, 1:1] 
 
     # Grid is a convex combination of the uniform and adaptive grid
@@ -123,17 +123,17 @@ function get_subset(l::kan_dense, in_indices, out_indices)
     l_sub.in_dim = length(in_indices)
     l_sub.out_dim = length(out_indices)
 
-    new_grid = zeros(0, size(l.grid, 2)) |> device
+    new_grid = zeros(0, size(l.grid, 2)) 
     for i in in_indices
         new_grid = vcat(new_grid, l.grid[i:i, :])
     end
     l_sub.grid = new_grid
 
-    l_sub.ε = zeros(size(l.ε, 1), l_sub.in_dim, l_sub.out_dim) |> device
-    l_sub.coef = zeros(l_sub.in_dim, l_sub.out_dim, size(l.coef, 3)) |> device
-    l_sub.w_base = zeros(l_sub.in_dim, l_sub.out_dim) |> device
-    l_sub.w_sp = zeros(l_sub.in_dim, l_sub.out_dim) |> device
-    l_sub.mask = zeros(l_sub.in_dim, l_sub.out_dim) |> device
+    l_sub.ε = zeros(size(l.ε, 1), l_sub.in_dim, l_sub.out_dim) 
+    l_sub.coef = zeros(l_sub.in_dim, l_sub.out_dim, size(l.coef, 3)) 
+    l_sub.w_base = zeros(l_sub.in_dim, l_sub.out_dim) 
+    l_sub.w_sp = zeros(l_sub.in_dim, l_sub.out_dim) 
+    l_sub.mask = zeros(l_sub.in_dim, l_sub.out_dim) 
     
     for in_idx in eachindex(in_indices)
         for out_idx in eachindex(out_indices)

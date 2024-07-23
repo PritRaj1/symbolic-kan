@@ -93,7 +93,7 @@ function create_opt(type="lbfgs"; history=100, line_search="strong_wolfe", c1=1e
     return optimiser(opt, schedule_fcn)
 end
 
-function step!(opt::optimiser, model, loss_fcn, epoch, x, y, LR)
+function step!(opt::optimiser, model, loss_fcn, epoch, x, y, LR; tol=1e-32)
     """
     Perform one step of optimisation.
 
@@ -113,18 +113,18 @@ function step!(opt::optimiser, model, loss_fcn, epoch, x, y, LR)
     # Function to optimiser w.r.t params
     function loss(params)
         Flux.loadparams!(model, params)
-        return loss_fcn(model(x), y)
+        return loss_fcn(model, x, y)
     end
 
     init_params = Flux.params(model)
     grad = θ -> Zygote.gradient(loss, θ)[1]
 
-    results = Optim.optimize(loss, grad, init_params, opt.OPT(LR), Optim.Options(iterations=1))
+    results = Optim.optimize(loss, grad, init_params, opt.OPT(LR), Optim.Options(iterations=1, x_abstol=tol, f_abstol=tol, g_abstol=tol))
     LR = opt.LR_scheduler(epoch, LR)
 
     Flux.loadparams!(model, results.minimizer)
 
-    return loss_fcn(model(x), y)
+    return loss_fcn(model, x, y)
 end
 
 end

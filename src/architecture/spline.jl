@@ -52,8 +52,8 @@ function B_batch(x, grid; degree::Int64, eps=1e-6)
 
     term1 = @tullio term1[i, j, k] := (x[i, j] >= grid_1[j, k] ? 1.0 : 0.0)
     term2 = @tullio term2[i, j, k] := (x[i, j] < grid_2[j, k] ? 1.0 : 0.0)
-    term1 |> collect |> device
-    term2 |> collect |> device
+    term1 |> collect 
+    term2 |> collect 
 
     B = @tullio res[d, p, n] := term1[d, p, n] * term2[d, p, n]
 
@@ -72,7 +72,7 @@ function B_batch(x, grid; degree::Int64, eps=1e-6)
     end
 
     replace!(B, NaN=>eps)
-    return B |> device
+    return B 
 end
 
 function coef2curve(x_eval, grid, coef; k::Int64)

@@ -52,11 +52,11 @@ function (l::symbolic_dense)(x; avoid_singular=false, y_th=10.0)
     """
 
     b_size = size(x, 1)
-    avoid_singular ? y_th = repeat([10.0], b_size, 1) |> device : y_th = nothing
+    avoid_singular ? y_th = repeat([10.0], b_size, 1)  : y_th = nothing
 
-    post_acts = zeros(b_size, l.out_dim, 0) |> device
+    post_acts = zeros(b_size, l.out_dim, 0) 
     for i in 1:l.in_dim
-        post_acts_ = zeros(b_size, 0) |> device
+        post_acts_ = zeros(b_size, 0) 
         for j in 1:l.out_dim
             if avoid_singular
                 f_xy = l.fcns_avoid_singular[j][i].(l.affine[j, i, 1] .* x[:, i:i] .+ l.affine[j, i, 2], y_th)[2]
@@ -90,9 +90,9 @@ function get_symb_subset(l::symbolic_dense, in_indices, out_indices)
 
     l_sub.in_dim, l_sub.out_dim = length(in_indices), length(out_indices)
     
-    new_mask = zeros(l_sub.out_dim, 0) |> device
+    new_mask = zeros(l_sub.out_dim, 0) 
     for i in in_indices
-        new_mask_ = zeros(0, 1) |> device
+        new_mask_ = zeros(0, 1) 
             for j in out_indices
                 new_mask_ = vcat(new_mask_, l.mask[j:j, i:i])
             end

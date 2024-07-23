@@ -110,22 +110,21 @@ function step!(opt, model, loss_fcn, epoch, x, y; tol=1e-32)
     """
     
     # Function to optimiser w.r.t params
-    function loss(params)
-        Flux.loadparams!(model, params)
+    function loss()
         return loss_fcn(model, x, y)
     end
 
     Zygote.refresh()
     params = Flux.params(model)
-    # lossfun, gradfun, fg!, p0 = optfuns(loss, params)   
-    # println("Epoch: $epoch, Loss: $(loss())") 
+    lossfun, gradfun, fg!, p0 = optfuns(loss, params)   
+    println("Epoch: $epoch, Loss: $(loss())") 
     # grad=Zygote.gradient(loss, p0)
-    # println("grad", grad)
-    # optimiser = opt.OPT(opt.LR)
-    # println("optimiser created", optimiser)
-    # println("params", p0)
-    # println("loss", loss(params))
-    results = Optim.optimize(loss, params, optimiser, Optim.Options(iterations=1, show_trace=true, x_abstol=tol, f_abstol=tol, g_abstol=tol))
+    println("grad", grad)
+    optimiser = opt.OPT(opt.LR)
+    println("optimiser created", optimiser)
+    println("params", p0)
+    println("loss", loss())
+    results = Optim.optimize(Optim.only_fg!(fg!), p0, optimiser, Optim.Options(iterations=1, show_trace=true, x_abstol=tol, f_abstol=tol, g_abstol=tol))
     opt.LR = opt.LR_scheduler(epoch, opt.LR)
 
     Flux.loadparams!(model, Optim.minimizer(result))

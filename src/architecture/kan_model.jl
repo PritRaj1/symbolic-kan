@@ -2,7 +2,7 @@ module KolmogorovArnoldNets
 
 export KAN, fwd!, update_grid!, fix_symbolic!, prune!
 
-using Flux, CUDA, KernelAbstractions, Tullio, NNlib, Random, Statistics
+using Flux, CUDA, KernelAbstractions, Tullio, NNlib, Random, Statistics, FunctionWrappers
 
 include("kan_layer.jl")
 include("symbolic_layer.jl")
@@ -15,7 +15,7 @@ mutable struct KAN_
     grid_interval::Int
     base_fcn
     act_fcns
-    biases
+    biases::Vector{AbstractArray}
     symbolic_fcns
     symbolic_enabled::Bool
     acts::Vector{AbstractArray}

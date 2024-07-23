@@ -3,6 +3,7 @@ module symbolic_layer
 export symbolic_kan_layer, lock_symbolic!, get_symb_subset
 
 using Flux, CUDA, KernelAbstractions, Tullio, Random
+using FunctionWrappers: FunctionWrapper
 
 include("../symbolic_lib.jl")
 include("../utils.jl")
@@ -13,10 +14,10 @@ mutable struct symbolic_dense
     in_dim::Int
     out_dim::Int
     mask::AbstractArray
-    fcns
-    fcns_avoid_singular
+    fcns::Vector{Vector{FunctionWrapper{Float64, Tuple{Float64}}}}
+    fcns_avoid_singular::Vector{Vector{FunctionWrapper{Tuple{Float64, Float64}, Tuple{Tuple{}, Float64}}}}
     fcn_names::Vector{Vector{String}}
-    fcn_sympys
+    fcn_sympys::Vector{Vector{FunctionWrapper{Float64, Tuple{Float64}}}}
     affine::AbstractArray
 end
 

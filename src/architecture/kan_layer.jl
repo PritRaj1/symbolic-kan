@@ -21,7 +21,7 @@ mutable struct kan_dense
     coef::AbstractArray
     w_base::AbstractArray
     w_sp::AbstractArray
-    base_act::Function
+    base_act
     mask::AbstractArray
     grid_eps::Float32
     grid_range::Tuple{Float32, Float32}

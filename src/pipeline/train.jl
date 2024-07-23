@@ -3,7 +3,7 @@ using Flux, CUDA, KernelAbstractions, Optim, ProgressBars, Dates
 include("utils.jl")
 include("../architecture/kan_model.jl")
 using .PipelineUtils
-using .KolmogorovArnoldNets: fwd!, update_grid!
+using .KolmogorovArnoldNets: fwd!, update_grid!, prune!
 
 function L2_loss(model, x, y)
     """
@@ -56,7 +56,7 @@ function init_trainer(train_loader, test_loader, optimiser; loss_fn:nothing, max
     return trainer(train_loader, test_loader, optimiser, loss_fn, max_epochs, verbose)
 end
 
-function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", update_grid_bool=true, grid_update_num=10, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
+function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bool=false, plot=false, plot_mask=false, update_grid_bool=true, grid_update_num=10, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
     λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0)
     """
     Train symbolic model.
@@ -68,6 +68,10 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", update_g
     Returns:
     - model: trained symbolic model.
     """
+
+    if plot_mask
+        prune_bool = true
+    end
 
     # Regularisation
     function reg(acts_scale)
@@ -94,7 +98,7 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", update_g
     end
 
     grid_update_freq = fld(stop_grid_update_step, grid_update_num)
-    file_name = log_log * "_" string(now()) * ".csv"
+    file_name = log_log * "_" * string(now()) * ".csv"
 
     # Create csv with header
     open(file_name, "w") do file
@@ -125,14 +129,23 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", update_g
             test_loss += loss + λ*reg(model.acts_scale)
         end
 
+        if prune_bool && !plot_mask
+            prune!(model)
+        end
+
         train_loss /= length(t.train_loader.data)
         test_loss /= length(t.test_loader.data)
 
         time_epoch = time() - start_time
         log_csv(epoch, time_epoch, train_loss, test_loss, reg(model.acts_scale), file_name)
 
+        if plot
+            plot!(model, epoch, img_loc, prune_and_mask=plot_mask)
+        end
+    end
+
     return model
 end
-    
+
 
 

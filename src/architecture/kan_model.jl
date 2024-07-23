@@ -1,6 +1,6 @@
 module KolmogorovArnoldNets
 
-export KAN, fwd!, update_grid!, fix_symbolic!
+export KAN, fwd!, update_grid!, fix_symbolic!, prune!
 
 using Flux, CUDA, KernelAbstractions, Tullio, NNlib, Random, Statistics
 using FunctionWrappers: FunctionWrapper
@@ -194,34 +194,7 @@ function unfix_symb_all!(model::KAN_)
     end
 end
 
-function get_range(model::KAN_, l, i, j; verbose=true)
-    """
-    Get the range of the activation of neuron (l, i, j) for thresholding.
-
-    Args:
-        l: Layer index.
-        i: Neuron input index.
-        j: Neuron output index.
-
-    Returns:
-        x_min: Minimum value of the activation.
-        x_max: Maximum value of the activation.
-        y_min: Minimum value of the postactivation.
-        y_max: Maximum value of the postactivation.
-    """
-    x, y = model.pre_acts[l][:, i, j], model.post_acts[l][:, i, j]
-    x_min, x_max = minimum(x), maximum(x)
-    y_min, y_max = minimum(y), maximum(y)
-    
-    if verbose
-        println("x_range: ", x_min, " - ", x_max)
-        println("y_range: ", y_min, " - ", y_max)
-    end
-
-    return x_min, x_max, y_min, y_max
-end
-
-function prune!(model::KAN_, l, i, j; threshold=1e-2, mode="auto", active_neurons_id=None)
+function prune!(model::KAN_; threshold=1e-2, mode="auto", active_neurons_id=None)
     """
     Prune the activation of neuron (l, i, j) based on the threshold.
     If the neuron has a small range of activation, shave off the neuron.

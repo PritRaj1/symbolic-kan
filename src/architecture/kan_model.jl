@@ -54,10 +54,11 @@ Flux.@functor KAN_ (biases, act_fcns)
 
 using Zygote: @nograd
 
-@nograd function add_to_array(arr, x)
-    new_arr = copy(arr)
-    push!(new_arr, x)
-    return new_arr
+@nograd function add_to_array!(arr, x)
+    return push!(arr, x)
+end
+@nograd function add_to_tuple(tup, x)
+    return (tup..., x)
 end
 
 function fwd!(model, x)
@@ -65,17 +66,17 @@ function fwd!(model, x)
     model.post_acts = []
     model.post_splines = []
     model.acts_scale = []
+    model.acts = [x]
     x_eval = copy(x)
-    model.acts = add_to_array([], x_eval)
 
     for i in 1:model.depth
-        # Evaluate b_spline at x
-        x_numerical, pre_acts, post_acts_numerical, postspline = fwd(model.act_fcns[i], model.acts[i])
+        # spline(x)
+        x_numerical, pre_acts, post_acts_numerical, postspline = fwd(model.act_fcns[i], x_eval)
 
         # Evaluate symbolic layer at x
         x_symbolic, post_acts_symbolic = 0.0, 0.0
         if model.symbolic_enabled
-            x_symbolic, post_acts_symbolic = model.symbolic_fcns[i](model.acts[i])
+            x_symbolic, post_acts_symbolic = model.symbolic_fcns[i](x_eval)
         end
 
         x_eval = x_numerical .+ x_symbolic
@@ -88,12 +89,14 @@ function fwd!(model, x)
         add_to_array!(model.post_acts, post_acts)
         add_to_array!(model.post_splines, postspline)
 
-        # Add bias
+        # Add bias b(x)
         b = repeat(model.biases[i], size(x_eval, 1), 1)
         x_eval = @tullio res[m, n] := x_eval[m, n] + b[m, n]
-        add_to_array!(model.acts, x_eval)
+
+        add_to_array!(model.acts, copy(x_eval))
     end
-    return x
+
+    return x_eval
 end
 
 @nograd function update_grid!(model, x)

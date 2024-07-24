@@ -25,7 +25,7 @@ function L2_loss(model, x, y)
     - loss: L2 loss.
     """
     ŷ = fwd!(model, x)
-    return sum((ŷ .- y).^2)
+    return sum((ŷ .- y).^2, dims=2)
 end
 
 # Log the loss to CSV
@@ -101,7 +101,7 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
     end
 
     if isnothing(t.loss_fn)
-        t.loss_fn = (m, x, y) -> L2_loss(m, x, y) + λ*reg(m.acts_scale)
+        t.loss_fn = (m, x, y) -> L2_loss(m, x, y) .+ λ*reg.(m.acts_scale)
     end
 
     grid_update_freq = fld(stop_grid_update_step, grid_update_num)

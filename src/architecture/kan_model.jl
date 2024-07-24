@@ -23,7 +23,7 @@ mutable struct KAN_
     pre_acts::Vector{AbstractArray}
     post_acts::Vector{AbstractArray}
     post_splines::Vector{AbstractArray}
-    acts_scale::Vector{AbstractArray}
+    acts_scale::AbstractArray
 end
 
 function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=1.0, base_act=NNlib.selu, symbolic_enabled=true, grid_eps=1.0, grid_range=(-1, 1), sparse_init=false, init_seed=nothing)
@@ -47,7 +47,7 @@ function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=
         push!(symbolic, symbolic_kan_layer(widths[i], widths[i + 1]))
     end
 
-    return KAN_(widths, depth, grid_interval, base_act, act_fcns, biases, symbolic, symbolic_enabled, [], [], [], [], [])
+    return KAN_(widths, depth, grid_interval, base_act, act_fcns, biases, symbolic, symbolic_enabled, [], [], [], [], zeros(Float32, 0, 0))
 end
 
 Flux.@functor KAN_ (biases, act_fcns)
@@ -65,7 +65,7 @@ function fwd!(model, x)
     model.pre_acts = []
     model.post_acts = []
     model.post_splines = []
-    model.acts_scale = []
+    model.acts_scale = zeros(Float32, 0, size(x, 2), 1)
     model.acts = [x]
     x_eval = copy(x)
 
@@ -82,9 +82,12 @@ function fwd!(model, x)
         x_eval = x_numerical .+ x_symbolic
         post_acts = post_acts_numerical .+ post_acts_symbolic
 
-        in_range = std(pre_acts, dims=1)[1, :, :] .+ 0.1
-        out_range = std(post_acts, dims=1)[1, :, :] .+ 0.1
-        add_to_array!(model.acts_scale, out_range ./ in_range)
+        println(size(x), " ", size(x_eval), " ", size(pre_acts), " ", size(post_acts), " ", size(postspline))
+        in_range = std(pre_acts, dims=1).+ 0.1
+        out_range = std(post_acts, dims=1) .+ 0.1
+        model.acts_scale = repeat(model.acts_scale, 1, 1, size(in_range, 3))
+        model.acts_scale = vcat(model.acts_scale, out_range ./ in_range)
+        
         add_to_array!(model.pre_acts, pre_acts)
         add_to_array!(model.post_acts, post_acts)
         add_to_array!(model.post_splines, postspline)
@@ -220,10 +223,10 @@ function prune!(model; threshold=1e-2, mode="auto", active_neurons_id=None)
     mask = [ones(model.widths[1], )]
     active_neurons_id = [1:model.widths[1]]
 
-    for i in eachindex(model.acts_scale[1:end-1])
+    for i in 1:size(model.acts_scale, 1)-1
         if mode == "auto"
-            in_important = maximum(model.acts_scale[i], dims=2)[1, :, :] .> threshold
-            out_important = maximum(model.acts_scale[i+1], dims=1)[1, :, :] .> threshold
+            in_important = maximum(model.acts_scale[i, :, :], dims=2)[1, :, :] .> threshold
+            out_important = maximum(model.acts_scale[i+1, :, :], dims=1)[1, :, :] .> threshold
             overall_important = in_important .* out_important
         elseif mode == "manual"
             overall_important = zeros(Bool, model.widths[i+1])
@@ -238,7 +241,7 @@ function prune!(model; threshold=1e-2, mode="auto", active_neurons_id=None)
     push!(mask, ones(model.widths[end], ))
     model.mask = mask
 
-    for i in eachindex(model.acts_scale[1:end-1])
+    for i in 1:size(model.acts_scale, 1)-1
         for j in 1:model.widths[i+1]
             if !active_neurons_id[i+1][j] in active_neurons_id[i+1]
                 set_mode!(model, i+1, active_neurons_id[i+1][j], j, "remove")
@@ -248,8 +251,8 @@ function prune!(model; threshold=1e-2, mode="auto", active_neurons_id=None)
 
     model_pruned = deepcopy(model)
 
-    for i in eachindex(model.acts_scale)
-        if i < length(model.acts_scale)
+    for i in 1:size(model.acts_scale, 1)
+        if i < size(model.acts_scale, 1)
             model_pruned.biases[i] = model.biases[i][:, active_neurons_id[i+1]]
         end
 

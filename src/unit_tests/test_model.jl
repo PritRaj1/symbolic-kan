@@ -1,4 +1,4 @@
-using Test, Random, Flux, Zygote, Optim, FluxOptTools, Statistics
+using Test, Random, Flux, Statistics
 
 include("../architecture/kan_model.jl")
 using .KolmogorovArnoldNets
@@ -32,20 +32,18 @@ function test_lock()
     @test all(mask2[:, 1] .== [1.0, 1.0, 1.0, 1.0, 1.0])
 end
 
-function test_param_grad()
+function test_opt()
         Random.seed!(123)
-        m = KAN([2,5,1]; k=3, grid_interval=5)
+        model = KAN([2,5,1]; k=3, grid_interval=5)
         x = randn(100, 2)
-        
-        loss() = sum((fwd!(m, x) .- 1).^2)
-        pars = Flux.params(m)
-        lossfun, gradfun, fg!, p0 = optfuns(loss, pars)
-        res = Optim.optimize(Optim.only_fg!(fg!), p0, Optim.Options(iterations=1000, store_trace=true))
-        println(res.minimizer)
+
+        loss(m) = sum((fwd!(m, x) .- 1).^2)
+        loss_val, grad = Flux.withgradient(m -> loss(m), model)
+        println(loss_val)
 end
 
 
 # test_fwd()
 # test_grid()
 # test_lock()
-test_param_grad()
+test_opt()

@@ -2,7 +2,7 @@ module Trainer
 
 export init_trainer, train!
 
-using Flux, Optim, ProgressBars, Dates, Tullio, CSV
+using Flux, ProgressBars, Dates, Tullio, CSV
 # using CUDA, KernelAbstractions
 
 include("utils.jl")
@@ -25,7 +25,6 @@ function L2_loss(model, x, y)
     - loss: L2 loss.
     """
     ŷ = fwd!(model, x)
-    println("ŷ: ", ŷ)
     return sum((ŷ .- y).^2)
 end
 
@@ -39,7 +38,7 @@ end
 mutable struct trainer
     train_loader::Flux.Data.DataLoader
     test_loader::Flux.Data.DataLoader
-    optimiser
+    opt
     loss_fn
     max_epochs::Int
     verbose::Bool
@@ -102,7 +101,7 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
     end
 
     if isnothing(t.loss_fn)
-        t.loss_fn = L2_loss
+        t.loss_fn = (m, x, y) -> L2_loss(m, x, y) + λ*reg(m.acts_scale)
     end
 
     grid_update_freq = fld(stop_grid_update_step, grid_update_num)
@@ -123,8 +122,9 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
         Flux.trainmode!(model)
         for (x, y) in t.train_loader
             x, y = x |> permutedims, y |> permutedims
-            loss = step!(t.optimiser, model, t.loss_fn, epoch, x, y)
-            train_loss += loss + λ*reg(model.acts_scale)
+            loss_val, grad = Flux.withgradient(m -> t.loss_fn(m, x, y), model)
+            opt.opt_state, m = Optimisers.update(opt.opt_state, m, grad[1])
+            train_loss += loss_val
             if (epoch % grid_update_freq == 0) && (epoch < stop_grid_update_step) && update_grid_bool
                 update_grid!(model, x)
             end
@@ -134,8 +134,7 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
         Flux.testmode!(model)
         for (x, y) in t.test_loader
             x, y = x |> permutedims, y |> permutedims
-            loss = loss_fn(model, x, y)
-            test_loss += loss + λ*reg(model.acts_scale)
+            test_loss += loss_fn(model, x, y)
         end
 
         if prune_bool && !plot_mask

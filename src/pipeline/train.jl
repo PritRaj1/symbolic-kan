@@ -91,9 +91,9 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
         end
 
         reg_ = 0.0
-        for i in eachindex(acts_scale)
-            reg_ += sum(abs2, non_linear(acts_scale[i]))
-            coeff_l1 = sum(mean(abs.(model.act_fcns[i].coef), dims=2))[1]
+        for i in eachindex(acts_scale[:, 1, 1])
+            reg_ += sum(abs2, non_linear(acts_scale[i, :, :]))
+            coeff_l1 = sum(mean(abs.(model.act_fcns[i].coef), dims=2))
             reg_ += λ_l1 * coeff_l1 * λ_coefdiff * λ_coef
         end
 
@@ -101,7 +101,7 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
     end
 
     if isnothing(t.loss_fn)
-        t.loss_fn = (m, x, y) -> mean(L2_loss(m, x, y) + λ*reg.(m.acts_scale))
+        t.loss_fn = (m, x, y) -> mean(L2_loss(m, x, y) + λ*reg(m.acts_scale))
     end
 
     grid_update_freq = fld(stop_grid_update_step, grid_update_num)

@@ -65,7 +65,7 @@ function fwd!(model, x)
     model.pre_acts = []
     model.post_acts = []
     model.post_splines = []
-    model.acts_scale = zeros(Float32, 0, size(x, 2), 1)
+    model.acts_scale = zeros(Float32, model.depth, max(model.widths), max(model.widths))
     model.acts = [x]
     x_eval = copy(x)
 
@@ -82,11 +82,14 @@ function fwd!(model, x)
         x_eval = x_numerical .+ x_symbolic
         post_acts = post_acts_numerical .+ post_acts_symbolic
 
-        println(size(x), " ", size(x_eval), " ", size(pre_acts), " ", size(post_acts), " ", size(postspline))
+        # Scales for l1 regularisation
         in_range = std(pre_acts, dims=1).+ 0.1
         out_range = std(post_acts, dims=1) .+ 0.1
-        model.acts_scale = repeat(model.acts_scale, 1, 1, size(in_range, 3))
-        model.acts_scale = vcat(model.acts_scale, out_range ./ in_range)
+        scales = out_range ./ in_range
+
+        for j in eachindex(model.widths[1:end-1])
+            model.act_scales[i, 1:model.widths[j], 1:model.widths[j+1]] = scales[1, :, :]
+        end
         
         add_to_array!(model.pre_acts, pre_acts)
         add_to_array!(model.post_acts, post_acts)

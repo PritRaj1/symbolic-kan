@@ -54,8 +54,10 @@ Flux.@functor KAN_ (biases, act_fcns)
 
 using Zygote: @nograd
 
-@nograd function add_to_array!(arr, x)
-    return push!(arr, x)
+@nograd function add_to_array(arr, x)
+    new_arr = copy(arr)
+    push!(new_arr, x)
+    return new_arr
 end
 
 function fwd!(model, x)
@@ -64,7 +66,7 @@ function fwd!(model, x)
     model.post_splines = []
     model.acts_scale = []
     x_eval = copy(x)
-    model.acts = add_to_array!([], x_eval)
+    model.acts = add_to_array([], x_eval)
 
     for i in 1:model.depth
         # Evaluate b_spline at x

@@ -2,7 +2,7 @@ module Trainer
 
 export init_trainer, train!
 
-using Flux, ProgressBars, Dates, Tullio, CSV
+using Flux, ProgressBars, Dates, Tullio, CSV, Statistics
 # using CUDA, KernelAbstractions
 
 include("utils.jl")
@@ -85,8 +85,8 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
         
         # L2 regularisation
         function non_linear(x; th=mag_threshold, factor=reg_factor)
-            term1 = @tullio res[i, j] := (x[i, j] < th ? 1.0 : 0.0)
-            term2 = @tullio res[i, j] := (x[i, j] > th ? 1.0 : 0.0)
+            term1 = ifelse.(x .< th, 1.0, 0.0)
+            term2 = ifelse.(x .> th, 1.0, 0.0)
             return term1 .* x .* factor .+ term2 .* (x .+ (factor - 1) .* th)
         end
 
@@ -129,6 +129,8 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
                 update_grid!(model, x)
             end
         end
+
+        opt.LR = opt.LR_scheduler(epoch, opt.LR)
 
         # Testing
         Flux.testmode!(model)

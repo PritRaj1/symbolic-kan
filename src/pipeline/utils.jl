@@ -67,7 +67,7 @@ function (s::decay_scheduler)(epoch, LR)
 end
 
 ### Optimiser ###
-optimizer = Dict(
+optimiser_map = Dict(
     "adam" => Optimisers.Adam,
     "sgd" => Optimisers.Descent
 )

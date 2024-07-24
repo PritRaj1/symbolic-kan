@@ -51,7 +51,7 @@ end
 
 Flux.@functor kan_dense (ε, coef, w_base, w_sp)
 
-function fwd(l::kan_dense, x)
+function fwd(l, x)
     b_size = size(x, 1)
 
     # Base activation.

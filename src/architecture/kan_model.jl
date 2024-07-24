@@ -23,7 +23,7 @@ mutable struct KAN_
     pre_acts::Vector{AbstractArray}
     post_acts::Vector{AbstractArray}
     post_splines::Vector{AbstractArray}
-    acts_scale::AbstractArray
+    act_scale::AbstractArray
 end
 
 function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=1.0, base_act=NNlib.selu, symbolic_enabled=true, grid_eps=1.0, grid_range=(-1, 1), sparse_init=false, init_seed=nothing)
@@ -61,11 +61,27 @@ end
     return (tup..., x)
 end
 
+function PadToShape(arr, shape)
+    """
+    Padding for act scales. 
+    Pad zeros, because we only care about max scales in regularisation.
+    """
+    pad = shape .- size(arr)
+
+    # Pad zeros to the first dimension
+    zeros_1 = zeros(0, pad[2], size(arr, 3))
+    array = cat(arr, zeros_1, dims=(1, 2))
+
+    # Pad zeros to the second dimension
+    zeros_2 = zeros(0, size(array, 2), pad[3])
+    return cat(array, zeros_2, dims=(1, 3))
+end
+
 function fwd!(model, x)
     model.pre_acts = []
     model.post_acts = []
     model.post_splines = []
-    model.acts_scale = zeros(Float32, model.depth, max(model.widths), max(model.widths))
+    model.act_scale = zeros(Float32, 0, maximum(model.widths), maximum(model.widths))
     model.acts = [x]
     x_eval = copy(x)
 
@@ -85,11 +101,8 @@ function fwd!(model, x)
         # Scales for l1 regularisation
         in_range = std(pre_acts, dims=1).+ 0.1
         out_range = std(post_acts, dims=1) .+ 0.1
-        scales = out_range ./ in_range
-
-        for j in eachindex(model.widths[1:end-1])
-            model.act_scales[i, 1:model.widths[j], 1:model.widths[j+1]] = scales[1, :, :]
-        end
+        scales = PadToShape(out_range ./ in_range, (1, maximum(model.widths), maximum(model.widths)))
+        model.act_scale = vcat(model.act_scale, scales)
         
         add_to_array!(model.pre_acts, pre_acts)
         add_to_array!(model.post_acts, post_acts)
@@ -226,10 +239,10 @@ function prune!(model; threshold=1e-2, mode="auto", active_neurons_id=None)
     mask = [ones(model.widths[1], )]
     active_neurons_id = [1:model.widths[1]]
 
-    for i in 1:size(model.acts_scale, 1)-1
+    for i in 1:model.depth-1
         if mode == "auto"
-            in_important = maximum(model.acts_scale[i, :, :], dims=2)[1, :, :] .> threshold
-            out_important = maximum(model.acts_scale[i+1, :, :], dims=1)[1, :, :] .> threshold
+            in_important = maximum(model.act_scale[i, :, :], dims=2)[1, :, :] .> threshold
+            out_important = maximum(model.act_scale[i+1, :, :], dims=1)[1, :, :] .> threshold
             overall_important = in_important .* out_important
         elseif mode == "manual"
             overall_important = zeros(Bool, model.widths[i+1])
@@ -244,7 +257,7 @@ function prune!(model; threshold=1e-2, mode="auto", active_neurons_id=None)
     push!(mask, ones(model.widths[end], ))
     model.mask = mask
 
-    for i in 1:size(model.acts_scale, 1)-1
+    for i in 1:model.depth-1
         for j in 1:model.widths[i+1]
             if !active_neurons_id[i+1][j] in active_neurons_id[i+1]
                 set_mode!(model, i+1, active_neurons_id[i+1][j], j, "remove")
@@ -254,8 +267,8 @@ function prune!(model; threshold=1e-2, mode="auto", active_neurons_id=None)
 
     model_pruned = deepcopy(model)
 
-    for i in 1:size(model.acts_scale, 1)
-        if i < size(model.acts_scale, 1)
+    for i in 1:size(model.act_scale, 1)
+        if i < size(model.act_scale, 1)
             model_pruned.biases[i] = model.biases[i][:, active_neurons_id[i+1]]
         end
 

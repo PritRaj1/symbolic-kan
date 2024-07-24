@@ -34,6 +34,10 @@ function symbolic_kan_layer(in_dim::Int, out_dim::Int)
     return symbolic_dense(in_dim, out_dim, mask, fcns, fcns_avoid_singular, fcn_names, fcn_sympys, affine)
 end
 
+@nograd function apply_fcn(x, fcn)
+    return fcn.(x)
+end
+
 function (l::symbolic_dense)(x; avoid_singular=false, y_th=10.0)
     """
     Apply symbolic dense layer to input x using Kolmogorov-Arnold theorm.
@@ -59,10 +63,10 @@ function (l::symbolic_dense)(x; avoid_singular=false, y_th=10.0)
         post_acts_ = zeros(b_size, 0) 
         for j in 1:l.out_dim
             if avoid_singular
-                f_xy = @nograd l.fcns_avoid_singular[j][i].(l.affine[j, i, 1] .* x[:, i:i] .+ l.affine[j, i, 2], y_th)[2]
-                xij = l.affine[j, i, 3] .* f_xy .+ l.affine[j, i, 4]
+                f_x = apply_fcn(l.affine[j, i, 1] .* x[:, i:i] .+ l.affine[j, i, 2], l.fcns_avoid_singular[j][i])[2]
+                xij = l.affine[j, i, 3] .* f_x .+ l.affine[j, i, 4]
             else
-                f_x = @nograd l.fcns[j][i].(l.affine[j, i, 1] .* x[:, i:i] .+ l.affine[j, i, 2])
+                f_x = apply_fcn(l.affine[j, i, 1] .* x[:, i:i] .+ l.affine[j, i, 2], l.fcns[j][i])
                 xij = l.affine[j, i, 3] .* f_x .+ l.affine[j, i, 4]
             end
             post_acts_ = hcat(post_acts_, l.mask[j, i] .* xij)

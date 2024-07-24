@@ -1,10 +1,9 @@
 module dense_kan
 
-export b_spline_layer, update_lyr_grid!, get_subset
+export b_spline_layer, fwd, update_lyr_grid!, get_subset
 
-using Flux
+using Flux, Tullio, NNlib
 # using CUDA, KernelAbstractions
-using Tullio, NNlib
 
 include("spline.jl")
 include("../utils.jl")
@@ -50,9 +49,9 @@ function b_spline_layer(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_s
     return kan_dense(in_dim, out_dim, num_splines, degree, grid, init_σ, ε, coef, w_base, w_sp, base_act, mask, grid_eps, grid_range)
 end
 
-Flux.@functor kan_dense (grid, RBF_σ, ε, coef, w_base, w_sp)
+Flux.@functor kan_dense (ε, coef, w_base, w_sp)
 
-function (l::kan_dense)(x)
+function fwd(l::kan_dense, x)
     b_size = size(x, 1)
 
     # Base activation.

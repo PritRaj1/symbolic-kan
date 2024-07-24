@@ -7,7 +7,7 @@ using Flux, Tullio, NNlib, Random, Statistics
 
 include("kan_layer.jl")
 include("symbolic_layer.jl")
-using .dense_kan: b_spline_layer, update_lyr_grid!
+using .dense_kan: b_spline_layer, update_lyr_grid!, get_subset, fwd
 using .symbolic_layer: symbolic_kan_layer, lock_symbolic!
 
 mutable struct KAN_
@@ -68,7 +68,7 @@ function fwd!(model, x)
 
     for i in 1:model.depth
         # Evaluate b_spline at x
-        x_numerical, pre_acts, post_acts_numerical, postspline = model.act_fcns[i](model.acts[i])
+        x_numerical, pre_acts, post_acts_numerical, postspline = fwd(model.act_fcns[i], model.acts[i])
 
         # Evaluate symbolic layer at x
         x_symbolic, post_acts_symbolic = 0.0, 0.0
@@ -94,7 +94,7 @@ function fwd!(model, x)
     return x
 end
 
-function update_grid!(model, x)
+@nograd function update_grid!(model, x)
     """
     Update the grid for each b-spline layer in the model.
     """

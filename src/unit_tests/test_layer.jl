@@ -1,4 +1,4 @@
-using Test
+using Test, Random, Flux, Zygote, Optim, FluxOptTools, Statistics
 
 include("../architecture/kan_layer.jl")
 include("../architecture/symbolic_layer.jl")
@@ -10,7 +10,7 @@ function test_spline_lyr()
     layer = b_spline_layer(3, 5)
     x = randn(100, 3) 
     y = randn(100, 3) 
-    z, preacts, postacts, postspline = layer(x)
+    z, preacts, postacts, postspline = fwd(layer, x)
 
     @test all(size(z) .== (100, 5))
     @test all(size(preacts) .== (100, 5, 3))
@@ -71,5 +71,18 @@ function test_symb_lyr()
     @test R2 >= 0.9
 end
 
-test_spline_lyr()
-test_symb_lyr()
+function test_param_grad()
+    layer = b_spline_layer(3, 5)
+    x = randn(100, 3) 
+
+    loss() = sum((fwd(layer, x)[1] .- 1).^2)
+    
+    params = Flux.params(layer)
+    lossfun, gradfun, fg!, p0 = optfuns(loss, params)
+    res = Optim.optimize(Optim.only_fg!(fg!), p0, Optim.Options(iterations=1000, store_trace=true))
+    println(res.minimizer)
+end
+
+# test_spline_lyr()
+# test_symb_lyr()
+test_param_grad()

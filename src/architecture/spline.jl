@@ -2,14 +2,21 @@ module Spline
 
 export extend_grid, B_batch, coef2curve, curve2coef
 
-using Flux
+using Flux, Tullio, LinearAlgebra
 # using CUDA, KernelAbstractions
-using Tullio
 
 include("../utils.jl")
 using .Utils: sparse_mask
 
-method = get(ENV, "METHOD", "RBF") # "spline" or "RBF"
+method = get(ENV, "METHOD", "spline") # "spline" or "RBF"
+
+function removeNaN(x)
+    return isnan(x) ? 0.0 : x
+end
+
+function removeZero(x; ε=1e-4)
+    return iszero(x) ? ε : x
+end
 
 function extend_grid(grid, k_extend=0)
     """
@@ -44,13 +51,16 @@ function B_batch(x, grid; degree::Int64, σ=nothing)
     Returns:
         A matrix of size (d, m, n) containing the B-spline basis functions evaluated at the points x.
     """
+    # Expand for broadcasting
+    x_eval = repeat(reshape(x, size(x)..., 1), 1, 1, size(grid, 2) - 1)
+    grid_eval = repeat(reshape(grid, 1, size(grid)...), size(x, 1), 1, 1)
     
     # B-spline basis functions of degree 0 are piecewise constant functions: B = 1 if x in [grid[p], grid[p+1]) else 0
-    grid_1 = grid[:, 1:end-1] # grid[p]
-    grid_2 = grid[:, 2:end] # grid[p+1]
+    grid_1 = grid_eval[:, :, 1:end-1] # grid[p]
+    grid_2 = grid_eval[:, :, 2:end] # grid[p+1]
 
-    term1 = @tullio term1[i, j, k] := (x[i, j] >= grid_1[j, k] ? 1.0 : 0.0)
-    term2 = @tullio term2[i, j, k] := (x[i, j] < grid_2[j, k] ? 1.0 : 0.0)
+    term1 = ifelse.(x_eval .>= grid_1, 1.0, 0.0)
+    term2 = ifelse.(x_eval .< grid_2, 1.0, 0.0)
     term1 |> collect 
     term2 |> collect 
 
@@ -70,7 +80,7 @@ function B_batch(x, grid; degree::Int64, σ=nothing)
         B = @tullio out[d, n, m] := (numer1[d, n, m] / denom1[1, n, m] * B_i1[d, n, m]) + (numer2[d, n, m] / denom2[1, n, m] * B_i2[d, n, m])
     end
 
-    B = ifelse.(isnan.(B), 0.0, B)
+    B = removeNaN.(B)
     return B 
 end
 
@@ -127,12 +137,15 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0)
     Returns:
         A matrix of size (d, m, l, k) containing the B-spline coefficients.
     """
+    b_size = size(grid, 1)
     n_coeffs = size(grid, 2) - k - 1
     out_dim = size(y_eval, 3)
-    B = BasisFcn(x_eval, grid; degree=k, σ=scale)
-    # Compute the B-spline coefficients using least squares with \ operator
-    coef = @tullio out[j, q, p] := B[i, j, p] \ y_eval[i, j, q]
+    B = BasisFcn(x_eval, grid; degree=k, σ=scale) 
 
+    # Compute the B-spline coefficients using least squares with \ operator
+    B = removeZero.(B)
+    coef = @tullio out[j, q, p] := B[i, j, p] \ y_eval[i, j, q]
+    
     return coef
 end
 

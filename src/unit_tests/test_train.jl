@@ -18,7 +18,7 @@ function test_trainer()
 end
 
 function test_prune(model)
-    prune!(model)
+    prune(model)
 end
 
 model = test_trainer()

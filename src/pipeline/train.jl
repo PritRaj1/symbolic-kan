@@ -9,7 +9,7 @@ include("utils.jl")
 include("../architecture/kan_model.jl")
 include("plot.jl")
 using .PipelineUtils
-using .KolmogorovArnoldNets: fwd!, update_grid!, prune!
+using .KolmogorovArnoldNets: fwd!, update_grid!, prune
 using .Plotting
 
 function L2_loss(model, x, y)
@@ -35,7 +35,7 @@ function log_csv(epoch, time, train_loss, test_loss, reg, file_name)
     end
 end
 
-struct trainer
+mutable struct trainer
     train_loader::Flux.Data.DataLoader
     test_loader::Flux.Data.DataLoader
     opt
@@ -145,7 +145,7 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
         end
 
         if prune_bool 
-            prune!(model)
+            model = prune(model)
         end
 
         train_loss /= length(t.train_loader.data)

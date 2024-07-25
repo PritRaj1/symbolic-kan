@@ -19,14 +19,6 @@ function removeZero(x; ε=1e-4)
     return iszero(x) ? Float32(ε) : x
 end
 
-# @adjoint function removeNaN(x)
-#     return isnan(x) ? 0.0 : x, Δ -> isnan(x) ? zero(Δ) : Δ
-# end
-
-# @adjoint function removeZero(x; ε=1e-4)
-#     return iszero(x) ? ε : x, Δ -> iszero(x) ? zero(Δ) : Δ
-# end
-
 function extend_grid(grid, k_extend=0)
     """
     Extend the grid of knots to include the boundary knots.

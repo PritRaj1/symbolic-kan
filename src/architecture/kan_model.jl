@@ -1,6 +1,6 @@
 module KolmogorovArnoldNets
 
-export KAN, fwd!, update_grid!, fix_symbolic!, prune!
+export KAN, fwd!, update_grid!, fix_symbolic!, prune
 
 using Flux, Tullio, NNlib, Random, Statistics
 # using CUDA, KernelAbstractions
@@ -24,6 +24,7 @@ mutable struct KAN_
     post_acts::Vector{AbstractArray{Float32}}
     post_splines::Vector{AbstractArray{Float32}}
     act_scale::AbstractArray{Float32}
+    mask::AbstractArray{Float32}
 end
 
 function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=1.0, base_act=NNlib.selu, symbolic_enabled=true, grid_eps=1.0, grid_range=(-1, 1), sparse_init=false, init_seed=nothing)
@@ -44,7 +45,7 @@ function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=
         push!(symbolic, symbolic_kan_layer(widths[i], widths[i + 1]))
     end
 
-    return KAN_(widths, depth, grid_interval, base_act, act_fcns, biases, symbolic, symbolic_enabled, [], [], [], [], zeros(Float32, 0, 0))
+    return KAN_(widths, depth, grid_interval, base_act, act_fcns, biases, symbolic, symbolic_enabled, [], [], [], [], zeros(Float32, 0, 0), ones(widths[end], )
 end
 
 Flux.@functor KAN_ (biases, act_fcns)
@@ -53,9 +54,6 @@ using Zygote: @nograd
 
 @nograd function add_to_array!(arr, x)
     return push!(arr, x)
-end
-@nograd function add_to_tuple(tup, x)
-    return (tup..., x)
 end
 
 function PadToShape(arr, shape)
@@ -219,7 +217,27 @@ function unfix_symb_all!(model)
     end
 end
 
-function prune!(model; threshold=1e-2, mode="auto", active_neurons_id=nothing)
+function remove_node!(model, l, j)
+    """
+    Remove neuron j from layer l. 
+    Masks all incoming and outgoing activation functions for the neuron to zero.
+
+    Args:
+        l: Layer index.
+        j: Neuron index.
+    """
+    # Remove all outgoing connections
+    for i in 1:model.widths[l]
+        set_mode!(model, l, i, j, "remove")
+    end
+
+    for o in 1:model.widths[l - 1]
+        model.act_fcns[l-1].mask[j, o] = 0.0  
+        model.symbolic_fcns[l-1].mask[o, j] = 0.0
+    end
+end
+
+function prune(model; threshold=1e-2, mode="auto", active_neurons_id=nothing)
     """
     Prune the activation of neuron (l, i, j) based on the threshold.
     If the neuron has a small range of activation, shave off the neuron.
@@ -233,22 +251,23 @@ function prune!(model; threshold=1e-2, mode="auto", active_neurons_id=nothing)
     Returns:
         model_pruned: Pruned model.
     """
-    mask = [ones(Float32, model.widths[1], )]
-    active_neurons_id = [1:model.widths[1]]
+    mask = []
+    add_to_array!(mask, ones(model.widths[1], ))
+    active_neurons_id = [[1:model.widths[1]...]]
 
     for i in 1:model.depth-1
         if mode == "auto"
-            in_important = maximum(model.act_scale[i, :, :], dims=2)[1, :, :] .> threshold
-            out_important = maximum(model.act_scale[i+1, :, :], dims=1)[1, :, :] .> threshold
+            in_important = ifelse.(maximum(model.act_scale[i, :, :], dims=2)[1, :, :] .> threshold, 1.0, 0.0)
+            out_important = ifelse.(maximum(model.act_scale[i+1, :, :], dims=1)[1, :, :] .> threshold, 1.0, 0.0)
             overall_important = in_important .* out_important
         elseif mode == "manual"
             overall_important = zeros(Bool, model.widths[i+1])
             overall_important[active_neurons_id[i+1]] .= true
         end
 
-        Float32.(overall_important)
         push!(mask, overall_important)
-        push!(active_neurons_id, findall(overall_important))
+        cart_ind = findall(x -> x == true, overall_important)
+        push!(active_neurons_id, [i[1] for i in cart_ind])
     end
 
     push!(mask, ones(model.widths[end], ))
@@ -257,7 +276,7 @@ function prune!(model; threshold=1e-2, mode="auto", active_neurons_id=nothing)
     for i in 1:model.depth-1
         for j in 1:model.widths[i+1]
             if !active_neurons_id[i+1][j] in active_neurons_id[i+1]
-                set_mode!(model, i+1, active_neurons_id[i+1][j], j, "remove")
+                remove_node!(model, i+1, j)
             end
         end
     end

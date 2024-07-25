@@ -5,7 +5,7 @@ export plot_kan!
 using Flux, Statistics, Makie, GLMakie, FileIO, Printf
 
 include("../architecture/kan_model.jl")
-using .KolmogorovArnoldNets: prune!, KAN_
+using .KolmogorovArnoldNets: prune, KAN_
 
 function get_range(model::KAN_, l, i, j; verbose=true)
     """

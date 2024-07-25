@@ -1,6 +1,6 @@
 module PipelineUtils
 
-export create_loaders, create_opt, step!
+export create_loaders, create_opt, step!, step_decay_scheduler
 
 using Flux, Optimisers, Statistics, Random
 # using CUDA, KernelAbstractions
@@ -78,7 +78,7 @@ mutable struct optimiser_state
     LR::Float32
 end
 
-function create_opt(model, type="adam"; LR=0.01, schedule_LR=false, step=10, γ=0.1, min_LR=0.001)
+function create_opt(model, type="adam"; LR=0.01, decay_scheduler=nothing)
     """
     Create optimiser.
 
@@ -94,8 +94,8 @@ function create_opt(model, type="adam"; LR=0.01, schedule_LR=false, step=10, γ=
     - optimiser: optimiser.
     """
     
-    if schedule_LR
-        schedule_fcn = step_decay_scheduler(step, decay, min_LR)
+    if !isnothing(decay_scheduler)
+        schedule_fcn = decay_scheduler
     else
         schedule_fcn = (epoch, LR) -> LR
     end

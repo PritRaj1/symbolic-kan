@@ -285,15 +285,21 @@ function prune(model; threshold=1e-2, mode="auto", active_neurons_id=nothing)
     end
 
     model_pruned = deepcopy(model)
+    model_pruned.mask = mask
+    model_pruned.biases = []
+    model_pruned.act_fcns = []
+    model_pruned.symbolic_fcns = []
+    model_pruned.widths = []
 
     for i in 1:size(model.act_scale, 1)
         if i < size(model.act_scale, 1)
-            model_pruned.biases[i] = model.biases[i][:, active_neurons_id[i+1]]
+            # model_pruned.biases[i] = model.biases[i][:, active_neurons_id[i+1]]
+            push!(model_pruned.biases, model.biases[i][:, active_neurons_id[i+1]])
         end
 
-        model_pruned.act_fcns[i] = get_subset(model.act_fcns[i], active_neurons_id[i], active_neurons_id[i+1])
-        model_pruned.widths[i] = length(active_neurons_id[i])
-        model_pruned.symbolic_fcns[i] = get_symb_subset(model.symbolic_fcns[i], active_neurons_id[i], active_neurons_id[i+1])
+        push!(model_pruned.act_fcns, get_subset(model.act_fcns[i], active_neurons_id[i], active_neurons_id[i+1]))
+        push!(model_pruned.widths, length(active_neurons_id[i]))
+        push!(model_pruned.symbolic_fcns, get_symb_subset(model.symbolic_fcns[i], active_neurons_id[i], active_neurons_id[i+1]))
     end
 
     return model_pruned

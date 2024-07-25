@@ -22,14 +22,13 @@ function test_prune(model)
     prune(model)
 end
 
-function test_plot()
-    model = KAN([2,5,1]; k=3, grid_interval=5)
+function test_plot(model)
     x = randn(100, 2)
     y = fwd!(model, x)
     plot_kan!(model)
 end
 
 
-# model = test_trainer()
-# test_prune(model)
-test_plot()
+model = test_trainer()
+test_prune(model)
+test_plot(model)

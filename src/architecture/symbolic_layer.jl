@@ -42,7 +42,7 @@ function apply_fcn(x, y; fcn)
     end
 end
 
-@nograd function symb_fwd(l::symbolic_dense, x; avoid_singular=false, y_th=10.0)
+@nograd function symb_fwd(l, x; avoid_singular=false, y_th=10.0)
     """
     Apply symbolic dense layer to input x using Kolmogorov-Arnold theorm.
     
@@ -50,6 +50,7 @@ end
         then sum along input dimension.
 
     Args:
+    - l: symbolic dense layer.
     - x: input tensor of shape (batch_size, in_dim).
     - avoid_singular: whether to avoid singularities.
     - y_th: threshold for singularities.

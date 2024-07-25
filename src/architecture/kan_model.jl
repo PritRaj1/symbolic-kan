@@ -8,7 +8,7 @@ using Flux, Tullio, NNlib, Random, Statistics
 include("kan_layer.jl")
 include("symbolic_layer.jl")
 using .dense_kan: b_spline_layer, update_lyr_grid!, get_subset, fwd
-using .symbolic_layer: symbolic_kan_layer, lock_symbolic!, symb_fwd
+using .symbolic_layer: symbolic_kan_layer, lock_symbolic!, symb_fwd, get_symb_subset
 
 mutable struct KAN_
     widths::Vector{Int}
@@ -24,7 +24,7 @@ mutable struct KAN_
     post_acts::Vector{AbstractArray{Float32}}
     post_splines::Vector{AbstractArray{Float32}}
     act_scale::AbstractArray{Float32}
-    mask::AbstractArray{Float32}
+    mask::Vector{AbstractArray{Float32}}
 end
 
 function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=1.0, base_act=NNlib.selu, symbolic_enabled=true, grid_eps=1.0, grid_range=(-1, 1), sparse_init=false, init_seed=nothing)
@@ -45,7 +45,7 @@ function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=
         push!(symbolic, symbolic_kan_layer(widths[i], widths[i + 1]))
     end
 
-    return KAN_(widths, depth, grid_interval, base_act, act_fcns, biases, symbolic, symbolic_enabled, [], [], [], [], zeros(Float32, 0, 0), ones(widths[end], ))
+    return KAN_(widths, depth, grid_interval, base_act, act_fcns, biases, symbolic, symbolic_enabled, [], [], [], [], zeros(Float32, 0, 0), [ones(widths[end], )])
 end
 
 Flux.@functor KAN_ (biases, act_fcns)
@@ -228,9 +228,11 @@ function remove_node!(model, l, j)
     """
     # Remove all outgoing connections
     for i in 1:model.widths[l]
-        set_mode!(model, l, i, j, "remove")
+        model.act_fcns[l].mask[i, j] = 0.0
+        model.symbolic_fcns[l].mask[j, i] = 0.0
     end
 
+    # Remove all incoming connections
     for o in 1:model.widths[l - 1]
         model.act_fcns[l-1].mask[j, o] = 0.0  
         model.symbolic_fcns[l-1].mask[o, j] = 0.0
@@ -269,13 +271,14 @@ function prune(model; threshold=1e-2, mode="auto", active_neurons_id=nothing)
         cart_ind = findall(x -> x == true, overall_important)
         push!(active_neurons_id, [i[1] for i in cart_ind])
     end
-
+    
+    push!(active_neurons_id, [1:model.widths[end]...])
     push!(mask, ones(model.widths[end], ))
     model.mask = mask
 
     for i in 1:model.depth-1
         for j in 1:model.widths[i+1]
-            if !active_neurons_id[i+1][j] in active_neurons_id[i+1]
+            if !(j in active_neurons_id[i+1])
                 remove_node!(model, i+1, j)
             end
         end
@@ -290,7 +293,7 @@ function prune(model; threshold=1e-2, mode="auto", active_neurons_id=nothing)
 
         model_pruned.act_fcns[i] = get_subset(model.act_fcns[i], active_neurons_id[i], active_neurons_id[i+1])
         model_pruned.widths[i] = length(active_neurons_id[i])
-        model_pruned.symbolic_fcns[i] = get_symb_subset(model.symbolic_fcns[i], active_neurons_id[i+1], active_neurons_id[i])
+        model_pruned.symbolic_fcns[i] = get_symb_subset(model.symbolic_fcns[i], active_neurons_id[i], active_neurons_id[i+1])
     end
 
     return model_pruned

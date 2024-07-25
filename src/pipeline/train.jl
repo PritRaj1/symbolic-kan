@@ -101,7 +101,7 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
     end
 
     if isnothing(t.loss_fn)
-        t.loss_fn = (m, x, y) -> mean(L2_loss(m, x, y) .+ λ*reg(m.act_scale))
+        t.loss_fn = (m, x, y) -> sum(L2_loss(m, x, y) .+ λ*reg(m.act_scale))
     end
 
     grid_update_freq = fld(stop_grid_update_step, grid_update_num)
@@ -123,14 +123,14 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
         for (x, y) in t.train_loader
             x, y = x |> permutedims, y |> permutedims
             loss_val, grad = Flux.withgradient(m -> t.loss_fn(m, x, y), model)
-            opt.opt_state, m = Optimisers.update(opt.opt_state, m, grad[1])
+            t.opt.opt_state, model = Optimisers.update(t.opt.opt_state, model, grad[1])
             train_loss += loss_val
             if (epoch % grid_update_freq == 0) && (epoch < stop_grid_update_step) && update_grid_bool
                 update_grid!(model, x)
             end
         end
 
-        opt.LR = opt.LR_scheduler(epoch, opt.LR)
+        t.opt.LR = t.opt.LR_scheduler(epoch, t.opt.LR)
 
         # Testing
         Flux.testmode!(model)
@@ -139,7 +139,7 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
             test_loss += loss_fn(model, x, y)
         end
 
-        if prune_bool && !plot_mask
+        if prune_bool 
             prune!(model)
         end
 
@@ -147,10 +147,14 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
         test_loss /= length(t.test_loader.data)
 
         time_epoch = time() - start_time
-        log_csv(epoch, time_epoch, train_loss, test_loss, reg(model.acts_scale), file_name)
+        log_csv(epoch, time_epoch, train_loss, test_loss, sum(reg(model.acts_scale)), file_name)
 
         if plot
             plot_kan!(model; folder=img_loc, prune_and_mask=plot_mask)
+        end
+
+        if t.verbose
+            println("Epoch: $epoch, Train Loss: $train_loss, Test Loss: $test_loss, Regularisation: $(reg(model.acts_scale))")
         end
     end
 end

@@ -15,20 +15,20 @@ using .Utils: fit_params
 mutable struct symbolic_dense
     in_dim::Int
     out_dim::Int
-    mask::AbstractArray
+    mask::AbstractArray{Float32}
     fcns
     fcns_avoid_singular
     fcn_names::Vector{Vector{String}}
     fcn_sympys
-    affine::AbstractArray
+    affine::AbstractArray{Float32}
 end
 
 function symbolic_kan_layer(in_dim::Int, out_dim::Int)
     mask = ones(out_dim, in_dim)
-    fcns = [[FunctionWrapper{Float64, Tuple{Float64}}(x -> 0.0) for i in 1:in_dim] for j in 1:out_dim] 
-    fcns_avoid_singular = [[FunctionWrapper{Tuple{Float64, Float64}, Tuple{Float64, Float64}}(((x), (y_th)) -> (0.0, 0.0)) for i in 1:in_dim] for j in 1:out_dim]
+    fcns = [[FunctionWrapper{Float32, Tuple{Float32}}(x -> 0.0) for i in 1:in_dim] for j in 1:out_dim] 
+    fcns_avoid_singular = [[FunctionWrapper{Tuple{Float32, Float32}, Tuple{Float32, Float32}}(((x), (y_th)) -> (0.0, 0.0)) for i in 1:in_dim] for j in 1:out_dim]
     fcn_names = [["0" for i in 1:in_dim] for j in 1:out_dim]
-    fcn_sympys = [[FunctionWrapper{Float64, Tuple{Float64}}(x -> 0.0) for i in 1:in_dim] for j in 1:out_dim] 
+    fcn_sympys = [[FunctionWrapper{Float32, Tuple{Float32}}(x -> 0.0) for i in 1:in_dim] for j in 1:out_dim] 
     affine = zeros(out_dim, in_dim, 4)
 
     return symbolic_dense(in_dim, out_dim, mask, fcns, fcns_avoid_singular, fcn_names, fcn_sympys, affine)
@@ -64,7 +64,7 @@ end
     y_th = avoid_singular ? repeat([y_th], b_size, 1) : nothing
     fcns = avoid_singular ? l.fcns_avoid_singular : l.fcns
 
-    post_acts = zeros(b_size, l.out_dim, 0) 
+    post_acts = zeros(Float32, b_size, l.out_dim, 0) 
     for i in 1:l.in_dim
         post_acts_ = zeros(b_size, 0) 
         for j in 1:l.out_dim
@@ -161,13 +161,13 @@ function lock_symbolic!(l::symbolic_dense, i, j, fun_name; x=nothing, y=nothing,
         fcn_sympy = SYMBOLIC_LIB[fun_name][2]
         fcn_avoid_singular = SYMBOLIC_LIB[fun_name][3]
 
-        l.fcn_sympys[j][i] = FunctionWrapper{Float64, Tuple{Float64}}(fcn_sympy)
+        l.fcn_sympys[j][i] = FunctionWrapper{Float32, Tuple{Float32}}(fcn_sympy)
         l.fcn_names[j][i] = fun_name
 
         # If x and y are not provided, just set the function
         if isnothing(x) || isnothing(y)
-            l.fcns[j][i] = FunctionWrapper{Float64, Tuple{Float64}}(fcn)
-            l.fcns_avoid_singular[j][i] = FunctionWrapper{Tuple{Float64, Float64}, Tuple{Float64, Float64}}(fcn_avoid_singular)
+            l.fcns[j][i] = FunctionWrapper{Float32, Tuple{Float32}}(fcn)
+            l.fcns_avoid_singular[j][i] = FunctionWrapper{Tuple{Float32, Float32}, Tuple{Float32, Float32}}(fcn_avoid_singular)
 
             # Set affine parameters either to random values or to default values
             if !random
@@ -181,8 +181,8 @@ function lock_symbolic!(l::symbolic_dense, i, j, fun_name; x=nothing, y=nothing,
         # If x and y are provided, fit the function
         else
             params, R2 = fit_params(x, y, fcn; α_range=α_range, β_range=β_range, μ=μ, verbose=verbose)
-            l.fcns[j][i] = FunctionWrapper{Float64, Tuple{Float64}}(fcn)
-            l.fcns_avoid_singular[j][i] = FunctionWrapper{Tuple{Float64, Float64}, Tuple{Float64, Float64}}(fcn_avoid_singular)
+            l.fcns[j][i] = FunctionWrapper{Float32, Tuple{Float32}}(fcn)
+            l.fcns_avoid_singular[j][i] = FunctionWrapper{Tuple{Float32, Float32}, Tuple{Float32, Float32}}(fcn_avoid_singular)
             set_affine!(l, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
             return R2
         end

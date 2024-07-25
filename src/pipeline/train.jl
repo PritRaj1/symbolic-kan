@@ -1,6 +1,6 @@
 module Trainer
 
-export init_trainer, train!
+export init_trainer, train!, L2_loss
 
 using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optimisers
 # using CUDA, KernelAbstractions
@@ -35,7 +35,7 @@ function log_csv(epoch, time, train_loss, test_loss, reg, file_name)
     end
 end
 
-mutable struct trainer
+struct trainer
     train_loader::Flux.Data.DataLoader
     test_loader::Flux.Data.DataLoader
     opt
@@ -101,7 +101,7 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
     end
 
     if isnothing(t.loss_fn)
-        t.loss_fn = (m, x, y) -> sum(L2_loss(m, x, y) .+ λ*reg(m.act_scale))
+        t.loss_fn = (m, x, y) -> mean(L2_loss(m, x, y) .+ λ*reg(m.act_scale))
     end
 
     grid_update_freq = fld(stop_grid_update_step, grid_update_num)
@@ -129,15 +129,16 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
             loss_val, grad = Flux.withgradient(m -> t.loss_fn(m, x, y), model)
             t.opt.opt_state, model = Optimisers.update(t.opt.opt_state, model, grad[1])
             train_loss += loss_val
-            if (epoch % grid_update_freq == 0) && (epoch < stop_grid_update_step) && update_grid_bool
-                update_grid!(model, x)
-            end
         end
 
         t.opt.LR = t.opt.LR_scheduler(epoch, t.opt.LR)
+        Flux.testmode!(model)
+
+        if (epoch % grid_update_freq == 0) && (epoch < stop_grid_update_step) && update_grid_bool
+            update_grid!(model, x)
+        end
 
         # Testing
-        Flux.testmode!(model)
         for (x, y) in t.test_loader
             x, y = x |> permutedims, y |> permutedims
             test_loss += t.loss_fn(model, x, y)
@@ -151,7 +152,7 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
         test_loss /= length(t.test_loader.data)
 
         time_epoch = time() - start_time
-        log_csv(epoch, time_epoch, train_loss, test_loss, sum(reg(model.act_scale)), file_name)
+        log_csv(epoch, time_epoch, train_loss, test_loss, mean(reg(model.act_scale)), file_name)
 
         if plot
             plot_kan!(model; folder=img_loc, prune_and_mask=plot_mask)

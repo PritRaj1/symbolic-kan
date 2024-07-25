@@ -15,14 +15,14 @@ mutable struct kan_dense
     out_dim::Int
     num_splines::Int
     degree::Int
-    grid::AbstractArray
+    grid::AbstractArray{Float32}
     RBF_σ::Float32
-    ε::AbstractArray
-    coef::AbstractArray
-    w_base::AbstractArray
-    w_sp::AbstractArray
+    ε::AbstractArray{Float32}
+    coef::AbstractArray{Float32}
+    w_base::AbstractArray{Float32}
+    w_sp::AbstractArray{Float32}
     base_act
-    mask::AbstractArray
+    mask::AbstractArray{Float32}
     grid_eps::Float32
     grid_range::Tuple{Float32, Float32}
 end

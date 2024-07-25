@@ -3,6 +3,7 @@ module Spline
 export extend_grid, B_batch, coef2curve, curve2coef
 
 using Flux, Tullio, LinearAlgebra
+using Zygote: @adjoint
 # using CUDA, KernelAbstractions
 
 include("../utils.jl")
@@ -11,12 +12,20 @@ using .Utils: sparse_mask
 method = get(ENV, "METHOD", "spline") # "spline" or "RBF"; RBF not properly implemented yet
 
 function removeNaN(x)
-    return isnan(x) ? 0.0 : x
+    return isnan(x) ? Float32(0.0) : x
 end
 
 function removeZero(x; ε=1e-4)
-    return iszero(x) ? ε : x
+    return iszero(x) ? Float32(ε) : x
 end
+
+# @adjoint function removeNaN(x)
+#     return isnan(x) ? 0.0 : x, Δ -> isnan(x) ? zero(Δ) : Δ
+# end
+
+# @adjoint function removeZero(x; ε=1e-4)
+#     return iszero(x) ? ε : x, Δ -> iszero(x) ? zero(Δ) : Δ
+# end
 
 function extend_grid(grid, k_extend=0)
     """

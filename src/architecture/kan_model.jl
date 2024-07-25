@@ -16,14 +16,14 @@ mutable struct KAN_
     grid_interval::Int
     base_fcn
     act_fcns
-    biases::Vector{AbstractArray}
+    biases::Vector{AbstractArray{Float32}}
     symbolic_fcns
     symbolic_enabled::Bool
-    acts::Vector{AbstractArray}
-    pre_acts::Vector{AbstractArray}
-    post_acts::Vector{AbstractArray}
-    post_splines::Vector{AbstractArray}
-    act_scale::AbstractArray
+    acts::Vector{AbstractArray{Float32}}
+    pre_acts::Vector{AbstractArray{Float32}}
+    post_acts::Vector{AbstractArray{Float32}}
+    post_splines::Vector{AbstractArray{Float32}}
+    act_scale::AbstractArray{Float32}
 end
 
 function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=1.0, base_act=NNlib.selu, symbolic_enabled=true, grid_eps=1.0, grid_range=(-1, 1), sparse_init=false, init_seed=nothing)
@@ -66,11 +66,11 @@ function PadToShape(arr, shape)
     pad = shape .- size(arr)
 
     # Pad zeros to the first dimension
-    zeros_1 = zeros(0, pad[2], size(arr, 3))
+    zeros_1 = zeros(Float32, 0, pad[2], size(arr, 3))
     array = cat(arr, zeros_1, dims=(1, 2))
 
     # Pad zeros to the second dimension
-    zeros_2 = zeros(0, size(array, 2), pad[3])
+    zeros_2 = zeros(Float32, 0, size(array, 2), pad[3])
     return cat(array, zeros_2, dims=(1, 3))
 end
 
@@ -115,7 +115,7 @@ function fwd!(model, x)
     return x_eval
 end
 
-@nograd function update_grid!(model, x)
+function update_grid!(model, x)
     """
     Update the grid for each b-spline layer in the model.
     """
@@ -219,7 +219,7 @@ function unfix_symb_all!(model)
     end
 end
 
-function prune!(model; threshold=1e-2, mode="auto", active_neurons_id=None)
+function prune!(model; threshold=1e-2, mode="auto", active_neurons_id=nothing)
     """
     Prune the activation of neuron (l, i, j) based on the threshold.
     If the neuron has a small range of activation, shave off the neuron.
@@ -233,7 +233,7 @@ function prune!(model; threshold=1e-2, mode="auto", active_neurons_id=None)
     Returns:
         model_pruned: Pruned model.
     """
-    mask = [ones(model.widths[1], )]
+    mask = [ones(Float32, model.widths[1], )]
     active_neurons_id = [1:model.widths[1]]
 
     for i in 1:model.depth-1

@@ -8,7 +8,7 @@ using Flux, Tullio, LinearAlgebra
 include("../utils.jl")
 using .Utils: sparse_mask
 
-method = get(ENV, "METHOD", "spline") # "spline" or "RBF"
+method = get(ENV, "METHOD", "spline") # "spline" or "RBF"; RBF not properly implemented yet
 
 function removeNaN(x)
     return isnan(x) ? 0.0 : x
@@ -96,7 +96,7 @@ function B_batch_RBF(x, grid; degree=nothing, σ=1.0)
     Returns:
         A matrix of size (d, m, n) containing the B-spline basis functions evaluated at the points x.
     """
-    B = @tullio out[n, d, m] := exp(-sum((x[n, d] - grid[d, m])^2) / (2σ^2))
+    B = @tullio out[n, d, m] := exp(-sum((x[n, d] - grid[d, m])^2) / (2*σ[1]^2))
     return B
 end
 

@@ -25,7 +25,7 @@ function L2_loss(model, x, y)
     - loss: L2 loss.
     """
     ŷ = fwd!(model, x)
-    return sum((ŷ .- y).^2, dims=2)
+    return sum((ŷ .- y).^2)
 end
 
 # Log the loss to CSV
@@ -106,9 +106,13 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
 
     grid_update_freq = fld(stop_grid_update_step, grid_update_num)
     date_str = Dates.format(now(), "yyyy-mm-dd_HH-MM-SS")
-    file_name = log_loc * "log_" * date_str * ".csv"
 
+    # Create folders
+    !isdir(log_loc) && mkdir(log_loc)
+    plot && !isdir(img_loc) && mkdir(img_loc)    
+    
     # Create csv with header
+    file_name = log_loc * "log_" * date_str * ".csv"
     open(file_name, "w") do file
         write(file, "Epoch,Time (s),Train Loss,Test Loss,Regularisation")
     end
@@ -136,7 +140,7 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
         Flux.testmode!(model)
         for (x, y) in t.test_loader
             x, y = x |> permutedims, y |> permutedims
-            test_loss += loss_fn(model, x, y)
+            test_loss += t.loss_fn(model, x, y)
         end
 
         if prune_bool 
@@ -147,14 +151,14 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
         test_loss /= length(t.test_loader.data)
 
         time_epoch = time() - start_time
-        log_csv(epoch, time_epoch, train_loss, test_loss, sum(reg(model.acts_scale)), file_name)
+        log_csv(epoch, time_epoch, train_loss, test_loss, sum(reg(model.act_scale)), file_name)
 
         if plot
             plot_kan!(model; folder=img_loc, prune_and_mask=plot_mask)
         end
 
         if t.verbose
-            println("Epoch: $epoch, Train Loss: $train_loss, Test Loss: $test_loss, Regularisation: $(reg(model.acts_scale))")
+            println("Epoch: $epoch, Train Loss: $train_loss, Test Loss: $test_loss, Regularisation: $(reg(model.act_scale))")
         end
     end
 end

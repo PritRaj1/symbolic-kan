@@ -45,7 +45,7 @@ function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=
         push!(symbolic, symbolic_kan_layer(widths[i], widths[i + 1]))
     end
 
-    return KAN_(widths, depth, grid_interval, base_act, act_fcns, biases, symbolic, symbolic_enabled, [], [], [], [], zeros(Float32, 0, 0), ones(widths[end], )
+    return KAN_(widths, depth, grid_interval, base_act, act_fcns, biases, symbolic, symbolic_enabled, [], [], [], [], zeros(Float32, 0, 0), ones(widths[end], ))
 end
 
 Flux.@functor KAN_ (biases, act_fcns)

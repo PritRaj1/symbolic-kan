@@ -5,9 +5,9 @@ export plot_kan!
 using Flux, Statistics, Makie, GLMakie, FileIO, Printf
 
 include("../architecture/kan_model.jl")
-using .KolmogorovArnoldNets: prune, KAN_
+using .KolmogorovArnoldNets: prune
 
-function get_range(model::KAN_, l, i, j; verbose=true)
+function get_range(model, l, i, j; verbose=true)
     """
     Get the range of the activation of neuron (l, i, j) for thresholding.
 
@@ -64,7 +64,7 @@ function DC_to_NFC(point)
     return FC_to_NFC(DC_to_FC(point))
 end
 
-function plot_kan!(model::KAN_; folder="figures/", γ=3, prune_and_mask=false, mode="supervised", σ=0.5, tick=false, sample=false, in_vars=nothing, out_vars=nothing, title=nothing)
+function plot_kan!(model; folder="figures/", γ=3, prune_and_mask=false, mode="supervised", σ=0.5, tick=false, sample=false, in_vars=nothing, out_vars=nothing, title=nothing)
     """
     Plot KAN.
 
@@ -93,13 +93,13 @@ function plot_kan!(model::KAN_; folder="figures/", γ=3, prune_and_mask=false, m
         w_large = 2.0
         for i in eachindex(model.widths[l])
             for j in eachindex(model.widths[l+1])
-                rank = sortperm(model.acts[l][:, i])
+                rank = sortperm(view(model.acts[l][:, i], :), rev=true)
 
                 symbol_mask = model.symbolic_fcns[l].mask[j, i]
                 numerical_mask = model.act_fcns[l].mask[i, j]
 
                 fig = Figure(
-                    resolution = (w_large, w_large),
+                    size = (w_large, w_large),
                     font = "Arial",
                     fontsize = 20,
                     backgroundcolor = :white,
@@ -137,13 +137,12 @@ function plot_kan!(model::KAN_; folder="figures/", γ=3, prune_and_mask=false, m
 
 
                 if alpha_mask == 1
-                    ax.scene.polygoncolor = :black
+                    ax.backgroundcolor = :black
                 else
-                    ax.scene.polygoncolor = :white
+                    ax.backgroundcolor = :white
                 end
 
-                ax.scene.polygonlinewidth = 1.5
-
+                acts_data = model.acts[l][:, i][rank]
                 lines!(ax, acts_data, spline_data, color=color, linewidth=5)
 
                 if sample
@@ -166,14 +165,19 @@ function plot_kan!(model::KAN_; folder="figures/", γ=3, prune_and_mask=false, m
                 y0 = 0.4
                 neuron_depth = length(widths)
                 min_spacing = A / max(width..., 5)
+                println("min_spacing: ", min_spacing)
                 max_neuron = max(width...)
+                println("max_neuron: ", max_neuron)
                 max_num_weights = max((width[1:end-1] .* width[2:end])...)
+                println("max_num_weights: ", max_num_weights)
                 y1 = 0.4 / max(max_num_weights..., 3)
 
                 max_num_weights = max((width[1:end-1] .* width[2:end])...)
+                println("max_num_weights: ", max_num_weights)
                 y1 = 0.4 / max(max_num_weights..., 3)
+                println("y1: ", y1)
 
-                fig = Figure(resolution=(10, 10 * (neuron_depth - 1) * y0), 
+                fig = Figure(size=(10, 10 * (neuron_depth - 1) * y0), 
                             font="Arial", 
                             fontsize=20, 
                             backgroundcolor=:white, 

@@ -77,7 +77,7 @@ function test_opt()
     x = randn(100, 3) 
     loss(m) = sum((fwd(m, x)[1] .- 1).^2)
     loss_val, grad = Flux.withgradient(l -> loss(l), layer)
-    println(loss_val)
+    @test abs(loss_val) > 0
 end
 
 test_spline_lyr()

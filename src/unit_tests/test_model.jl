@@ -39,7 +39,7 @@ function test_opt()
 
         loss(m) = sum((fwd!(m, x) .- 1).^2)
         loss_val, grad = Flux.withgradient(m -> loss(m), model)
-        println(loss_val)
+        @test abs(loss_val) > 0
 end
 
 

@@ -7,6 +7,7 @@ include("../architecture/kan_model.jl")
 using .KolmogorovArnoldNets
 using .Trainer
 using .PipelineUtils
+using .Plotting
 
 function test_trainer()
     train_loader, test_loader = create_loaders(x -> x, N_var=2, x_range=(-1,1), N_train=10, N_test=10, batch_size=2, normalise_x=false, normalise_y=false, init_seed=1234)
@@ -21,5 +22,14 @@ function test_prune(model)
     prune(model)
 end
 
-model = test_trainer()
-test_prune(model)
+function test_plot()
+    model = KAN([2,5,1]; k=3, grid_interval=5)
+    x = randn(100, 2)
+    y = fwd!(model, x)
+    plot_kan!(model)
+end
+
+
+# model = test_trainer()
+# test_prune(model)
+test_plot()

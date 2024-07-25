@@ -131,14 +131,14 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
             train_loss += loss_val
         end
 
-        t.opt.LR = t.opt.LR_scheduler(epoch, t.opt.LR)
-        Flux.testmode!(model)
-
         if (epoch % grid_update_freq == 0) && (epoch < stop_grid_update_step) && update_grid_bool
             update_grid!(model, x)
         end
 
+        t.opt.LR = t.opt.LR_scheduler(epoch, t.opt.LR)
+        
         # Testing
+        Flux.testmode!(model)
         for (x, y) in t.test_loader
             x, y = x |> permutedims, y |> permutedims
             test_loss += t.loss_fn(model, x, y)

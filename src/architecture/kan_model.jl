@@ -226,17 +226,15 @@ function remove_node!(model, l, j)
         l: Layer index.
         j: Neuron index.
     """
-    # Remove all outgoing connections
-    for i in 1:model.widths[l]
-        model.act_fcns[l].mask[i, j] = 0.0
-        model.symbolic_fcns[l].mask[j, i] = 0.0
-    end
+    println("Removing neuron $(j) from layer $(l)")
 
     # Remove all incoming connections
-    for o in 1:model.widths[l - 1]
-        model.act_fcns[l-1].mask[j, o] = 0.0  
-        model.symbolic_fcns[l-1].mask[o, j] = 0.0
-    end
+    model.act_fcns[l-1].mask[:, j] .= 0.0
+    model.symbolic_fcns[l-1].mask[j, :] .= 0.0
+
+    # Remove all outgoing connections
+    model.act_fcns[l].mask[j, :] .= 0.0
+    model.symbolic_fcns[l].mask[:, j] .= 0.0
 end
 
 function prune(model; threshold=1e-2, mode="auto", active_neurons_id=nothing)
@@ -285,7 +283,6 @@ function prune(model; threshold=1e-2, mode="auto", active_neurons_id=nothing)
     end
 
     model_pruned = deepcopy(model)
-    model_pruned.mask = mask
     model_pruned.biases = []
     model_pruned.act_fcns = []
     model_pruned.symbolic_fcns = []

@@ -8,7 +8,7 @@ using Flux, Tullio, NNlib, Random, Statistics
 include("kan_layer.jl")
 include("symbolic_layer.jl")
 using .dense_kan: b_spline_layer, update_lyr_grid!, get_subset, fwd
-using .symbolic_layer: symbolic_kan_layer, lock_symbolic!
+using .symbolic_layer: symbolic_kan_layer, lock_symbolic!, symb_fwd
 
 mutable struct KAN_
     widths::Vector{Int}
@@ -30,6 +30,7 @@ function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=
 
     biases = []
     act_fcns = []
+    symbolic = []
     depth = length(widths) - 1 
 
     for i in 1:depth
@@ -40,10 +41,6 @@ function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=
         push!(act_fcns, spline)
         bias = zeros(1, widths[i + 1])
         push!(biases, bias)
-    end
-
-    symbolic = []
-    for i in 1:depth
         push!(symbolic, symbolic_kan_layer(widths[i], widths[i + 1]))
     end
 
@@ -92,7 +89,7 @@ function fwd!(model, x)
         # Evaluate symbolic layer at x
         x_symbolic, post_acts_symbolic = 0.0, 0.0
         if model.symbolic_enabled
-            x_symbolic, post_acts_symbolic = model.symbolic_fcns[i](x_eval)
+            x_symbolic, post_acts_symbolic = symb_fwd(model.symbolic_fcns[i], x_eval)
         end
 
         x_eval = x_numerical .+ x_symbolic

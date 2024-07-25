@@ -35,7 +35,7 @@ end
 function test_symb_lyr()
     layer = symbolic_kan_layer(3, 5)
     x = randn(100, 3) 
-    z, postacts = layer(x)
+    z, postacts = symb_fwd(layer, x)
 
     @test all(size(z) .== (100, 5))
     @test all(size(postacts) .== (100, 5, 3))
@@ -75,12 +75,11 @@ end
 function test_opt()
     layer = b_spline_layer(3, 5)
     x = randn(100, 3) 
-
     loss(m) = sum((fwd(m, x)[1] .- 1).^2)
     loss_val, grad = Flux.withgradient(l -> loss(l), layer)
     println(loss_val)
 end
 
-# test_spline_lyr()
+test_spline_lyr()
 test_symb_lyr()
 test_opt()

@@ -1,6 +1,6 @@
 module symbolic_layer
 
-export symbolic_kan_layer, lock_symbolic!, get_symb_subset
+export symbolic_kan_layer, lock_symbolic!, get_symb_subset, symb_fwd
 using Zygote: @nograd
 
 using Flux, Tullio, Random
@@ -34,7 +34,7 @@ function symbolic_kan_layer(in_dim::Int, out_dim::Int)
     return symbolic_dense(in_dim, out_dim, mask, fcns, fcns_avoid_singular, fcn_names, fcn_sympys, affine)
 end
 
-@nograd function apply_fcn(x, y; fcn)
+function apply_fcn(x, y; fcn)
     if !isnothing(y)
         return fcn(x, y)[2]
     else
@@ -42,7 +42,7 @@ end
     end
 end
 
-function (l::symbolic_dense)(x; avoid_singular=false, y_th=10.0)
+@nograd function symb_fwd(l::symbolic_dense, x; avoid_singular=false, y_th=10.0)
     """
     Apply symbolic dense layer to input x using Kolmogorov-Arnold theorm.
     
@@ -60,7 +60,7 @@ function (l::symbolic_dense)(x; avoid_singular=false, y_th=10.0)
     """
 
     b_size = size(x, 1)
-    y_th = avoid_singular ? repeat([10.0], b_size, 1) : nothing
+    y_th = avoid_singular ? repeat([y_th], b_size, 1) : nothing
     fcns = avoid_singular ? l.fcns_avoid_singular : l.fcns
 
     post_acts = zeros(b_size, l.out_dim, 0) 

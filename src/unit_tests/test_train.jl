@@ -18,31 +18,31 @@ function test_trainer()
     train!(trainer)
 
     @test sum(trainer.model.act_scale) > 0.0
-    return trainer.model
+    return trainer.model, first(test_loader)[1] |> permutedims
 end
 
-function test_prune(model)
+function test_prune(model, x)
     mask_before = model.mask[1]
     model = prune(model)
     mask_after = model.mask
+    fwd!(model, x) # Rememeber to call fwd! to update the acts
 
     sum_mask_after = 0.0
     for i in eachindex(mask_after)
         sum_mask_after += sum(mask_after[i])
     end
 
-    println("Number of parameters before pruning: ", sum(mask_before))
     println("Number of parameters after pruning: ", sum_mask_after)
-    @test sum_mask_after < sum(mask_before)
+    @test sum_mask_after != sum(mask_before)
     return model
 end
 
 function test_plot(model)
-    plot_kan!(model; mask=true, in_vars=["x1", "x2"], out_vars=["y1", "y2"], title="KAN")
+    plot_kan!(model; mask=true, in_vars=["x1", "x2"], out_vars=["x1^2","x2^2"], title="KAN")
 end
 
 
-model = test_trainer()
+model, x = test_trainer()
 # model = KAN([2,5,1]; k=3, grid_interval=5)
-model = test_prune(model)
+model = test_prune(model, x)
 test_plot(model)

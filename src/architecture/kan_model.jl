@@ -233,22 +233,18 @@ function prune(model; threshold=1e-2, mode="auto", active_neurons_id=nothing, ve
     end
 
     model_pruned = KAN(deepcopy(model.widths); k=model.act_fcns[1].degree, grid_interval=model.grid_interval, ε_scale=model.ε_scale, μ_scale=model.μ_scale, σ_scale=model.σ_scale, base_act=model.base_fcn, symbolic_enabled=model.symbolic_enabled, grid_eps=model.grid_eps, grid_range=model.grid_range, sparse_init=false)
-    model_pruned.mask = mask
-    model_pruned.act_fcns = []
-    model_pruned.symbolic_fcns = []
-    model_pruned.widths = []
-    model_pruned.biases = []
     
     for i in 1:size(model.act_scale, 1)
-        if i < size(model.act_scale, 1)
-            # model_pruned.biases[i] = model.biases[i][:, active_neurons_id[i+1]]
-            push!(model_pruned.biases, model.biases[i][:, active_neurons_id[i+1]])
+        if i < size(model.act_scale, 1) - 1
+            model_pruned.biases[i] = model.biases[i][:, active_neurons_id[i+1]]
         end
 
-        push!(model_pruned.act_fcns, get_subset(model.act_fcns[i], active_neurons_id[i], active_neurons_id[i+1]))
-        push!(model_pruned.widths, length(active_neurons_id[i]))
-        push!(model_pruned.symbolic_fcns, get_symb_subset(model.symbolic_fcns[i], active_neurons_id[i], active_neurons_id[i+1]))
+        model_pruned.act_fcns[i] = get_subset(model.act_fcns[i], active_neurons_id[i], active_neurons_id[i+1])
+        model_pruned.symbolic_fcns[i] = get_symb_subset(model.symbolic_fcns[i], active_neurons_id[i], active_neurons_id[i+1])
+        model_pruned.widths[i] = length(active_neurons_id[i])
     end
+
+    model_pruned.mask = mask
 
     return model_pruned
 end

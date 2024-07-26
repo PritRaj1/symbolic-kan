@@ -10,7 +10,7 @@ include("symbolic_layer.jl")
 using .dense_kan: b_spline_layer, update_lyr_grid!, get_subset, fwd
 using .symbolic_layer: symbolic_kan_layer, lock_symbolic!, symb_fwd, get_symb_subset
 
-struct KAN_
+mutable struct KAN_
     widths::Vector{Int}
     depth::Int
     grid_interval::Int
@@ -82,11 +82,11 @@ function PadToShape(arr, shape)
 end
 
 function fwd!(model, x)
-    pre_acts_arr = []
-    post_acts_arr = []
-    post_splines_arr = []
-    act_scale_full = zeros(Float32, 0, maximum(model.widths), maximum(model.widths))
-    acts_arr = [x]
+    model.pre_acts = []
+    model.post_acts = []
+    model.post_splines = []
+    model.act_scale = zeros(Float32, 0, maximum(model.widths), maximum(model.widths))
+    model.acts = [x]
     x_eval = copy(x)
 
     for i in 1:model.depth
@@ -106,26 +106,20 @@ function fwd!(model, x)
         in_range = std(pre_acts, dims=1).+ 0.1
         out_range = std(post_acts, dims=1) .+ 0.1
         scales = PadToShape(out_range ./ in_range, (1, maximum(model.widths), maximum(model.widths)))
-        act_scale_full = vcat(act_scale_full, scales)
+        model.act_scale = vcat(model.act_scale, scales)
         
-        add_to_array!(pre_acts_arr, pre_acts)
-        add_to_array!(post_acts_arr, post_acts)
-        add_to_array!(post_splines_arr, post_spline)
+        add_to_array!(model.pre_acts, pre_acts)
+        add_to_array!(model.post_acts, post_acts)
+        add_to_array!(model.post_splines, post_spline)
 
         # Add bias b(x)
         b = repeat(model.biases[i], size(x_eval, 1), 1)
         x_eval = @tullio res[m, n] := x_eval[m, n] + b[m, n]
 
-        add_to_array!(acts_arr, copy(x_eval))
+        add_to_array!(model.acts, copy(x_eval))
     end
 
-    @reset model.pre_acts = pre_acts_arr
-    @reset model.post_acts = post_acts_arr
-    @reset model.post_splines = post_splines_arr
-    @reset model.acts = acts_arr
-    @reset model.act_scale = act_scale_full
-
-    return x_eval, model
+    return x_eval
 end
 
 function update_grid!(model, x)
@@ -135,10 +129,8 @@ function update_grid!(model, x)
  
     for i in 1:model.depth
         _ = fwd!(model, x)
-        @reset model.act_fcns[i] = update_lyr_grid!(model.act_fcns[i], model.acts[i])
+        update_lyr_grid!(model.act_fcns[i], model.acts[i])
     end
-
-    return model
 end
 
 function set_mode!(model, l, i, j, mode; mask_n=nothing)
@@ -171,71 +163,8 @@ function set_mode!(model, l, i, j, mode; mask_n=nothing)
         mask_s = 0.0
     end
 
-    @reset model.act_fcns[l].mask[i, j] = mask_n
-    @reset model.symbolic_fcns[l].mask[j, i] = mask_s
-
-    return model
-end
-
-function fix_symbolic!(model, l, i, j, fcn_name; fit_params=true, α_range=(-10, 10), β_range=(-10, 10), grid_number=101, iterations=3, μ=1.0, random=false, seed=nothing, verbose=true)
-    """
-    Set the activation for element (l, i, j) to a fixed symbolic function.
-
-    Args:
-        l: Layer index.
-        i: Neuron input index.
-        j: Neuron output index.
-        fcn_name: Name of the symbolic function.
-        fit_params: Fit the parameters of the symbolic function.
-        α_range: Range of the α parameter in fit.
-        β_range: Range of the β parameter in fit.
-        grid_number: Number of grid points in fit.
-        iterations: Number of iterations in fit.
-        μ: Step size in fit.
-        random: Random setting.
-        verbose: Print updates.
-
-    Returns:
-        R2 (or nothing): Coefficient of determination.
-    """
-    model = set_mode!(model, l, i, j, "s")
-    
-    if !fit_params
-        R2, l = lock_symbolic!(model.symbolic_fcns[l], i, j, fcn_name)
-        return nothing, l
-    else
-        x = model.acts[l]
-        y = model.post_acts[l][:, i, j]
-        R2, l = lock_symbolic!(model.symbolic_fcns[l], i, j, fcn_name; x=x, y=y, α_range=α_range, β_range=β_range, μ=μ, random=random, seed=seed, verbose=verbose)
-        return R2, l
-    end 
-end
-
-function unfix_symbolic!(model, l, i, j)
-    """
-    Unfix the symbolic function for element (l, i, j).
-
-    Args:
-        l: Layer index.
-        i: Neuron input index.
-        j: Neuron output index.
-    """
-    return set_mode!(model, l, i, j, "n")
-end
-
-function unfix_symb_all!(model)
-    """
-    Unfix all symbolic functions in the model.
-    """
-    for l in 1:model.depth
-        for i in 1:model.widths[l]
-            for j in 1:model.widths[l + 1]
-                model = unfix_symbolic!(model, l, i, j)
-            end
-        end
-    end
-
-    return model
+    model.act_fcns[l].mask[i, j] = mask_n
+    model.symbolic_fcns[l].mask[j, i] = mask_s
 end
 
 function remove_node!(model, l, j; verbose=true)
@@ -250,14 +179,12 @@ function remove_node!(model, l, j; verbose=true)
     verbose && println("Removing neuron $(j) from layer $(l)")
 
     # Remove all incoming connections
-    @reset model.act_fcns[l-1].mask[:, j] .= 0.0
-    @reset model.symbolic_fcns[l-1].mask[j, :] .= 0.0
+    model.act_fcns[l-1].mask[:, j] .= 0.0
+    model.symbolic_fcns[l-1].mask[j, :] .= 0.0
 
     # Remove all outgoing connections
-    @reset model.act_fcns[l].mask[j, :] .= 0.0
-    @reset model.symbolic_fcns[l].mask[:, j] .= 0.0
-
-    return model
+    model.act_fcns[l].mask[j, :] .= 0.0
+    model.symbolic_fcns[l].mask[:, j] .= 0.0
 end
 
 function prune(model; threshold=1e-2, mode="auto", active_neurons_id=nothing, verbose=true)
@@ -295,7 +222,7 @@ function prune(model; threshold=1e-2, mode="auto", active_neurons_id=nothing, ve
     
     push!(active_neurons_id, [1:model.widths[end]...])
     push!(mask, ones(model.widths[end], ))
-    @reset model.mask = mask
+    model.mask = mask
 
     for i in 1:model.depth-1
         for j in 1:model.widths[i+1]
@@ -306,15 +233,20 @@ function prune(model; threshold=1e-2, mode="auto", active_neurons_id=nothing, ve
     end
 
     model_pruned = KAN(deepcopy(model.widths); k=model.act_fcns[1].degree, grid_interval=model.grid_interval, ε_scale=model.ε_scale, μ_scale=model.μ_scale, σ_scale=model.σ_scale, base_act=model.base_fcn, symbolic_enabled=model.symbolic_enabled, grid_eps=model.grid_eps, grid_range=model.grid_range, sparse_init=false)
-
+    model_pruned.act_fcns = []
+    model_pruned.symbolic_fcns = []
+    model_pruned.widths = []
+    model_pruned.biases = []
+    
     for i in 1:size(model.act_scale, 1)
         if i < size(model.act_scale, 1)
-            @reset model_pruned.biases[i] = model.biases[i][:, active_neurons_id[i+1]]
+            # model_pruned.biases[i] = model.biases[i][:, active_neurons_id[i+1]]
+            push!(model_pruned.biases, model.biases[i][:, active_neurons_id[i+1]])
         end
-
-        @reset model_pruned.act_fcns[i] = get_subset(model.act_fcns[i], active_neurons_id[i], active_neurons_id[i+1])
-        @reset model_pruned.widths[i] = length(active_neurons_id[i])
-        @reset model_pruned.symbolic_fcns[i] = get_symb_subset(model.symbolic_fcns[i], active_neurons_id[i], active_neurons_id[i+1])
+        
+        push!(model_pruned.act_fcns, get_subset(model.act_fcns[i], active_neurons_id[i], active_neurons_id[i+1]))
+        push!(model_pruned.widths, length(active_neurons_id[i]))
+        push!(model_pruned.symbolic_fcns, get_symb_subset(model.symbolic_fcns[i], active_neurons_id[i], active_neurons_id[i+1]))
     end
 
     return model_pruned

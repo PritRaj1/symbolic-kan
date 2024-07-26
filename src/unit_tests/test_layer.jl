@@ -18,7 +18,7 @@ function test_spline_lyr()
     @test all(size(postspline) .== (100, 5, 3))
     @test all(size(layer.grid) .== (3, 12))
 
-    layer = update_lyr_grid!(layer, x)
+    update_lyr_grid!(layer, x)
 
     @test all(size(layer.grid) .== (3, 12))
 
@@ -60,7 +60,7 @@ function test_symb_lyr()
     noises = randn(num) .* 0.02
     y = 2 .* x .+ 1 .+ noises
     fcn = "x"
-    R2, layer = lock_symbolic!(layer, 3, 2, fcn; x, y, random=true, seed=123)
+    R2 = lock_symbolic!(layer, 3, 2, fcn; x, y, random=true, seed=123)
 
     @test layer.fcns[2][3](2.4) == 2.4
     @test layer.fcn_names[2][3] == "x"

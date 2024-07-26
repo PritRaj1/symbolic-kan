@@ -10,7 +10,7 @@ using .PipelineUtils
 using .Plotting
 
 function test_trainer()
-    train_loader, test_loader = create_loaders(x -> x, N_var=2, x_range=(-1,1), N_train=140, N_test=140, batch_size=20, normalise_x=true, normalise_y=true, init_seed=1234)
+    train_loader, test_loader = create_loaders(x -> x^2, N_var=2, x_range=(-1,1), N_train=100, N_test=100, batch_size=10, normalise_x=true, normalise_y=true, init_seed=1234)
     model = KAN([2,5,1]; k=3, grid_interval=5)
     lr_scheduler = step_decay_scheduler(5, 0.8, 1e-6)
     opt = create_opt(model, "adam"; LR=0.0001, decay_scheduler=lr_scheduler)

@@ -2,7 +2,7 @@ module dense_kan
 
 export b_spline_layer, fwd, update_lyr_grid!, get_subset
 
-using Flux, Tullio, NNlib, Accessors
+using Flux, Tullio, NNlib
 # using CUDA, KernelAbstractions
 
 include("spline.jl")
@@ -10,7 +10,7 @@ include("../utils.jl")
 using .Spline: extend_grid, coef2curve, curve2coef
 using .Utils: sparse_mask
 
-struct kan_dense
+mutable struct kan_dense
     in_dim::Int
     out_dim::Int
     num_splines::Int
@@ -104,10 +104,8 @@ function update_lyr_grid!(l::kan_dense, x; margin=0.01)
 
     # Grid is a convex combination of the uniform and adaptive grid
     grid = @tullio out[i, j] := l.grid_eps * grid_uniform[i, j] + (1 - l.grid_eps) * grid_adaptive[i, j]
-    @reset l.grid = extend_grid(grid, l.degree)
-    @reset l.coef = curve2coef(x_sort, current_splines, l.grid; k=l.degree, scale=l.RBF_σ)
-
-    return l
+    l.grid = extend_grid(grid, l.degree)
+    l.coef = curve2coef(x_sort, current_splines, l.grid; k=l.degree, scale=l.RBF_σ)
 end
 
 function get_subset(l::kan_dense, in_indices, out_indices)
@@ -123,33 +121,34 @@ function get_subset(l::kan_dense, in_indices, out_indices)
         l_subset: The subset KAN layer.
     """
     l_sub = b_spline_layer(l.in_dim, l.out_dim; num_splines=l.num_splines, degree=l.degree, ε_scale=0.1, σ_base=1.0, σ_sp=1.0, base_act=l.base_act, grid_eps=l.grid_eps, grid_range=l.grid_range, sparse_init=false)
-    @reset l_sub.in_dim = length(in_indices)
-    @reset l_sub.out_dim = length(out_indices)
+    l_sub.in_dim = length(in_indices)
+    l_sub.out_dim = length(out_indices)
 
     new_grid = zeros(0, size(l.grid, 2)) 
     for i in in_indices
         new_grid = vcat(new_grid, l.grid[i:i, :])
     end
-    @reset l_sub.grid = new_grid
+    l_sub.grid = new_grid
 
-    @reset l_sub.ε = zeros(size(l.ε, 1), l_sub.in_dim, l_sub.out_dim) 
-    @reset l_sub.coef = zeros(l_sub.in_dim, l_sub.out_dim, size(l.coef, 3)) 
-    @reset l_sub.w_base = zeros(l_sub.in_dim, l_sub.out_dim) 
-    @reset l_sub.w_sp = zeros(l_sub.in_dim, l_sub.out_dim) 
-    @reset l_sub.mask = zeros(l_sub.in_dim, l_sub.out_dim) 
+    l_sub.ε = zeros(size(l.ε, 1), l_sub.in_dim, l_sub.out_dim) 
+    l_sub.coef = zeros(l_sub.in_dim, l_sub.out_dim, size(l.coef, 3)) 
+    l_sub.w_base = zeros(l_sub.in_dim, l_sub.out_dim) 
+    l_sub.w_sp = zeros(l_sub.in_dim, l_sub.out_dim) 
+    l_sub.mask = zeros(l_sub.in_dim, l_sub.out_dim) 
     
     for in_idx in eachindex(in_indices)
         for out_idx in eachindex(out_indices)
             i, j = in_indices[in_idx], out_indices[out_idx]
 
-            @reset l_sub.ε[:, in_idx, out_idx] .= l.ε[:, i, j]
-            @reset l_sub.coef[in_idx, out_idx, :] .= l.coef[i, j, :]
-            @reset l_sub.w_base[in_idx, out_idx] = l.w_base[i, j]
-            @reset l_sub.w_sp[in_idx, out_idx] = l.w_sp[i, j]
-            @reset l_sub.mask[in_idx, out_idx] = l.mask[i, j]
+            l_sub.ε[:, in_idx, out_idx] .= l.ε[:, i, j]
+            l_sub.coef[in_idx, out_idx, :] .= l.coef[i, j, :]
+            l_sub.w_base[in_idx, out_idx] = l.w_base[i, j]
+            l_sub.w_sp[in_idx, out_idx] = l.w_sp[i, j]
+            l_sub.mask[in_idx, out_idx] = l.mask[i, j]
         end
     end
 
     return l_sub
 end
+
 end

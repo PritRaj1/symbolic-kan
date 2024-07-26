@@ -2,7 +2,7 @@ module Trainer
 
 export init_trainer, train!, L2_loss
 
-using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optimisers, Accessors
+using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optimisers
 # using CUDA, KernelAbstractions
 
 include("utils.jl")
@@ -24,9 +24,8 @@ function L2_loss!(model, x, y)
     Returns:
     - loss: L2 loss.
     """
-    ŷ, model = fwd!(model, x)
-    println("act_scale:", size(model.act_scale))
-    return sum((ŷ .- y).^2), model
+    ŷ = fwd!(model, x)
+    return sum((ŷ .- y).^2)
 end
 
 # Log the loss to CSV
@@ -65,7 +64,7 @@ function init_trainer(model, train_loader, test_loader, optimiser; loss_fn=nothi
     return trainer(model, train_loader, test_loader, optimiser, loss_fn, max_epochs, verbose)
 end
 
-function train!(t::trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=10, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
+function train!(t::trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=50, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
     λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0)
     """
     Train symbolic model.
@@ -99,14 +98,12 @@ function train!(t::trainer; log_loc="logs/", update_grid_bool=true, grid_update_
 
     # l1 rregularisation loss
     function reg_loss!(m, x, y)
-        l2_loss, m = L2_loss!(m, x, y)
-        @reset t.model = m
-        total_loss = mean(l2_loss .+ λ * reg(m.act_scale))
-        return total_loss
+        l2 = L2_loss!(m, x, y)
+        return mean(l2 .+ λ * reg(m.act_scale))
     end
 
     if isnothing(t.loss_fn)
-        t.loss_fn = reg_loss!     
+        t.loss_fn = reg_loss!
     end
 
     grid_update_freq = fld(stop_grid_update_step, grid_update_num)
@@ -131,14 +128,13 @@ function train!(t::trainer; log_loc="logs/", update_grid_bool=true, grid_update_
         Flux.trainmode!(t.model)
         for (x, y) in t.train_loader
             x, y = x |> permutedims, y |> permutedims
-
-            loss_val = t.loss_fn(t.model, x, y)
-            grad = gradient(m -> t.loss_fn(m, x, y), t.model)
+            loss_val, grad = Flux.withgradient(m -> t.loss_fn(m, x, y), t.model)
+            println(loss_val)
             t.opt.opt_state, t.model = Optimisers.update(t.opt.opt_state, t.model, grad[1])
             train_loss += loss_val
 
             if (num_steps % grid_update_freq == 0) && (num_steps < stop_grid_update_step) && update_grid_bool
-                @reset t.model = update_grid!(t.model, x)
+                update_grid!(t.model, x)
             end
         end
 

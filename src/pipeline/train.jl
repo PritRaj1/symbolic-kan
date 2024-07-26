@@ -2,7 +2,7 @@ module Trainer
 
 export init_trainer, train!, L2_loss
 
-using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optimisers
+using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optimisers, Accessors
 # using CUDA, KernelAbstractions
 
 include("utils.jl")
@@ -12,7 +12,7 @@ using .PipelineUtils
 using .KolmogorovArnoldNets: fwd!, update_grid!, prune
 using .Plotting
 
-function L2_loss(model, x, y)
+function L2_loss!(model, x, y)
     """
     Compute L2 loss between predicted and true values.
     
@@ -24,8 +24,9 @@ function L2_loss(model, x, y)
     Returns:
     - loss: L2 loss.
     """
-    ŷ = fwd!(model, x)
-    return sum((ŷ .- y).^2)
+    ŷ, model = fwd!(model, x)
+    println("act_scale:", size(model.act_scale))
+    return sum((ŷ .- y).^2), model
 end
 
 # Log the loss to CSV
@@ -36,6 +37,7 @@ function log_csv(epoch, time, train_loss, test_loss, reg, file_name)
 end
 
 mutable struct trainer
+    model
     train_loader::Flux.Data.DataLoader
     test_loader::Flux.Data.DataLoader
     opt
@@ -44,7 +46,7 @@ mutable struct trainer
     verbose::Bool
 end
 
-function init_trainer(train_loader, test_loader, optimiser; loss_fn=nothing, max_epochs=100, verbose=true)
+function init_trainer(model, train_loader, test_loader, optimiser; loss_fn=nothing, max_epochs=100, verbose=true)
     """
     Initialise trainer for training symbolic model.
 
@@ -60,25 +62,20 @@ function init_trainer(train_loader, test_loader, optimiser; loss_fn=nothing, max
     Returns:
     - t: trainer object.
     """
-    return trainer(train_loader, test_loader, optimiser, loss_fn, max_epochs, verbose)
+    return trainer(model, train_loader, test_loader, optimiser, loss_fn, max_epochs, verbose)
 end
 
-function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bool=false, plot=false, plot_mask=false, update_grid_bool=true, grid_update_num=10, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
+function train!(t::trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=10, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
     λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0)
     """
     Train symbolic model.
 
     Args:
     - t: trainer object.
-    - model: symbolic model to train.
 
     Returns:
-    - model: trained symbolic model.
+    - model: trained model.
     """
-
-    if plot_mask
-        prune_bool = true
-    end
 
     # Regularisation
     function reg(acts_scale)
@@ -93,15 +90,23 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
         reg_ = 0.0
         for i in eachindex(acts_scale[:, 1, 1])
             reg_ += sum(abs2, non_linear(acts_scale[i, :, :]))
-            coeff_l1 = sum(mean(abs.(model.act_fcns[i].coef), dims=2))
+            coeff_l1 = sum(mean(abs.(t.model.act_fcns[i].coef), dims=2))
             reg_ += λ_l1 * coeff_l1 * λ_coefdiff * λ_coef
         end
 
         return reg_
     end
 
+    # l1 rregularisation loss
+    function reg_loss!(m, x, y)
+        l2_loss, m = L2_loss!(m, x, y)
+        @reset t.model = m
+        total_loss = mean(l2_loss .+ λ * reg(m.act_scale))
+        return total_loss
+    end
+
     if isnothing(t.loss_fn)
-        t.loss_fn = (m, x, y) -> mean(L2_loss(m, x, y) .+ λ*reg(m.act_scale))
+        t.loss_fn = reg_loss!     
     end
 
     grid_update_freq = fld(stop_grid_update_step, grid_update_num)
@@ -109,57 +114,52 @@ function train!(t::trainer, model; log_loc="logs/", img_loc="figures/", prune_bo
 
     # Create folders
     !isdir(log_loc) && mkdir(log_loc)
-    plot && !isdir(img_loc) && mkdir(img_loc)    
     
     # Create csv with header
     file_name = log_loc * "log_" * date_str * ".csv"
     open(file_name, "w") do file
-        write(file, "Epoch,Time (s),Train Loss,Test Loss,Regularisation")
+        write(file, "Epoch,Time (s),Train Loss,Test Loss,Regularisation\n")
     end
 
     start_time = time()
+    num_steps = t.max_epochs * length(t.train_loader.data)
     for epoch in ProgressBar(1:t.max_epochs)
         train_loss = 0.0
         test_loss = 0.0
 
         # Training
-        Flux.trainmode!(model)
+        Flux.trainmode!(t.model)
         for (x, y) in t.train_loader
             x, y = x |> permutedims, y |> permutedims
-            loss_val, grad = Flux.withgradient(m -> t.loss_fn(m, x, y), model)
-            t.opt.opt_state, model = Optimisers.update(t.opt.opt_state, model, grad[1])
-            train_loss += loss_val
-        end
 
-        if (epoch % grid_update_freq == 0) && (epoch < stop_grid_update_step) && update_grid_bool
-            update_grid!(model, x)
+            loss_val = t.loss_fn(t.model, x, y)
+            grad = gradient(m -> t.loss_fn(m, x, y), t.model)
+            t.opt.opt_state, t.model = Optimisers.update(t.opt.opt_state, t.model, grad[1])
+            train_loss += loss_val
+
+            if (num_steps % grid_update_freq == 0) && (num_steps < stop_grid_update_step) && update_grid_bool
+                @reset t.model = update_grid!(t.model, x)
+            end
         end
 
         t.opt.LR = t.opt.LR_scheduler(epoch, t.opt.LR)
+        Optimisers.adjust!(t.opt.opt_state, t.opt.LR)
         
         # Testing
-        Flux.testmode!(model)
+        Flux.testmode!(t.model)
         for (x, y) in t.test_loader
             x, y = x |> permutedims, y |> permutedims
-            test_loss += t.loss_fn(model, x, y)
-        end
-
-        if prune_bool 
-            model = prune(model)
+            test_loss += t.loss_fn(t.model, x, y)
         end
 
         train_loss /= length(t.train_loader.data)
         test_loss /= length(t.test_loader.data)
 
         time_epoch = time() - start_time
-        log_csv(epoch, time_epoch, train_loss, test_loss, mean(reg(model.act_scale)), file_name)
-
-        if plot
-            plot_kan!(model; folder=img_loc, prune_and_mask=plot_mask)
-        end
+        log_csv(epoch, time_epoch, train_loss, test_loss, mean(reg(t.model.act_scale)), file_name)
 
         if t.verbose
-            println("Epoch: $epoch, Train Loss: $train_loss, Test Loss: $test_loss, Regularisation: $(reg(model.act_scale))")
+            println("Epoch: $epoch, Train Loss: $train_loss, Test Loss: $test_loss, Regularisation: $(reg(t.model.act_scale))")
         end
     end
 end

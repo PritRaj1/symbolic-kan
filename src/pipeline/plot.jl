@@ -51,7 +51,7 @@ function format_tick!(ax; x_min, x_max, y_min, y_max)
     ax.ytickformat = format_ticks
 end
 
-function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false, mode="supervised", σ=1.0, tick=false, sample=false, in_vars=nothing, out_vars=nothing, title=nothing)
+function plot_kan!(model; folder="figures/", μ=100, γ=3, mask=false, mode="supervised", σ=1.0, tick=false, sample=false, in_vars=nothing, out_vars=nothing, title=nothing)
     """
     Plot KAN.
 
@@ -59,7 +59,7 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false,
     - model: KAN model.
     - folder: folder to save plots.
     - γ: controls transparaency of each activation.
-    - prune_and_mask: whether to prune and plot mask. true -> prune and plot mask; false -> plot all activations.
+    - mask: whether to prune and plot mask. true -> prune and plot mask; false -> plot all activations.
     - mode: "supervised" or "unsupervised". "supervised" -> l1 is measured by absolution value; "unsupervised" -> l1 is measured by standard deviation.
     - σ: scale of diagram.
     - tick: whether to show ticks.
@@ -70,9 +70,8 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false,
     """
 
     # Create folder if it does not exist
-    if !isdir(folder * "splines/")
-        mkdir(folder * "splines/")
-    end
+    !isdir(folder) && mkdir(folder)    
+    !isdir(folder * "splines/") && mkdir(folder * "splines/")
 
     depth = length(model.widths) - 1
 
@@ -187,7 +186,7 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false,
                 id_ = (i-1) * n_next + (j-1) 
 
                 if l < neuron_depth - 1
-                    alpha_plot = prune_and_mask ? alpha[l, j, i] * model.mask[l][i] * model.mask[l + 1][j] : 1.0
+                    alpha_plot = mask ? alpha[l, j, i] * model.mask[l][i] * model.mask[l + 1][j] : 1.0
 
                     symbol_mask = model.symbolic_fcns[l].mask[j, i]
                     numerical_mask = model.act_fcns[l].mask[i, j]
@@ -211,7 +210,7 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false,
                     end
 
                 else
-                    alpha_plot = prune_and_mask ? model.mask[l-1][i] : 1.0
+                    alpha_plot = mask ? model.mask[l][i] : 1.0
                 end
 
                 lines!(ax, [1 / (2 * N) + id_ / N, 1 / (2 * n_next) + (j-1) / n_next], 
@@ -249,7 +248,7 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false,
                 bottom = DC_to_NFC([0, (l - 1 / 2) * y0 - y1])[2] |> Float32
                 top = DC_to_NFC([0, (l - 1 / 2) * y0 + y1])[2] |> Float32
 
-                image_alpha = prune_and_mask ? alpha[l, i, j] * model.mask[l][i] * model.mask[l+1][j] : 1.0                           
+                image_alpha = mask ? alpha[l, i, j] * model.mask[l][i] * model.mask[l+1][j] : 1.0                           
                 image!(ax, left..right, bottom..top, rotr90(im), alpha=image_alpha)
             end
         end

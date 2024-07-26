@@ -74,7 +74,7 @@ optimiser_map = Dict(
 
 mutable struct optimiser_state
     opt_state
-    LR_scheduler::Function
+    LR_scheduler
     LR::Float32
 end
 

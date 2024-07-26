@@ -9,5 +9,4 @@ Julia implementation of B-spline KAN for symbolic regression - recreated pretty 
 ## TODO
 
 1. CUDA
-2. mutable structs need to disappear -> replace with @set from Accessors.jl
 3. Optim for L-BFGS

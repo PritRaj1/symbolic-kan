@@ -51,7 +51,7 @@ function test_symb_lyr()
     lock_symbolic!(layer, 3, 2, "sin")
 
     @test layer.fcns[2][3](2.4) ≈ sin(2.4)
-    @test layer.fcn_names[2][3] ≈ "sin"
+    @test layer.fcn_names[2][3] == "sin"
     @test all(layer.affine[2, 3, :] .≈ [1.0, 0.0, 1.0, 0.0])
 
     layer = symbolic_kan_layer(3, 2)

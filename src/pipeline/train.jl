@@ -128,8 +128,8 @@ function train!(t::trainer; log_loc="logs/", update_grid_bool=true, grid_update_
         Flux.trainmode!(t.model)
         for (x, y) in t.train_loader
             x, y = x |> permutedims, y |> permutedims
+            
             loss_val, grad = Flux.withgradient(m -> t.loss_fn(m, x, y), t.model)
-            println(loss_val)
             t.opt.opt_state, t.model = Optimisers.update(t.opt.opt_state, t.model, grad[1])
             train_loss += loss_val
 

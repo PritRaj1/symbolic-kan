@@ -22,13 +22,18 @@ function test_trainer()
 end
 
 function test_prune(model)
-    mask_before = model.mask
+    mask_before = model.mask[1]
     model = prune(model)
     mask_after = model.mask
 
+    sum_mask_after = 0.0
+    for i in eachindex(mask_after)
+        sum_mask_after += sum(mask_after[i])
+    end
+
     println("Number of parameters before pruning: ", sum(mask_before))
-    println("Number of parameters after pruning: ", sum(mask_after))
-    @test sum(mask_after) < sum(mask_before)
+    println("Number of parameters after pruning: ", sum_mask_after)
+    @test sum_mask_after < sum(mask_before)
     return model
 end
 

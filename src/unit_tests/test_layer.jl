@@ -63,7 +63,7 @@ function test_symb_lyr()
     R2 = lock_symbolic!(layer, 3, 2, fcn; x, y, random=true, seed=123)
 
     @test layer.fcns[2][3](2.4) ≈ 2.4
-    @test layer.fcn_names[2][3] ≈ "x"
+    @test layer.fcn_names[2][3] == "x"
     @test layer.affine[2, 3, 1] - 2 < 0.01
     @test layer.affine[2, 3, 2] - 1 < 0.01
     @test layer.affine[2, 3, 3] - 1 < 0.01

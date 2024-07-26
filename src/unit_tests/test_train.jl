@@ -26,7 +26,7 @@ end
 function test_plot(model)
     x = randn(100, 2)
     y = fwd!(model, x)
-    plot_kan!(model; prune_and_mask=false)
+    plot_kan!(model; prune_and_mask=false, in_vars=["x1", "x2"], out_vars=["y1", "y2"], title="KAN")
 end
 
 

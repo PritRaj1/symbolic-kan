@@ -51,7 +51,7 @@ function format_tick!(ax; x_min, x_max, y_min, y_max)
     ax.ytickformat = format_ticks
 end
 
-function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false, mode="supervised", σ=0.5, tick=false, sample=false, in_vars=nothing, out_vars=nothing, title=nothing)
+function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false, mode="supervised", σ=1.0, tick=false, sample=false, in_vars=nothing, out_vars=nothing, title=nothing)
     """
     Plot KAN.
 
@@ -77,7 +77,7 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false,
     depth = length(model.widths) - 1
 
     for l in 1:depth
-        w_large = 2.0μ
+        w_large = 2.0
         for i in 1:model.widths[l]
             for j in 1:model.widths[l+1]
                 rank = sortperm(view(model.acts[l][:, i], :), rev=true)
@@ -86,8 +86,8 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false,
                 numerical_mask = model.act_fcns[l].mask[i, j]
 
                 fig = Figure(
-                    size = (w_large, w_large),
-                    font = "Arial",
+                    size = (w_large * μ, w_large * μ),
+                    ffont="Computer Modern",
                     fontsize = 20,
                     backgroundcolor = :white,
                     show_axis = false,
@@ -96,8 +96,6 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false,
                     show_axis_labels = false,
                     show_legend = false,
                     show_colorbar = false,
-                    scale_plot = true,
-                    scale_plot_by = σ
                 )
 
                 ax = Axis(fig[1, 1])
@@ -128,11 +126,11 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false,
 
                 acts_data = model.acts[l][:, i][rank]
                 spline_data = model.post_acts[l][:, j, i][rank]
-                println("spline_data: ", spline_data)
+
                 lines!(ax, acts_data, spline_data, color=color, linewidth=5)
 
                 if sample
-                    scatter!(ax, acts_data, spline_data, color=color, markersize=400*μ*σ^2)
+                    scatter!(ax, acts_data, spline_data, color=color, markersize=400 * σ^2)
                 end
                 
                 save("$folder/splines/sp_$(l)_$(i)_$(j).png", fig)
@@ -146,20 +144,17 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false,
     
     alpha = score2alpha.(model.act_scale)
     widths = model.widths
-    A = 1.0μ
-    y0 = 0.4μ
+    A = 1.0
+    y0 = 0.4
     neuron_depth = length(widths)
     min_spacing = A / max(widths..., 5)
     max_neuron = max(widths...)
     max_num_weights = max((widths[1:end-1] .* widths[2:end])...)
-    y1 = 0.4μ / max(max_num_weights..., 3)
+    y1 = 0.4 / max(max_num_weights..., 3)
 
-    max_num_weights = max((widths[1:end-1] .* widths[2:end])...)
-    y1 = 0.4μ / max(max_num_weights..., 3)
-
-    sizes = (10μ, 10 * (neuron_depth - 1) * y0)
-    fig = Figure(size=sizes, 
-                font="Arial", 
+    sizes = (10μ, 10μ * (neuron_depth - 1) * y0)
+    fig = Figure(size=sizes,
+                font="Computer Modern",
                 fontsize=20, 
                 backgroundcolor=:white, 
                 show_axis=false, 
@@ -167,25 +162,32 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false,
                 show_tickmarks=false, 
                 show_axis_labels=false, 
                 show_legend=false, 
-                show_colorbar=false, 
-                scale_plot=true, 
-                scale_plot_by=σ)
+                show_colorbar=false)
 
-    ax = Axis(fig[1, 1])
+    ax = Axis(fig[1, 1], aspect = DataAspect())
+    x_lim = (0, 1)
+    y_lim = (-0.2 * y0, (neuron_depth - 1 + 0.75) * y0)
+    limits!(ax, x_lim..., y_lim...)
+    hidedecorations!(ax)
+    hidespines!(ax)
 
+    color = :purple
     for l in 1:neuron_depth
         n = widths[l]
         spacing = A / n
         for i in 1:n
-            scatter!(ax, [1 / (2 * n) + i / n], [l * y0], 
+            scatter!(ax, [1 / (2 * n) + (i-1) / n], [(l-1) * y0], 
                         color=:black, 
-                        markersize=min_spacing^2 * μ * σ^2)
+                        markersize=min_spacing^2 * 700 * σ^2)
+            
+            n_next = (l < neuron_depth - 1) ? widths[l + 1] : 1
+            N = n * n_next
 
-            if l < neuron_depth-1
-                n_next = widths[l + 1]
-                N = n * n_next
-                for j in 1:n_next
-                    id_ = i * n_next + j
+            for j in 1:n_next
+                id_ = (i-1) * n_next + (j-1) 
+
+                if l < neuron_depth - 1
+                    alpha_plot = prune_and_mask ? alpha[l, j, i] * model.mask[l][i] * model.mask[l + 1][j] : 1.0
 
                     symbol_mask = model.symbolic_fcns[l].mask[j, i]
                     numerical_mask = model.act_fcns[l].mask[i, j]
@@ -208,36 +210,23 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false,
                         hidespines!(ax)
                     end
 
-                    if prune_and_mask
-                        lines!(ax, [1 / (2 * n) + i / n, 1 / (2 * N) + id_ / N], 
-                                [l * y0, (l + 1 / 2) * y0 - y1], 
-                                color=color, 
-                                linewidth=2σ*μ, 
-                                alpha=alpha[l, j, i] * model.mask[l][i] * model.mask[l + 1][j])
-                        lines!(ax, [1 / (2 * N) + id_ / N, 1 / (2 * n_next) + j / n_next], 
-                                [(l + 1 / 2) * y0 + y1, (l + 1) * y0], 
-                                color=color, 
-                                linewidth=2σ*μ, 
-                                alpha=alpha[l, j, i] * model.mask[l][i] * model.mask[l + 1][j])
-                    else
-                        lines!(ax, [1 / (2 * n) + i / n, 1 / (2 * N) + id_ / N], 
-                                [l * y0, (l + 1 / 2) * y0 - y1], 
-                                color=color, 
-                                linewidth=2σ*μ, 
-                                alpha=alpha[l, j, i] * alpha_mask)
-                        lines!(ax, [1 / (2 * N) + id_ / N, 1 / (2 * n_next) + j / n_next], 
-                                [(l + 1 / 2) * y0 + y1, (l + 1) * y0], 
-                                color=color, 
-                                linewidth=2σ*μ, 
-                                alpha=alpha[l, j, i] * alpha_mask)
-                    end
+                else
+                    alpha_plot = prune_and_mask ? model.mask[l-1][i] : 1.0
                 end
+
+                lines!(ax, [1 / (2 * N) + id_ / N, 1 / (2 * n_next) + (j-1) / n_next], 
+                        [(l - 1 / 2) * y0 + y1, (l) * y0], 
+                        color=color, 
+                        linewidth=2σ, 
+                        alpha=alpha_plot)
+
+                lines!(ax, [1 / (2 * n) + (i-1) / n, 1 / (2 * N) + id_ / N], 
+                        [(l-1) * y0, (l - 1 / 2) * y0 - y1], 
+                        color=color, 
+                        linewidth=2σ, 
+                        alpha=alpha_plot)
             end
         end
-
-        x_lim =(0μ, 1μ)
-        y_lim = (-0.1 * y0, (neuron_depth - 1 + 0.1) * y0)
-        limits!(ax, x_lim..., y_lim...)
     end
 
     # Transformation functions
@@ -246,37 +235,32 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false,
     DC_to_NFC = point -> FC_to_NFC(DC_to_FC(point))
 
     # Plot splines
-    for l in 1:(neuron_depth-1)
+    for l in 1:neuron_depth-1
         n = widths[l]
         for i in 1:(n)
             n_next = widths[l + 1]
             N = n * n_next
             for j in 1:(n_next)
-                id_ = i * n_next + j
+                id_ = (i-1) * n_next + (j-1)
                 im = load(folder * "splines/sp_$(l)_$(i)_$(j).png")
                 
-                left = DC_to_NFC([1 / (2 * n) + (i-1) / n, (l-1) * y0])[1] |> Float32
-                right = DC_to_NFC([1 / (2 * n) + i / n, (l-1) * y0])[1] |> Float32
-                bottom = DC_to_NFC([1 / (2 * N) + (id_-1) / N, (l-1 + 1 / 2) * y0 - y1])[2] |> Float32
-                top = DC_to_NFC([1 / (2 * N) + id_ / N, (l-1 + 1 / 2) * y0 + y1])[2] |> Float32
+                left = DC_to_NFC([1 / (2 * N) + id_ / N - y1, 0])[1] |> Float32
+                right = DC_to_NFC([1 / (2 * N) + id_ / N + y1, 0])[1] |> Float32
+                bottom = DC_to_NFC([0, (l - 1 / 2) * y0 - y1])[2] |> Float32
+                top = DC_to_NFC([0, (l - 1 / 2) * y0 + y1])[2] |> Float32
 
-                left = floor(Int, left * sizes[1])
-                right = floor(Int, right * sizes[1])
-                bottom = floor(Int, bottom * sizes[2])
-                top = floor(Int, top * sizes[2])
-
-                image_alpha = prune_and_mask ? alpha[l, i, j] * model.mask[l][i] * model.mask[l+1][j] : alpha[l, i, j]                            
-                image!(ax, left..right, bottom..top, im, alpha=image_alpha)
+                image_alpha = prune_and_mask ? alpha[l, i, j] * model.mask[l][i] * model.mask[l+1][j] : 1.0                           
+                image!(ax, left..right, bottom..top, rotr90(im), alpha=image_alpha)
             end
         end
     end
-    
+
     # Add input variable labels
     if !isnothing(in_vars)
         n = widths[1]
         for (i, var) in enumerate(in_vars)
-            text!(fig[1, 1], 1 / (2 * n) + (i-1) / n, -0.1 * y0, 
-                    text=var, align=(:center, :center), fontsize=40σ)
+            text!(fig[1, 1], 1 / (2 * n) + (i-1) / n, -0.1*y0, 
+                    text=var, align=(:center, :center), fontsize=20σ)
         end
     end
     
@@ -284,15 +268,15 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, prune_and_mask=false,
     if !isnothing(out_vars)
         n = widths[end]
         for (i, var) in enumerate(out_vars)
-            text!(fig[1, 1], 1 / (2 * n) + (i-1) / n, y0 * (length(widths) - 1 + 0.1), 
-                    text=var, align=(:center, :center), fontsize=40σ)
+            text!(fig[1, 1], 1 / (2 * n) + (i-1) / n, y0 * (length(widths) - 1) + 1.0, 
+                    text=var, align=(:center, :center), fontsize=20σ)
         end
     end
 
     # Add title
     if !isnothing(title)
-        text!(fig[1, 1], 0.5μ, y0 * (length(widths) - 1 + 0.2), text=title, 
-                align=(:center, :center), fontsize=40σ)
+        text!(fig[1, 1], 0.5, y0 * (length(widths) - 1 + 0.5), text=title, 
+                align=(:center, :center), fontsize=20σ)
 
     end
     save(folder * "kan.png", fig)

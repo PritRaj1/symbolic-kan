@@ -34,6 +34,8 @@ function symbolic_kan_layer(in_dim::Int, out_dim::Int)
     return symbolic_dense(in_dim, out_dim, mask, fcns, fcns_avoid_singular, fcn_names, fcn_sympys, affine)
 end
 
+Flux.@functor symbolic_dense (affine,)
+
 function apply_fcn(x, y; fcn)
     if !isnothing(y)
         return fcn(x, y)[2]
@@ -80,7 +82,7 @@ end
     return sum(post_acts, dims=3)[:, :, 1], post_acts
 end
 
-function get_symb_subset(l::symbolic_dense, in_indices, out_indices)
+function get_symb_subset(l, in_indices, out_indices)
     """
     Extract smaller symbolic dense layer from larger layer for pruning.
     
@@ -116,7 +118,7 @@ function get_symb_subset(l::symbolic_dense, in_indices, out_indices)
     return l_sub
 end
 
-function set_affine!(l::symbolic_dense, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)
+function set_affine!(l, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)
     """
     Set affine parameters for symbolic dense layer.
     
@@ -135,7 +137,7 @@ function set_affine!(l::symbolic_dense, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)
     l.affine[j, i, 4] = a4
 end
 
-function lock_symbolic!(l::symbolic_dense, i, j, fun_name; x=nothing, y=nothing, random=false, seed=nothing, α_range=(-10, 10), β_range=(-10, 10), μ=1.0, verbose=true)
+function lock_symbolic!(l, i, j, fun_name; x=nothing, y=nothing, random=false, seed=nothing, α_range=(-10, 10), β_range=(-10, 10), μ=1.0, verbose=true)
     """
     Fix a symbolic function for a particular input-output pair, 
     

@@ -15,7 +15,7 @@ function removeNaN(x)
     return isnan(x) ? Float32(0.0) : x
 end
 
-function removeZero(x; ε=1e-4)
+function removeZero(x; ε=1e-3)
     return iszero(x) ? Float32(ε) : x
 end
 

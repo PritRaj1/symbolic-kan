@@ -33,7 +33,7 @@ mutable struct KAN_
     sparse_init::Bool
 end
 
-function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=1.0, base_act=NNlib.selu, symbolic_enabled=true, grid_eps=1.0, grid_range=(-1, 1), sparse_init=false, init_seed=nothing)
+function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=1.0, base_act=NNlib.hardtanh, symbolic_enabled=true, grid_eps=1.0, grid_range=(-1, 1), sparse_init=false, init_seed=nothing)
 
     biases = []
     act_fcns = []
@@ -227,12 +227,13 @@ function prune(model; threshold=1e-2, mode="auto", active_neurons_id=nothing, ve
     for i in 1:model.depth-1
         for j in 1:model.widths[i+1]
             if !(j in active_neurons_id[i+1])
-                model = remove_node!(model, i+1, j; verbose=verbose)
+                remove_node!(model, i+1, j; verbose=verbose)
             end
         end
     end
 
     model_pruned = KAN(deepcopy(model.widths); k=model.act_fcns[1].degree, grid_interval=model.grid_interval, ε_scale=model.ε_scale, μ_scale=model.μ_scale, σ_scale=model.σ_scale, base_act=model.base_fcn, symbolic_enabled=model.symbolic_enabled, grid_eps=model.grid_eps, grid_range=model.grid_range, sparse_init=false)
+    model_pruned.mask = mask
     model_pruned.act_fcns = []
     model_pruned.symbolic_fcns = []
     model_pruned.widths = []
@@ -243,7 +244,7 @@ function prune(model; threshold=1e-2, mode="auto", active_neurons_id=nothing, ve
             # model_pruned.biases[i] = model.biases[i][:, active_neurons_id[i+1]]
             push!(model_pruned.biases, model.biases[i][:, active_neurons_id[i+1]])
         end
-        
+
         push!(model_pruned.act_fcns, get_subset(model.act_fcns[i], active_neurons_id[i], active_neurons_id[i+1]))
         push!(model_pruned.widths, length(active_neurons_id[i]))
         push!(model_pruned.symbolic_fcns, get_symb_subset(model.symbolic_fcns[i], active_neurons_id[i], active_neurons_id[i+1]))

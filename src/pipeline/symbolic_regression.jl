@@ -2,6 +2,9 @@ module SymbolicRegression
 
 export fix_symbolic!, unfix_symbolic!, unfix_symb_all!
 
+include("../architecture/kan_model.jl")
+using .KolmogorovArnoldNets: set_mode!, lock_symbolic!
+
 function fix_symbolic!(model, l, i, j, fcn_name; fit_params=true, α_range=(-10, 10), β_range=(-10, 10), grid_number=101, iterations=3, μ=1.0, random=false, seed=nothing, verbose=true)
     """
     Set the activation for element (l, i, j) to a fixed symbolic function.
@@ -23,7 +26,7 @@ function fix_symbolic!(model, l, i, j, fcn_name; fit_params=true, α_range=(-10,
     Returns:
         R2 (or nothing): Coefficient of determination.
     """
-    model = set_mode!(model, l, i, j, "s")
+    set_mode!(model, l, i, j, "s")
     
     if !fit_params
         R2 = lock_symbolic!(model.symbolic_fcns[l], i, j, fcn_name)

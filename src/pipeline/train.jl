@@ -9,7 +9,7 @@ include("utils.jl")
 include("../architecture/kan_model.jl")
 include("plot.jl")
 using .PipelineUtils
-using .KolmogorovArnoldNets: fwd!, update_grid!, prune
+using .KolmogorovArnoldNets: fwd!, update_grid!
 using .Plotting
 
 function L2_loss!(model, x, y)

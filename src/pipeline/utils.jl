@@ -6,7 +6,7 @@ using Flux, Optimisers, Statistics, Random
 # using CUDA, KernelAbstractions
 
 ### Data loaders ###
-function create_loaders(fcn; N_var=2, x_range=(-1.0,1.0), N_train=1000, N_test=1000, batch_size=32, normalise_x=false, normalise_y=false, init_seed=nothing)
+function create_loaders(fcn; N_var=2, x_range=(-1.0,1.0), N_train=1000, N_test=1000, batch_size=32, normalise_input=false, init_seed=nothing)
     """
     Create train and test dataloaders
 
@@ -29,19 +29,22 @@ function create_loaders(fcn; N_var=2, x_range=(-1.0,1.0), N_train=1000, N_test=1
 
     # Generate data
     X_train = randn(Float32, (N_var, N_train)) .* (x_range[2] - x_range[1]) .+ x_range[1]
-    y_train = fcn.(X_train)
     X_test = randn(Float32, (N_var, N_test)) .* (x_range[2] - x_range[1]) .+ x_range[1]
-    y_test = fcn.(X_test)
 
     # Normalise data
-    if normalise_x
+    if normalise_input
         X_train = (X_train .- mean(X_train, dims=1)) ./ std(X_train, dims=1)
         X_test = (X_test .- mean(X_test, dims=1)) ./ std(X_test, dims=1)
     end
 
-    if normalise_y
-        y_train = (y_train .- mean(y_train, dims=1)) ./ std(y_train, dims=1)
-        y_test = (y_test .- mean(y_test, dims=1)) ./ std(y_test, dims=1)
+    y_train = zeros(Float32, 1, 0)
+    y_test = zeros(Float32, 1, 0)
+
+    for i in 1:N_train
+        y_train = hcat(y_train, fcn(X_train[:, i]))
+    end
+    for i in 1:N_test
+        y_test = hcat(y_test, fcn(X_test[:, i]))
     end
 
     # Create dataloaders

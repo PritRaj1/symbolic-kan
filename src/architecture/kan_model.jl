@@ -187,7 +187,7 @@ function remove_node!(model, l, j; verbose=true)
     model.symbolic_fcns[l].mask[:, j] .= 0.0
 end
 
-function prune(model; threshold=1e-2, mode="auto", active_neurons_id=nothing, verbose=true)
+function prune(model; threshold=1e-3, mode="auto", active_neurons_id=nothing, verbose=true)
     """
     Prune the activation of neuron (l, i, j) based on the threshold.
     If the neuron has a small range of activation, shave off the neuron.

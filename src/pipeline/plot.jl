@@ -211,6 +211,7 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, mask=false, mode="sup
 
                 else
                     alpha_plot = mask ? model.act_fcns[end].mask[end] * alpha[end, i, j] : 1.0
+                    alpha_plot = i == n ? 0.0 : alpha_plot
                 end
 
                 lines!(ax, [1 / (2 * N) + id_ / N, 1 / (2 * n_next) + (j-1) / n_next], 
@@ -267,7 +268,7 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, mask=false, mode="sup
     if !isnothing(out_vars)
         n = widths[end]
         for (i, var) in enumerate(out_vars)
-            text!(fig[1, 1], 1 / (2 * n) + (i-1) / n, y0 * (length(widths) - 1) + 1.0, 
+            text!(fig[1, 1], 1 / (2 * n) + (i-1) / n, y0 * (length(widths) - 1 + 0.25), 
                     text=var, align=(:center, :center), fontsize=20σ)
         end
     end

@@ -210,7 +210,7 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, mask=false, mode="sup
                     end
 
                 else
-                    alpha_plot = mask ? model.mask[l][j] * alpha[l-1, i, j] : 1.0
+                    alpha_plot = mask ? model.act_fcns[end].mask[end] * alpha[end, i, j] : 1.0
                 end
 
                 lines!(ax, [1 / (2 * N) + id_ / N, 1 / (2 * n_next) + (j-1) / n_next], 

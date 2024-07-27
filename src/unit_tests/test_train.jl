@@ -10,11 +10,11 @@ using .PipelineUtils
 using .Plotting
 
 function test_trainer()
-    train_loader, test_loader = create_loaders(x -> x^2, N_var=2, x_range=(-1,1), N_train=500, N_test=500, batch_size=50, normalise_x=false, normalise_y=false, init_seed=1234)
+    train_loader, test_loader = create_loaders(x -> x^2, N_var=2, x_range=(-1,1), N_train=1000, N_test=1000, batch_size=50, normalise_x=false, normalise_y=false, init_seed=1234)
     model = KAN([2,5,1]; k=3, grid_interval=5)
     lr_scheduler = step_decay_scheduler(5, 0.8, 1e-4)
-    opt = create_opt(model, "adam"; LR=0.01, decay_scheduler=lr_scheduler)
-    trainer = init_trainer(model, train_loader, test_loader, opt; max_epochs=30, verbose=true)
+    opt = create_opt(model, "adam"; LR=0.005, decay_scheduler=lr_scheduler)
+    trainer = init_trainer(model, train_loader, test_loader, opt; max_epochs=100, verbose=true)
     train!(trainer)
 
     @test sum(trainer.model.act_scale) > 0.0

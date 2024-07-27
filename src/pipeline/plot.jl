@@ -179,14 +179,14 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, mask=false, mode="sup
                         color=:black, 
                         markersize=min_spacing^2 * 700 * σ^2)
             
-            n_next = (l < neuron_depth - 1) ? widths[l + 1] : 1
+            n_next = (l < neuron_depth) ? widths[l + 1] : 1
             N = n * n_next
 
             for j in 1:n_next
                 id_ = (i-1) * n_next + (j-1) 
 
                 if l < neuron_depth - 1
-                    alpha_plot = mask ? alpha[l, i, j] * model.mask[l][i] * model.mask[l + 1][j] : 1.0
+                    alpha_plot = mask ? alpha[l, j, i] * model.mask[l][i] * model.mask[l + 1][j] : alpha[l, j, i] * alpha_mask
 
                     symbol_mask = model.symbolic_fcns[l].mask[j, i]
                     numerical_mask = model.act_fcns[l].mask[i, j]
@@ -210,7 +210,7 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, mask=false, mode="sup
                     end
 
                 else
-                    alpha_plot = mask ? model.act_fcns[end].mask[end] * alpha[end, i, j] : 1.0
+                    alpha_plot = mask ? model.act_fcns[end].mask[end] * alpha[end, j, i] : alpha[end, j, i] * alpha_mask
                     alpha_plot = i == n ? 0.0 : alpha_plot
                 end
 
@@ -242,14 +242,17 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, mask=false, mode="sup
             N = n * n_next
             for j in 1:(n_next)
                 id_ = (i-1) * n_next + (j-1)
+
+                println(folder * "splines/sp_$(l)_$(i)_$(j).png")
                 im = load(folder * "splines/sp_$(l)_$(i)_$(j).png")
                 
                 left = DC_to_NFC([1 / (2 * N) + id_ / N - y1, 0])[1] |> Float32
                 right = DC_to_NFC([1 / (2 * N) + id_ / N + y1, 0])[1] |> Float32
                 bottom = DC_to_NFC([0, (l - 1 / 2) * y0 - y1])[2] |> Float32
                 top = DC_to_NFC([0, (l - 1 / 2) * y0 + y1])[2] |> Float32
-
-                image_alpha = mask ? alpha[l, i, j] * model.mask[l][i] * model.mask[l+1][j] : 1.0                           
+                
+                image_alpha = mask ? alpha[l, j, i] * model.mask[l][i] * model.mask[l+1][j] : alpha[l, j, i]                         
+                image_alpha = l < neuron_depth - 1 ? image_alpha : i == n ? 0.0 : image_alpha
                 image!(ax, left..right, bottom..top, rotr90(im), alpha=image_alpha)
             end
         end

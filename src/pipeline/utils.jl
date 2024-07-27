@@ -1,9 +1,32 @@
 module PipelineUtils
 
-export create_loaders, create_opt, step!, step_decay_scheduler
+export create_loaders, create_opt, step!, step_decay_scheduler, log_csv, L2_loss!
 
 using Flux, Optimisers, Statistics, Random
 # using CUDA, KernelAbstractions
+
+function L2_loss!(model, x, y)
+    """
+    Compute L2 loss between predicted and true values.
+    
+    Args:
+    - model: KAN model.
+    - x: input tensor.
+    - y: true output tensor.
+    
+    Returns:
+    - loss: L2 loss.
+    """
+    ŷ = fwd!(model, x)
+    return sum((ŷ .- y).^2)
+end
+
+# Log the loss to CSV
+function log_csv(epoch, time, train_loss, test_loss, reg, file_name; log_time=true)
+    open(file_name, "a") do file
+        log_time ? write(file, "$epoch,$time,$train_loss,$test_loss,$reg\n") : write(file, "$epoch,$train_loss,$test_loss,$reg\n")
+    end
+end
 
 ### Data loaders ###
 function create_loaders(fcn; N_var=2, x_range=(-1.0,1.0), N_train=1000, N_test=1000, batch_size=32, normalise_input=false, init_seed=nothing)

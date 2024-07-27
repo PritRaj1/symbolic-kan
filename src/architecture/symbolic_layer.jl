@@ -8,9 +8,9 @@ using Flux, Tullio, Random
 using FunctionWrappers: FunctionWrapper
 
 include("../symbolic_lib.jl")
-include("../utils.jl")
+include("../pipeline/symbolic_regression.jl")
 using .SymbolicLib: SYMBOLIC_LIB
-using .Utils: fit_params
+using .SymbolicRegression: fit_params
 
 mutable struct symbolic_dense
     in_dim::Int

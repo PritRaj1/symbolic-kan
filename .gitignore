@@ -1,3 +1,4 @@
 logs/*.csv
 figures/splines/*.png
 precompile.so
+*.out

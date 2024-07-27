@@ -1,6 +1,6 @@
 module Trainer
 
-export init_trainer, train!, L2_loss
+export init_flux_trainer, train!
 
 using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optimisers
 # using CUDA, KernelAbstractions
@@ -12,30 +12,7 @@ using .PipelineUtils
 using .KolmogorovArnoldNets: fwd!, update_grid!
 using .Plotting
 
-function L2_loss!(model, x, y)
-    """
-    Compute L2 loss between predicted and true values.
-    
-    Args:
-    - model: KAN model.
-    - x: input tensor.
-    - y: true output tensor.
-    
-    Returns:
-    - loss: L2 loss.
-    """
-    ŷ = fwd!(model, x)
-    return sum((ŷ .- y).^2)
-end
-
-# Log the loss to CSV
-function log_csv(epoch, time, train_loss, test_loss, reg, file_name)
-    open(file_name, "a") do file
-        write(file, "$epoch,$time,$train_loss,$test_loss,$reg\n")
-    end
-end
-
-mutable struct trainer
+mutable struct flux_trainer
     model
     train_loader::Flux.Data.DataLoader
     test_loader::Flux.Data.DataLoader
@@ -43,9 +20,10 @@ mutable struct trainer
     loss_fn
     max_epochs::Int
     verbose::Bool
+    log_time::Bool
 end
 
-function init_trainer(model, train_loader, test_loader, optimiser; loss_fn=nothing, max_epochs=100, verbose=true)
+function init_flux_trainer(model, train_loader, test_loader, optimiser; loss_fn=nothing, max_epochs=100, verbose=true, log_time=true)
     """
     Initialise trainer for training symbolic model.
 
@@ -61,10 +39,10 @@ function init_trainer(model, train_loader, test_loader, optimiser; loss_fn=nothi
     Returns:
     - t: trainer object.
     """
-    return trainer(model, train_loader, test_loader, optimiser, loss_fn, max_epochs, verbose)
+    return trainer(model, train_loader, test_loader, optimiser, loss_fn, max_epochs, verbose, log_time)
 end
 
-function train!(t::trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=50, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
+function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=50, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
     λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0)
     """
     Train symbolic model.
@@ -115,7 +93,7 @@ function train!(t::trainer; log_loc="logs/", update_grid_bool=true, grid_update_
     # Create csv with header
     file_name = log_loc * "log_" * date_str * ".csv"
     open(file_name, "w") do file
-        write(file, "Epoch,Time (s),Train Loss,Test Loss,Regularisation\n")
+        logtime ? write(file, "Epoch,Time (s),Train Loss,Test Loss,Regularisation\n") : write(file, "Epoch,Train Loss,Test Loss,Regularisation\n")
     end
 
     start_time = time()

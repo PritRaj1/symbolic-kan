@@ -105,6 +105,8 @@ function fwd!(model, x)
         # Scales for l1 regularisation
         in_range = std(pre_acts, dims=1).+ 0.1
         out_range = std(post_acts, dims=1) .+ 0.1
+        println(size(in_range), size(out_range))
+        println(model.widths[i], model.widths[i+1])
         scales = PadToShape(out_range ./ in_range, (1, maximum(model.widths), maximum(model.widths)))
         model.act_scale = vcat(model.act_scale, scales)
         

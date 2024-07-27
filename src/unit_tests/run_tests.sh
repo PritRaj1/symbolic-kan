@@ -3,7 +3,7 @@
 TEST_DIR="src/unit_tests"
 
 # Exclude test_train.jl
-test_files=$(find "$TEST_DIR" -name "*.jl" | grep -v "/test_train.jl$")
+test_files=$(find "$TEST_DIR" -name "*.jl")
 
 # Run each test file
 for test_file in $test_files; 

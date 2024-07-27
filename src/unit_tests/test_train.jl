@@ -43,6 +43,5 @@ end
 
 
 model, x = test_trainer()
-# model = KAN([2,5,1]; k=3, grid_interval=5)
 model = test_prune(model, x)
 test_plot(model)

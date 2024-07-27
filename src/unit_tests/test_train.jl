@@ -10,10 +10,10 @@ using .PipelineUtils
 using .Plotting
 
 function test_trainer()
-    train_loader, test_loader = create_loaders(x -> x[1]^2 + x[2]^2, N_var=2, x_range=(-1,1), N_train=1000, N_test=1000, batch_size=50, normalise_input=false, init_seed=1234)
+    train_loader, test_loader = create_loaders(x -> x[1] * x[2], N_var=2, x_range=(-1,1), N_train=1000, N_test=1000, batch_size=50, normalise_input=false, init_seed=1234)
     model = KAN([2,5,1]; k=3, grid_interval=5)
-    lr_scheduler = step_decay_scheduler(5, 0.8, 1e-4)
-    opt = create_opt(model, "adam"; LR=0.005, decay_scheduler=lr_scheduler)
+    lr_scheduler = step_decay_scheduler(5, 0.8, 1e-5)
+    opt = create_opt(model, "adam"; LR=0.001, decay_scheduler=lr_scheduler)
     trainer = init_trainer(model, train_loader, test_loader, opt; max_epochs=100, verbose=true)
     train!(trainer)
 
@@ -32,13 +32,13 @@ function test_prune(model, x)
         sum_mask_after += sum(mask_after[i])
     end
 
-    println("Number of parameters after pruning: ", sum_mask_after)
+    println("Number of neurons after pruning: ", sum_mask_after)
     @test sum_mask_after != sum(mask_before)
     return model
 end
 
 function test_plot(model)
-    plot_kan!(model; mask=true, in_vars=["x1", "x2"], out_vars=["x1^2 + x2^2"], title="KAN")
+    plot_kan!(model; mask=true, in_vars=["x1", "x2"], out_vars=["x1 * x2"], title="KAN")
 end
 
 

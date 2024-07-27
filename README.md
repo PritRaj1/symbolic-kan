@@ -2,7 +2,7 @@
 
 Julia implementation of B-spline KAN for symbolic regression - recreated pretty much as is from [pykan](https://github.com/KindXiaoming/pykan).
 
-WORK IN PROGRESS 
+WORK IN PROGRESS - currently broken 
 
 Huge thank you to KindXiaoming and the rest of the KAN community for putting this awesome network out there for the world to see.
 
@@ -28,6 +28,7 @@ bash src/unit_tests/run_tests.sh
 
 ## TODO
 
-1. Symbolic regression
-2. CUDA
-3. Optim for L-BFGS
+1. Get training working - (might be hyparam problem)
+2. Symbolic regression
+3. CUDA
+4. Optim for L-BFGS

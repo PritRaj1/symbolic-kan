@@ -24,4 +24,3 @@ using Makie
 using GLMakie
 using FileIO
 using IntervalSets
-using Plots

@@ -1,5 +1,4 @@
-using Test
-using Plots; pythonplot()
+using Test, GLMakie, Random
 
 include("../pipeline/symbolic_regression.jl")
 include("../architecture/kan_model.jl")
@@ -36,10 +35,12 @@ function test_sin_fitting()
     params, R2 = fit_params(x, y, fcn)
 
     # Plot
-    plot(x, y, label="data")
-    plot!(x, fcn.(3 .* x .+ 2) .* 5 .+ 0.7, label="true")
-    plot!(x, fcn.(params[1] .* x .+ params[2]) .* params[3] .+ params[4], label="fit")
-    savefig("figures/test_sin_fitting.png")
+    fig = Figure()
+    ax = Axis(fig[1, 1], xlabel="x", ylabel="y")
+    lines!(ax, x, y, label="data")
+    lines!(ax, x, fcn.(3 .* x .+ 2) .* 5 .+ 0.7, label="true")
+    lines!(ax, x, fcn.(params[1] .* x .+ params[2]) .* params[3] .+ params[4], label="fit")
+    save("figures/test_sin_fitting.png", fig)
 end
 
 function test_lock()
@@ -60,6 +61,7 @@ function test_lock_symb()
     @test layer.fcn_names[2][3] == "sin"
     @test all(layer.affine[2, 3, :] .≈ [1.0, 0.0, 1.0, 0.0])
 
+    Random.seed!(123)
     layer = symbolic_kan_layer(3, 2)
     num = 100
     x = range(-1, 1, length=num) |> collect
@@ -85,7 +87,7 @@ function test_suggestion()
     lr_scheduler = step_decay_scheduler(5, 0.8, 1e-5)
     opt = create_opt(model, "adam"; LR=0.0001, decay_scheduler=lr_scheduler)
     trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=100, verbose=true)
-    train!(trainer)
+    train!(trainer; λ=0.01)
     suggest_symbolic!(model, 1, 1, 1)
 end
 
@@ -97,7 +99,7 @@ function test_auto()
     lr_scheduler = step_decay_scheduler(5, 0.8, 1e-5)
     opt = create_opt(model, "adam"; LR=0.0001, decay_scheduler=lr_scheduler)
     trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=100, verbose=true)
-    train!(trainer)
+    train!(trainer; λ=0.01)
     auto_symbolic!(model; lib=["exp","sin","x^2"])
 end
 

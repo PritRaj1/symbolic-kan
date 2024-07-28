@@ -6,9 +6,11 @@ using Flux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy
 
 include("../architecture/kan_model.jl")
 include("../symbolic_lib.jl")
-include("symbolic_layer.jl")
+include("../architecture/symbolic_layer.jl")
+include("../utils.jl")
 using .KolmogorovArnoldNets: set_mode!
 using .SymbolicLib: SYMBOLIC_LIB
+using .Utils: meshgrid, expand_apply
 
 function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_number=101, iterations=3, μ=1.0, verbose=true)
     """
@@ -210,7 +212,8 @@ function fix_symbolic!(model, l, i, j, fcn_name; fit_params=true, α_range=(-10,
         return nothing
     else
         x = model.acts[l]
-        y = model.post_acts[l][:, i, j]
+        y = model.post_acts[l][:, j, i]
+        println(size(x)," ", size(y))
         R2 = lock_symbolic!(model.symbolic_fcns[l], i, j, fcn_name; x=x, y=y, α_range=α_range, β_range=β_range, μ=μ, random=random, seed=seed, verbose=verbose)
         return R2
     end 

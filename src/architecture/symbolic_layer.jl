@@ -1,9 +1,8 @@
 module symbolic_layer
 
 export symbolic_kan_layer, get_symb_subset, symb_fwd
-using Zygote: @nograd
 
-using Flux, Tullio, Random
+using Flux, Tullio, Random, SymPy
 # using CUDA, KernelAbstractions
 
 include("../symbolic_lib.jl")
@@ -13,10 +12,10 @@ mutable struct symbolic_dense
     in_dim::Int
     out_dim::Int
     mask::AbstractArray{Float32}
-    fcns
-    fcns_avoid_singular
+    fcns::Vector{Vector{Function}}
+    fcns_avoid_singular::Vector{Vector{Function}}
     fcn_names::Vector{Vector{String}}
-    fcn_sympys
+    fcn_sympys::Vector{Vector{Union{SymPy.Sym, Function}}}
     affine::AbstractArray{Float32}
 end
 

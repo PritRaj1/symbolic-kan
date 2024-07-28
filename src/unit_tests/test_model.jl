@@ -24,13 +24,13 @@ function test_grid()
 end
 
 function test_opt()
-        Random.seed!(123)
-        model = KAN([2,5,1]; k=3, grid_interval=5)
-        x = randn(100, 2)
+    Random.seed!(123)
+    model = KAN([2,5,1]; k=3, grid_interval=5)
+    x = randn(100, 2)
 
-        loss(m) = sum((fwd!(m, x)[1] .- 1).^2)
-        loss_val, grad = Flux.withgradient(m -> loss(m), model)
-        @test abs(loss_val) > 0
+    loss(m) = sum((fwd!(m, x)[1] .- 1).^2)
+    loss_val, grad = Flux.withgradient(m -> loss(m), model)
+    @test abs(loss_val) > 0
 end
 
 

@@ -6,7 +6,8 @@ using Flux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy
 
 include("../architecture/kan_model.jl")
 include("../symbolic_lib.jl")
-using .KolmogorovArnoldNets: set_mode!, lock_symbolic!
+include("symbolic_layer.jl")
+using .KolmogorovArnoldNets: set_mode!
 using .SymbolicLib: SYMBOLIC_LIB
 
 function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_number=101, iterations=3, μ=1.0, verbose=true)
@@ -87,6 +88,98 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_numb
     end
 
     return [α_best, β_best, w_best, b_best], R2_best
+end
+
+function set_affine!(l, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)
+    """
+    Set affine parameters for symbolic dense layer.
+    
+    Args:
+    - l: symbolic dense layer.
+    - j: index of output neuron.
+    - i: index of input neuron.
+    - a1: param1.
+    - a2: param2.
+    - a3: param3.
+    - a4: param4.
+    """
+    l.affine[j, i, 1] = a1
+    l.affine[j, i, 2] = a2
+    l.affine[j, i, 3] = a3
+    l.affine[j, i, 4] = a4
+end
+
+function lock_symbolic!(l, i, j, fun_name; x=nothing, y=nothing, random=false, seed=nothing, α_range=(-10, 10), β_range=(-10, 10), μ=1.0, verbose=true)
+    """
+    Fix a symbolic function for a particular input-output pair, 
+    
+    i.e. the univariate fcn used for a particular evaluation of the Kolmogorov-Arnold theorem.
+
+    Args:
+    - l: symbolic dense layer.
+    - i: index of input neuron.
+    - j: index of output neuron.
+    - fun_name: name of symbolic function to lock.
+    - x: 1D array of preactivations
+    - y: 1D array of postactivations
+    - random: whether to randomly initialise function parameters.
+    - α_range: sweep range for α parameter.
+    - β: sweep range for β parameter.
+    - verbose: whether to print updates.
+
+    Returns:
+    - R2: coefficient of determination.
+    """
+    # fun_name is a name of a symbolic function
+    if fun_name isa String
+        fcn = SYMBOLIC_LIB[fun_name][1]
+        fcn_sympy = SYMBOLIC_LIB[fun_name][2]
+        fcn_avoid_singular = SYMBOLIC_LIB[fun_name][3]
+
+        l.fcn_sympys[j][i] = fcn_sympy
+        l.fcn_names[j][i] = fun_name
+
+        # If x and y are not provided, just set the function
+        if isnothing(x) || isnothing(y)
+            l.fcns[j][i] = fcn
+            l.fcns_avoid_singular[j][i] = fcn_avoid_singular
+
+            # Set affine parameters either to random values or to default values
+            if !random
+                set_affine!(l, j, i)
+            else
+                Random.seed!(seed)
+                params = rand(4) .* 2 .- 1
+                set_affine!(l, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
+            end
+
+        # If x and y are provided, fit the function
+        else
+            params, R2 = fit_params(x, y, fcn; α_range=α_range, β_range=β_range, μ=μ, verbose=verbose)
+            l.fcns[j][i] = fcn
+            l.fcns_avoid_singular[j][i] = fcn_avoid_singular
+            set_affine!(l, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
+            return R2
+        end
+
+    # fun_name is a symbolic function
+    else
+        l.fcns[j][i] = fun_name
+        l.fcn_sympys[j][i] = fun_name
+        l.fcns_avoid_singular[j][i] = fun_name
+        l.fcn_names[j][i] = "anonymous"
+
+        # Set affine parameters either to random values or to default values
+        if !random
+            set_affine!(l, j, i)
+        else
+            Random.seed!(seed)
+            params = rand(4) .* 2 .- 1
+            set_affine!(l, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
+        end
+    end
+
+    return nothing
 end
 
 function fix_symbolic!(model, l, i, j, fcn_name; fit_params=true, α_range=(-10, 10), β_range=(-10, 10), grid_number=101, iterations=3, μ=1.0, random=false, seed=nothing, verbose=true)

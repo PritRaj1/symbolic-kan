@@ -52,6 +52,31 @@ function test_lock()
     @test all(mask2[:, 1] .== [1.0, 1.0, 1.0, 1.0, 1.0])
 end
 
+function test_lock_symb()
+    layer = symbolic_kan_layer(3, 2)
+    lock_symbolic!(layer, 3, 2, "sin")
+
+    @test layer.fcns[2][3](2.4) ≈ sin(2.4)
+    @test layer.fcn_names[2][3] == "sin"
+    @test all(layer.affine[2, 3, :] .≈ [1.0, 0.0, 1.0, 0.0])
+
+    layer = symbolic_kan_layer(3, 2)
+    num = 100
+    x = range(-1, 1, length=num) |> collect
+    noises = randn(num) .* 0.02
+    y = 2 .* x .+ 1 .+ noises
+    fcn = "x"
+    R2 = lock_symbolic!(layer, 3, 2, fcn; x, y, random=true, seed=123)
+
+    @test layer.fcns[2][3](2.4) ≈ 2.4
+    @test layer.fcn_names[2][3] == "x"
+    @test layer.affine[2, 3, 1] - 2 < 0.01
+    @test layer.affine[2, 3, 2] - 1 < 0.01
+    @test layer.affine[2, 3, 3] - 1 < 0.01
+    @test layer.affine[2, 3, 4] - 0 < 0.01
+    @test R2 >= 0.9
+end
+
 function test_suggestion()
     Random.seed!(123)
     model = KAN([2,5,1]; k=3, grid_interval=5)
@@ -73,11 +98,12 @@ function test_auto()
     opt = create_opt(model, "adam"; LR=0.0001, decay_scheduler=lr_scheduler)
     trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=100, verbose=true)
     train!(trainer)
-    auto_symbolic!(model; lib=['exp','sin','x^2'])
+    auto_symbolic!(model; lib=["exp","sin","x^2"])
 end
 
 # test_param_fitting()
 # test_sin_fitting()
 # test_lock()
+# test_lock_symb()
 test_suggestion()
 test_auto()

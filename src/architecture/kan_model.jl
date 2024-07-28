@@ -8,7 +8,7 @@ using Flux, Tullio, NNlib, Random, Statistics
 include("kan_layer.jl")
 include("symbolic_layer.jl")
 using .dense_kan: b_spline_layer, update_lyr_grid!, get_subset, fwd
-using .symbolic_layer: symbolic_kan_layer, lock_symbolic!, symb_fwd, get_symb_subset
+using .symbolic_layer: symbolic_kan_layer, symb_fwd, get_symb_subset
 
 mutable struct KAN_
     widths::Vector{Int}
@@ -105,8 +105,6 @@ function fwd!(model, x)
         # Scales for l1 regularisation
         in_range = std(pre_acts, dims=1).+ 0.1
         out_range = std(post_acts, dims=1) .+ 0.1
-        println(size(in_range), size(out_range))
-        println(model.widths[i], model.widths[i+1])
         scales = PadToShape(out_range ./ in_range, (1, maximum(model.widths), maximum(model.widths)))
         model.act_scale = vcat(model.act_scale, scales)
         

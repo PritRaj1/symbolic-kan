@@ -240,7 +240,6 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, mask=false, mode="sup
             for j in 1:(n_next)
                 id_ = (i-1) * n_next + (j-1)
 
-                println(folder * "splines/sp_$(l)_$(i)_$(j).png")
                 im = load(folder * "splines/sp_$(l)_$(i)_$(j).png")
                 
                 left = DC_to_NFC([1 / (2 * N) + id_ / N - y1, 0])[1] |> Float32

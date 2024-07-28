@@ -12,7 +12,6 @@ using Random
 using Statistics
 using GLM
 using DataFrames
-using FunctionWrappers
 using Optimisers
 using PyCall
 using Zygote

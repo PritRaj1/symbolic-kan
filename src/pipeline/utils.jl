@@ -5,6 +5,9 @@ export create_loaders, create_opt, step_decay_scheduler, log_csv, L2_loss!
 using Flux, Optimisers, Statistics, Random
 # using CUDA, KernelAbstractions
 
+include("../architecture/kan_model.jl")
+using .KolmogorovArnoldNets: fwd!
+
 function L2_loss!(model, x, y)
     """
     Compute L2 loss between predicted and true values.

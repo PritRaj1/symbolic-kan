@@ -73,6 +73,7 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_numb
 
     # Linear regression to find w, b
     y_approx = fcn.(α_best .* x .+ β_best)
+    y = Float64.(y) # GLM needs Vector{Float64}
     df = DataFrame(X=y_approx, Y=y)
     model = lm(@formula(Y ~ X), df)
     b_best, w_best = coef(model)
@@ -211,9 +212,8 @@ function fix_symbolic!(model, l, i, j, fcn_name; fit_params=true, α_range=(-10,
         R2 = lock_symbolic!(model.symbolic_fcns[l], i, j, fcn_name)
         return nothing
     else
-        x = model.acts[l]
+        x = model.acts[l][:, i]
         y = model.post_acts[l][:, j, i]
-        println(size(x)," ", size(y))
         R2 = lock_symbolic!(model.symbolic_fcns[l], i, j, fcn_name; x=x, y=y, α_range=α_range, β_range=β_range, μ=μ, random=random, seed=seed, verbose=verbose)
         return R2
     end 

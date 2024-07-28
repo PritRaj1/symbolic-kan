@@ -264,7 +264,14 @@ function suggest_symbolic!(model, l, i, j; α_range=(-10, 10), β_range=(-10, 10
         - best_R2: Coefficient of determination.
     """
     R2s = []
-    symbolic_lib = isnothing(lib) ? SYMBOLIC_LIB : Dict{SYMBOLIC_LIB[k] for k in lib}
+    if isnothing(lib)
+        symbolic_lib = SYMBOLIC_LIB
+    else
+        symbolic_lib = Dict()
+        for name in lib
+            symbolic_lib[name] = SYMBOLIC_LIB[name]
+        end
+    end
     
     for (name, fcn) in symbolic_lib
         R2 = fix_symbolic!(model, l, i, j, name; fit_params=true, α_range=α_range, β_range=β_range, grid_number=101, iterations=3, μ=1.0, random=false, seed=nothing, verbose=verbose)
@@ -279,12 +286,12 @@ function suggest_symbolic!(model, l, i, j; α_range=(-10, 10), β_range=(-10, 10
     if verbose
         println("Top ", top_K, " symbolic functions for φ(", l, ", ", i, ", ", j, "):")
         for i in 1:top_K
-            println("Name: ", symbolic_lib[top_R2s[i]][1], " R2: ", R2s[top_R2s[i]])
+            println("Name: ", collect(symbolic_lib)[top_R2s[i]][1], " R2: ", R2s[top_R2s[i]])
         end
     end
 
-    best_name = symbolic_lib[top_R2s[1]][1]
-    best_fcn = symbolic_lib[top_R2s[1]][2]
+    best_name = collect(symbolic_lib)[top_R2s[1]][1]
+    best_fcn = collect(symbolic_lib)[top_R2s[1]][2]
     best_R2 = R2s[top_R2s[1]]
 
     return best_name, best_fcn, best_R2

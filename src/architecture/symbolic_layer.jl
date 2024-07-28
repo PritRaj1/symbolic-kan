@@ -20,7 +20,7 @@ mutable struct symbolic_dense
 end
 
 function symbolic_kan_layer(in_dim::Int, out_dim::Int)
-    mask = ones(out_dim, in_dim)
+    mask = zeros(out_dim, in_dim)
     fcns = [[x -> x*0.0 for i in 1:in_dim] for j in 1:out_dim] 
     fcns_avoid_singular = [[(x, y_th) -> (x*0.0, x*0.0) for i in 1:in_dim] for j in 1:out_dim]
     fcn_names = [["0" for i in 1:in_dim] for j in 1:out_dim]

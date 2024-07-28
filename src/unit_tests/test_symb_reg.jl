@@ -103,9 +103,9 @@ function test_auto()
     auto_symbolic!(model; lib=["exp","sin","x^2"])
 end
 
-# test_param_fitting()
-# test_sin_fitting()
-# test_lock()
-# test_lock_symb()
+test_param_fitting()
+test_sin_fitting()
+test_lock()
+test_lock_symb()
 test_suggestion()
 test_auto()

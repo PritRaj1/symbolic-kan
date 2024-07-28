@@ -99,6 +99,7 @@ function B_batch_RBF(x, grid; degree=nothing, σ=1.0)
     """
     B = @tullio out[n, d, m] := exp(-sum((x[n, d] - grid[d, m])^2) / (2*σ[1]^2))
     return B
+
 end
 
 BasisFcn = Dict(

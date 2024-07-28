@@ -1,6 +1,6 @@
 module PipelineUtils
 
-export create_loaders, create_opt, step!, step_decay_scheduler, log_csv, L2_loss!
+export create_loaders, create_opt, step_decay_scheduler, log_csv, L2_loss!
 
 using Flux, Optimisers, Statistics, Random
 # using CUDA, KernelAbstractions
@@ -71,8 +71,8 @@ function create_loaders(fcn; N_var=2, x_range=(-1.0,1.0), N_train=1000, N_test=1
     end
 
     # Create dataloaders
-    train_loader = Flux.Data.DataLoader((X_train, y_train); batchsize=batch_size, shuffle=true)
-    test_loader = Flux.Data.DataLoader((X_test, y_test); batchsize=batch_size, shuffle=true)
+    train_loader = Flux.Data.DataLoader((X_train, y_train); batchsize=batch_size)
+    test_loader = Flux.Data.DataLoader((X_test, y_test); batchsize=batch_size)
 
     return train_loader, test_loader
 end

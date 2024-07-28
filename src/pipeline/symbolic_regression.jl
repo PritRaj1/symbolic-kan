@@ -1,6 +1,6 @@
 module SymbolicRegression
 
-export fit_params, fix_symbolic!, unfix_symbolic!, unfix_symb_all!, suggest_symbolic!
+export fit_params, fix_symbolic!, unfix_symbolic!, unfix_symb_all!, suggest_symbolic!, auto_symbolic!, symbolic_formula
 
 using Flux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy
 

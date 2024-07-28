@@ -25,7 +25,7 @@ function test_prune(model, x)
     mask_before = model.mask[1]
     model = prune(model)
     mask_after = model.mask
-    fwd!(model, x) # Rememeber to call fwd! to update the acts
+    fwd!(model, x) # Remember to call fwd! to update the acts
 
     sum_mask_after = 0.0
     for i in eachindex(mask_after)

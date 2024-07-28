@@ -7,10 +7,8 @@ using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optimisers
 
 include("utils.jl")
 include("../architecture/kan_model.jl")
-include("plot.jl")
-using .PipelineUtils
+using .PipelineUtils: log_csv, L2_loss!
 using .KolmogorovArnoldNets: fwd!, update_grid!
-using .Plotting
 
 mutable struct flux_trainer
     model

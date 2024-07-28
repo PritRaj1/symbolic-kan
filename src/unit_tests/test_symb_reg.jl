@@ -1,4 +1,5 @@
 using Test
+using Plots; pythonplot()
 
 include("../pipeline/symbolic_regression.jl")
 include("../architecture/kan_model.jl")

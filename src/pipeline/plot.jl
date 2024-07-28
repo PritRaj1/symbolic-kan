@@ -4,9 +4,6 @@ export plot_kan!
 
 using Flux, Statistics, Makie, GLMakie, FileIO, Printf, IntervalSets
 
-include("../architecture/kan_model.jl")
-using .KolmogorovArnoldNets: prune
-
 function get_range(model, l, i, j; verbose=true)
     """
     Get the range of the activation of neuron (l, i, j) for thresholding.

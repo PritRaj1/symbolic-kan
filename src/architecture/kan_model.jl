@@ -1,8 +1,8 @@
 module KolmogorovArnoldNets
 
-export KAN, fwd!, update_grid!, fix_symbolic!, prune
+export KAN, fwd!, update_grid!, prune
 
-using Flux, Tullio, NNlib, Random, Statistics, Accessors
+using Flux, Tullio, NNlib, Random, Statistics
 # using CUDA, KernelAbstractions
 
 include("kan_layer.jl")
@@ -250,4 +250,5 @@ function prune(model; threshold=1e-3, mode="auto", active_neurons_id=nothing, ve
 
     return model_pruned
 end
+
 end

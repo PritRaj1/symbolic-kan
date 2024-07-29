@@ -11,8 +11,16 @@ using .PipelineUtils: log_csv, L2_loss!
 using .KolmogorovArnoldNets: fwd!, update_grid!
 using .Optimisation: opt_get
 
+function veclength(grads::Union{Dict,NamedTuple}; eps=1e-16)
+    try 
+        x=sum(length, values(grads))
+        println(x)
+        return x
+    catch
+        return eps
+    end
+end
 veclength(params::Flux.Params) = sum(length, params.params)
-veclength(grads::Union{Dict,NamedTuple}) = sum(length, values(grads))
 Base.zeros(pars::Flux.Params) = zeros(veclength(pars))
 Base.zeros(grads::Union{Dict,NamedTuple}) = zeros(veclength(grads))
 
@@ -114,7 +122,6 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
     function batch_train!(m)
         train_loss = 0.0
 
-        Flux.trainmode!(m)
         for (x, y) in train_loader
             x, y = x |> permutedims, y |> permutedims
             train_loss += t.loss_fn(m, x, y)
@@ -126,10 +133,9 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
     end
 
     # Evaluating callback
-    function log_callback()
+    function log_callback(state)
         train_loss = 0.0
         test_loss = 0.0
-        Flux.testmode!(t.model)
 
         for (x, y) in train_loader
             x, y = x |> permutedims, y |> permutedims
@@ -154,16 +160,23 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
         epoch += 1
     end
 
-    function optfuns(pars::Union{Flux.Params, Zygote.Params})
-        p0 = zeros(pars)
-        copy!(p0, pars)
+    # Adapted from https://github.com/baggepinnen/FluxOptTools.jl
+    function optfuns(params::Union{Flux.Params, Zygote.Params})
+        p0 = zeros(params)
+        copy!(p0, params)
         fg! = function (F,G,w)
-            copy!(pars, w)
-            Flux.loadparams!(t.model, pars)
+            copy!(params, w)
+            Flux.loadparams!(t.model, params)
             if !isnothing(G)
-                l, back = Zygote.withgradient(m -> batch_train!(m), t.model)
-                grads = back[1]
-                G = zeros(grads)
+                l, grads = Flux.withgradient(m -> batch_train!(m), t.model)
+                grads = grads[1]
+                println(grads)
+                # extract trainable parameters using trainable trainable_names
+                grads = Dict(zip(trainable_names, grads))
+                grads = values(grads)
+
+                # grads = Flux.destructure(grads[1])[1]
+                println(length(grads), " ", length(w))
                 copy!(G, grads)
                 return l
             end

@@ -31,3 +31,7 @@ bash src/unit_tests/run_tests.sh
 1. Symbolic regression
 2. CUDA
 3. Optim for L-BFGS
+
+## Message from author:
+
+A very important takeaway: if you ever decide to do something similar, (e.g. you decide to work with Optim optimisers), USE LUX INSTEAD OF FLUX. Explicit gradients are much easier to work with, meanwhile whilst working with Optim, I've had to call destrcuture/restructure which is quite inefficient. Plus, development has been hell.

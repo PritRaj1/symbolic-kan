@@ -11,18 +11,6 @@ using .PipelineUtils: log_csv, L2_loss!
 using .KolmogorovArnoldNets: fwd!, update_grid!
 using .Optimisation: opt_get
 
-function veclength(grads::Union{Dict,NamedTuple}; eps=1e-16)
-    try 
-        x=sum(length, values(grads))
-        println(x)
-        return x
-    catch
-        return eps
-    end
-end
-veclength(params::Flux.Params) = sum(length, params.params)
-Base.zeros(pars::Flux.Params) = zeros(veclength(pars))
-Base.zeros(grads::Union{Dict,NamedTuple}) = zeros(veclength(grads))
 
 mutable struct optim_trainer
     model
@@ -116,8 +104,6 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
     train_loader = [(x, y) for (x, y) in t.train_loader]
     test_loader = [(x, y) for (x, y) in t.test_loader]
 
-    params = Flux.params(t.model)
-
     # Training
     function batch_train!(m)
         train_loss = 0.0
@@ -161,22 +147,17 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
     end
 
     # Adapted from https://github.com/baggepinnen/FluxOptTools.jl
-    function optfuns(params::Union{Flux.Params, Zygote.Params})
-        p0 = zeros(params)
-        copy!(p0, params)
+    function get_fg()
+        pars, re = Flux.destructure(t.model)
+        p0 = zeros(eltype(pars), length(pars))
+        copy!(p0, pars)
         fg! = function (F,G,w)
-            copy!(params, w)
-            Flux.loadparams!(t.model, params)
+            copy!(pars, w)
+            params = re(pars)
+            Flux.loadmodel!(t.model, params)
             if !isnothing(G)
                 l, grads = Flux.withgradient(m -> batch_train!(m), t.model)
-                grads = grads[1]
-                println(grads)
-                # extract trainable parameters using trainable trainable_names
-                grads = Dict(zip(trainable_names, grads))
-                grads = values(grads)
-
-                # grads = Flux.destructure(grads[1])[1]
-                println(length(grads), " ", length(w))
+                grads = Flux.destructure(grads[1])[1][1:length(w)] # Extract only gradients relevant for training 
                 copy!(G, grads)
                 return l
             end
@@ -187,8 +168,7 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
         return fg!, p0
     end
 
-    Zygote.refresh()
-    fg!, p0 = optfuns(params)
+    fg!, p0 = get_fg()
     res = Optim.optimize(Optim.only_fg!(fg!), p0, opt_get(t.opt), Optim.Options(show_trace=true, iterations=t.max_epochs, callback=log_callback))
     # Flux.loadparams!(t.model, res.minimizer)
     copy!(params, res.minimizer)

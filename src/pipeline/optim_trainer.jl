@@ -173,7 +173,7 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
     end
 
     fg!, p0 = get_fg()
-    res = Optim.optimize(Optim.only_fg!(fg!), p0, opt_get(t.opt), Optim.Options(show_trace=true, iterations=t.max_epochs, callback=log_callback))
+    res = Optim.optimize(Optim.only_fg!(fg!), p0, opt_get(t.opt), Optim.Options(show_trace=true, iterations=t.max_epochs, callback=log_callback, x_abstol=1e-8, f_abstol=1e-8, g_abstol=1e-8))
     _, re = Flux.destructure(t.model)
     Flux.loadmodel!(t.model, re(res.minimizer))
 end

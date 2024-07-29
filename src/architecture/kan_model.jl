@@ -2,7 +2,7 @@ module KolmogorovArnoldNets
 
 export KAN, fwd!, update_grid!, prune
 
-using Flux, Tullio, NNlib, Random, Statistics
+using Flux, Tullio, NNlib, Random, Statistics, SymPy
 # using CUDA, KernelAbstractions
 
 include("kan_layer.jl")
@@ -31,6 +31,7 @@ mutable struct KAN_
     grid_eps::Float32
     grid_range::Tuple{Float32, Float32}
     sparse_init::Bool
+    symbolic_acts::Vector{Vector{Any}}
 end
 
 function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=1.0, base_act=NNlib.hardtanh, symbolic_enabled=true, grid_eps=1.0, grid_range=(-1, 1), sparse_init=false, init_seed=nothing)
@@ -54,7 +55,7 @@ function KAN(widths; k=3, grid_interval=3, ε_scale=0.1, μ_scale=0.0, σ_scale=
     # Initialise mask to ones for all depths
     mask = [ones(widths, ) for widths in widths[1:end]]
 
-    return KAN_(widths, depth, grid_interval, base_act, act_fcns, biases, symbolic, symbolic_enabled, [], [], [], [], zeros(Float32, 0, 0), [ones(widths[end], )], ε_scale, μ_scale, σ_scale, grid_eps, grid_range, sparse_init)
+    return KAN_(widths, depth, grid_interval, base_act, act_fcns, biases, symbolic, symbolic_enabled, [], [], [], [], zeros(Float32, 0, 0), [ones(widths[end], )], ε_scale, μ_scale, σ_scale, grid_eps, grid_range, sparse_init, [])
 end
 
 Flux.@functor KAN_ (biases, act_fcns)

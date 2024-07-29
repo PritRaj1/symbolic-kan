@@ -1,6 +1,6 @@
 module SymbolicRegression
 
-export fit_params, fix_symbolic!, unfix_symbolic!, unfix_symb_all!, suggest_symbolic!, auto_symbolic!, symbolic_formula
+export fit_params, fix_symbolic!, unfix_symbolic!, unfix_symb_all!, suggest_symbolic!, auto_symbolic!, symbolic_formula!
 
 using Flux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy
 
@@ -325,33 +325,95 @@ function auto_symbolic!(model; α_range=(-10, 10), β_range=(-10, 10), lib=nothi
 end
 
 
-function ex_round(ex1, floating_digit)
+function ex_round(ex1; floating_digit)
+    """
+    Round all floating point numbers in a symbolic expression to a fixed number of digits.
+    """
     ex2 = ex1
     for a in sympy.preorder_traversal(ex1)
-        if isa(a, sympy.Float)
-            ex2 = subs(ex2, a => round(a, digits=floating_digit))
+        if typeof(a) == sympy.Float
+            ex2 = subs(ex2, a => round(a; digits=floating_digit))
         end
     end
     return ex2
 end
 
-function symbolic_formula(model, l, i, j; α_range=(-10, 10), β_range=(-10, 10), verbose=true)
+function symbolic_formula!(model; floating_digit=2, var=nothing, normaliser=nothing, output_normaliser=nothing, simplify=false)
     """
-    Suggest the best symbolic function for φ(l, i, j).
+    Convert the activations of a model to symbolic formulas.
 
     Args:
-        l: Layer index.
-        i: Neuron input index.
-        j: Neuron output index.
-        α_range: Range of the α parameter in fit.
-        β_range: Range of the β parameter in fit.
-        verbose: Print updates.
+    - model: KAN model.
+    - floating_digit: Number of floating digits.
+    - var: List of variable names.
+    - normaliser: Tuple of mean and std for normalisation.
+    - output_normaliser: Tuple of mean and std for output normalisation.
+    - simplify: Whether to simplify the symbolic formulas.
 
     Returns:
-        nothing, print out the best symbolic function.
+    - symbolic_acts: List of symbolic activations.
+    - x0: List of symbolic variables.
     """
     symbolic_acts = []
     x = []
+
+    # Create symbolic variables
+    if isnothing(var)
+        for i in 1:model.widths[1]+1
+            push!(x, sympy.Symbol("x$i"))
+        end
+    else
+        x = [sympy.Symbol(var_) for var_ in var]
+    end
+
+    x0 = x
+
+    if !isnothing(normaliser)
+        mean, std = normaliser
+        x = [(x[i] - mean[i]) / std[i] for i in eachindex(x)]
+    end
+
+    push!(symbolic_acts, x)
+
+    # Convert activations to symbolic formulas
+    for l in eachindex(model.widths[1:end-1])
+        y = []
+        for j in 1:model.widths[l+1]
+            yj = 0.0
+            for i in 1:model.widths[l]
+                a, b, c, d = model.symbolic_fcns[l].affine[j, i, :]
+                
+                try 
+                    sympy_fcn = model.symbolic_fcns[l].fcns[j][i]
+                    yj += c * sympy_fcn(a * x[i] + b) + d
+                catch
+                    println("Make sure all activations need to be converted to symbolic formulas first!")
+                end
+
+            end
+
+            if simplify
+                push!(y, sympy.simplify(yj + model.biases[l][1, j]))
+            else
+                push!(y, yj + model.biases[l][1, j])
+            end
+
+        end
+        x = y
+        push!(symbolic_acts, x)
+
+        output_lyr = symbolic_acts[end]
+        if !isnothing(output_normaliser)
+            mean, std = output_normaliser
+            output_lyr = [(output_lyr[i] * std[i]) + mean[i] for i in eachindex(output_lyr)]
+            symbolic_acts[end] = output_lyr
+        end
+
+        model.symbolic_acts = [[ex_round(symbolic_acts[l][i]; floating_digit=floating_digit) for i in eachindex(symbolic_acts[l])] for l in eachindex(symbolic_acts)]
+
+        return [ex_round(symbolic_acts[end][i]; floating_digit=floating_digit) for i in eachindex(symbolic_acts[end])], x0
+    
+    end
 end
 
 end

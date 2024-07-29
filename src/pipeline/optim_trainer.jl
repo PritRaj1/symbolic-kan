@@ -2,7 +2,7 @@ module OptimTrainer
 
 export init_optim_trainer, train!
 
-using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optim, FluxOptTools
+using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optim, Zygote
 
 include("utils.jl")
 include("../pipeline/optimisation.jl")
@@ -10,6 +10,29 @@ include("../architecture/kan_model.jl")
 using .PipelineUtils: log_csv, L2_loss!
 using .KolmogorovArnoldNets: fwd!, update_grid!
 using .Optimisation: opt_get
+
+veclength(params::Flux.Params) = sum(length, params.params)
+Base.zeros(pars::Flux.Params) = zeros(veclength(pars))
+
+# From https://github.com/baggepinnen/FluxOptTools.jl
+function get_fg(loss, pars::Union{Flux.Params, Zygote.Params})
+    grads = Zygote.gradient(loss, pars)
+    p0 = zeros(pars)
+    copy!(p0, pars)
+    fg! = function (F,G,w)
+        copy!(pars, w)
+        if isnothing(G)
+            l, back = Zygote.pullback(loss, pars)
+            grads = back(1.0)
+            copy!(G, grads)
+            return l
+        end
+        if !isnothing(F)
+            return loss()
+        end
+    end
+    return fg!, p0
+end
 
 mutable struct optim_trainer
     model
@@ -104,15 +127,16 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
     test_loader = [(x, y) for (x, y) in t.test_loader]
 
     # Training
-    function batch_train!(m)
+    function batch_train!()
         train_loss = 0.0
 
+        batch_step = 1
         for (x, y) in train_loader
             x, y = x |> permutedims, y |> permutedims
-            train_loss += t.loss_fn(m, x, y)
+            train_loss += t.loss_fn(t.model, x, y)
+            train_loss = train_loss / batch_step
+            batch_step += 1
         end
-
-        train_loss = train_loss / length(train_loader)
 
         return train_loss
     end
@@ -150,7 +174,7 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
     end
 
     params = Flux.params(t.model)
-    _, _, fg!, p0 = optfuns(() -> batch_train!(t.model), params)
+    fg!, p0 = get_fg(() -> batch_train!(), params)
     res = Optim.optimize(Optim.only_fg!(fg!), p0, opt_get(t.opt), Optim.Options(show_trace=true, iterations=t.max_epochs, callback=log_callback, x_abstol=1e-8, f_abstol=1e-8, g_abstol=1e-8))
     _, re = Flux.destructure(t.model)
     Flux.loadmodel!(t.model, re(res.minimizer))

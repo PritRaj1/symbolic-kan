@@ -69,7 +69,7 @@ linesearch_map = Dict(
 
 struct optim_opt
     type
-    line_search
+    line_searchz
     m::Int
 end
 
@@ -112,6 +112,8 @@ function opt_get(o)
 
     if o.type == "l-bfgs" 
         return Optim.LBFGS(m=o.m, linesearch=o.line_search)
+    elseif o.type == "bfgs"
+        return Optim.BFGS(linesearch=o.line_search)
     elseif o.type == "cg"
         return Optim.ConjugateGradient(linesearch=o.line_search)
     else

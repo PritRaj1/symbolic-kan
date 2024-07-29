@@ -69,7 +69,7 @@ linesearch_map = Dict(
 
 struct optim_opt
     type
-    line_searchz
+    line_search
     m::Int
 end
 

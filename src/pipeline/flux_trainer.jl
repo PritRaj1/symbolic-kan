@@ -15,7 +15,7 @@ mutable struct flux_trainer
     train_loader::Flux.Data.DataLoader
     test_loader::Flux.Data.DataLoader
     opt
-    loss_fn
+    loss_fn!
     max_epochs::Int
     verbose::Bool
     log_time::Bool
@@ -53,7 +53,8 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
     """
 
     # Regularisation
-    function reg(acts_scale)
+    function reg(m)
+        acts_scale = m.act_scale
         
         # L2 regularisation
         function non_linear(x; th=mag_threshold, factor=reg_factor)
@@ -65,7 +66,7 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
         reg_ = 0.0
         for i in eachindex(acts_scale[:, 1, 1])
             reg_ += sum(abs2, non_linear(acts_scale[i, :, :]))
-            coeff_l1 = sum(mean(abs.(t.model.act_fcns[i].coef), dims=2))
+            coeff_l1 = sum(mean(abs.(m.act_fcns[i].coef), dims=2))
             reg_ += λ_l1 * coeff_l1 * λ_coefdiff * λ_coef
         end
 
@@ -75,11 +76,11 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
     # l1 rregularisation loss
     function reg_loss!(m, x, y)
         l2 = L2_loss!(m, x, y)
-        return mean(l2 .+ λ * reg(m.act_scale))
+        return mean(l2 .+ λ * reg(m))
     end
 
-    if isnothing(t.loss_fn)
-        t.loss_fn = reg_loss!
+    if isnothing(t.loss_fn!)
+        t.loss_fn! = reg_loss!
     end
 
     grid_update_freq = fld(stop_grid_update_step, grid_update_num)
@@ -106,7 +107,7 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
         for (x, y) in t.train_loader
             x, y = x |> permutedims, y |> permutedims
             
-            loss_val, grad = Flux.withgradient(m -> t.loss_fn(m, x, y), t.model)
+            loss_val, grad = Flux.withgradient(m -> t.loss_fn!(m, x, y), t.model)
             t.opt.opt_state, t.model = Optimisers.update(t.opt.opt_state, t.model, grad[1])
             train_loss += loss_val
 
@@ -123,17 +124,18 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
         Flux.testmode!(t.model)
         for (x, y) in t.test_loader
             x, y = x |> permutedims, y |> permutedims
-            test_loss += t.loss_fn(t.model, x, y)
+            test_loss += t.loss_fn!(t.model, x, y)
         end
 
         train_loss /= length(t.train_loader.data)
         test_loss /= length(t.test_loader.data)
 
         time_epoch = time() - start_time
-        log_csv(epoch, time_epoch, train_loss, test_loss, mean(reg(t.model.act_scale)), file_name; t.log_time)
+        reg_val = mean(reg(t.model))
+        log_csv(epoch, time_epoch, train_loss, test_loss, reg_val, file_name; t.log_time)
 
         if t.verbose
-            println("Epoch: $epoch, Train Loss: $train_loss, Test Loss: $test_loss, Regularisation: $(reg(t.model.act_scale))")
+            println("Epoch: $epoch, Train Loss: $train_loss, Test Loss: $test_loss, Regularisation: $reg_val")
         end
     end
 end

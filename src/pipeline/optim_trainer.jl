@@ -14,32 +14,12 @@ using .Optimisation: opt_get
 veclength(params::Flux.Params) = sum(length, params.params)
 Base.zeros(pars::Flux.Params) = zeros(veclength(pars))
 
-# From https://github.com/baggepinnen/FluxOptTools.jl
-function get_fg(loss, pars::Union{Flux.Params, Zygote.Params})
-    grads = Zygote.gradient(loss, pars)
-    p0 = zeros(pars)
-    copy!(p0, pars)
-    fg! = function (F,G,w)
-        copy!(pars, w)
-        if isnothing(G)
-            l, back = Zygote.pullback(loss, pars)
-            grads = back(1.0)
-            copy!(G, grads)
-            return l
-        end
-        if !isnothing(F)
-            return loss()
-        end
-    end
-    return fg!, p0
-end
-
 mutable struct optim_trainer
     model
     train_loader::Flux.Data.DataLoader
     test_loader::Flux.Data.DataLoader
     opt
-    loss_fn
+    loss_fn!
     max_epochs::Int
     verbose::Bool
     log_time::Bool
@@ -77,7 +57,8 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
     """
 
     # Regularisation
-    function reg(acts_scale)
+    function reg(m)
+        acts_scale = m.act_scale
         
         # L2 regularisation
         function non_linear(x; th=mag_threshold, factor=reg_factor)
@@ -89,7 +70,7 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
         reg_ = 0.0
         for i in eachindex(acts_scale[:, 1, 1])
             reg_ += sum(abs2, non_linear(acts_scale[i, :, :]))
-            coeff_l1 = sum(mean(abs.(t.model.act_fcns[i].coef), dims=2))
+            coeff_l1 = sum(mean(abs.(m.act_fcns[i].coef), dims=2))
             reg_ += λ_l1 * coeff_l1 * λ_coefdiff * λ_coef
         end
 
@@ -99,11 +80,11 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
     # l1 rregularisation loss
     function reg_loss!(m, x, y)
         l2 = L2_loss!(m, x, y)
-        return mean(l2 .+ λ * reg(m.act_scale))
+        return mean(l2 .+ λ * reg(m))
     end
 
-    if isnothing(t.loss_fn)
-        t.loss_fn = reg_loss!
+    if isnothing(t.loss_fn!)
+        t.loss_fn! = reg_loss!
     end
 
     grid_update_freq = fld(stop_grid_update_step, grid_update_num)
@@ -127,13 +108,13 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
     test_loader = [(x, y) for (x, y) in t.test_loader]
 
     # Training
-    function batch_train!()
+    function batch_train!(m)
         train_loss = 0.0
 
         batch_step = 1
         for (x, y) in train_loader
             x, y = x |> permutedims, y |> permutedims
-            train_loss += t.loss_fn(t.model, x, y)
+            train_loss += t.loss_fn!(m, x, y)
             train_loss = train_loss / batch_step
             batch_step += 1
         end
@@ -148,7 +129,7 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
 
         for (x, y) in train_loader
             x, y = x |> permutedims, y |> permutedims
-            train_loss += t.loss_fn(t.model, x, y)
+            train_loss += t.loss_fn!(t.model, x, y)
 
             if (step % grid_update_freq == 0) && (step < stop_grid_update_step) && update_grid_bool
                 update_grid!(t.model, x)
@@ -159,13 +140,13 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
 
         for (x, y) in test_loader
             x, y = x |> permutedims, y |> permutedims
-            test_loss += t.loss_fn(t.model, x, y)
+            test_loss += t.loss_fn!(t.model, x, y)
         end
 
         train_loss = train_loss / length(train_loader)
         test_loss = test_loss / length(test_loader)
 
-        reg_ = reg(t.model.act_scale)
+        reg_ = reg(t.model)
         log_csv(epoch, time() - start_time, train_loss, test_loss, reg_, file_name; log_time=t.log_time)
         
         epoch += 1
@@ -173,8 +154,29 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
         return false
     end
 
-    params = Flux.params(t.model)
-    fg!, p0 = get_fg(() -> batch_train!(), params)
+    # From https://github.com/baggepinnen/FluxOptTools.jl
+    function get_fg(loss)
+        pars = Flux.params(t.model)
+        grads = Zygote.gradient(loss, t.model)
+        p0 = zeros(pars)
+        copy!(p0, pars)
+        fg! = function (F,G,w)
+            copy!(pars, w)
+            Flux.loadparams!(t.model, pars)
+            if isnothing(G)
+                l, back = Zygote.pullback(loss, t.model)
+                grads = back(1.0)
+                copy!(G, grads)
+                return l
+            end
+            if !isnothing(F)
+                return loss(t.model)
+            end
+        end
+        return fg!, p0
+    end
+
+    fg!, p0 = get_fg((m) -> batch_train!(m))
     res = Optim.optimize(Optim.only_fg!(fg!), p0, opt_get(t.opt), Optim.Options(show_trace=true, iterations=t.max_epochs, callback=log_callback, x_abstol=1e-8, f_abstol=1e-8, g_abstol=1e-8))
     _, re = Flux.destructure(t.model)
     Flux.loadmodel!(t.model, re(res.minimizer))

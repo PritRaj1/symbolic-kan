@@ -14,7 +14,7 @@ function test_trainer()
     model = KAN([2,5,1]; k=3, grid_interval=5)
     lr_scheduler = step_decay_scheduler(5, 0.8, 1e-5)
     opt = create_opt(model, "adam"; LR=0.0007, decay_scheduler=lr_scheduler)
-    trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=500, verbose=true)
+    trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=100, verbose=true)
     train!(trainer)
 
     @test sum(trainer.model.act_scale) > 0.0

@@ -208,11 +208,11 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, mask=false, mode="sup
 
                 else
                     alpha_plot = mask ? model.act_fcns[end].mask[end] * alpha[end, j, i] : alpha[end, j, i] * alpha_mask
-                    alpha_plot = i == n ? 0.0 : alpha_plot
+                    alpha_plot = l == neuron_depth ? 0.0 : alpha_plot # Remove last line
                 end
 
                 lines!(ax, [1 / (2 * N) + id_ / N, 1 / (2 * n_next) + (j-1) / n_next], 
-                        [(l - 1 / 2) * y0 + y1, (l) * y0], 
+                        [(l - 1 / 2) * y0 + y1, l * y0], 
                         color=color, 
                         linewidth=2σ, 
                         alpha=alpha_plot)
@@ -248,7 +248,6 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, mask=false, mode="sup
                 top = DC_to_NFC([0, (l - 1 / 2) * y0 + y1])[2] |> Float32
                 
                 image_alpha = mask ? alpha[l, j, i] * model.mask[l][i] * model.mask[l+1][j] : alpha[l, j, i]                         
-                image_alpha = l < neuron_depth - 1 ? image_alpha : i == n ? 0.0 : image_alpha
                 image!(ax, left..right, bottom..top, rotr90(im), alpha=image_alpha)
             end
         end

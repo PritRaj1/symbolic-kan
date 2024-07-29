@@ -71,7 +71,7 @@ function fwd(l, x)
     return y, pre_acts, post_acts, post_spline
 end
 
-function update_lyr_grid!(l::kan_dense, x; margin=0.01)
+function update_lyr_grid!(l, x; margin=0.01)
     """
     Adapt the grid to the distribution of the input data
 

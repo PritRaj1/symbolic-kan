@@ -42,7 +42,7 @@ function init_optim_trainer(model, train_loader, test_loader, optim_optimiser; l
     return optim_trainer(model, train_loader, test_loader, optim_optimiser, loss_fn, max_epochs, verbose, log_time)
 end
 
-function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=50, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
+function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=1000, stop_grid_update_step=5000, reg_factor=1.0, mag_threshold=1e-16, 
     λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0)
     """
     Train symbolic model.
@@ -98,7 +98,7 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
 
     start_time = time()
     num_steps = t.max_epochs * length(t.train_loader.data)
-    epoch = 0
+    epoch, step = 0, 0
 
     # Create manual dataloaders from Flux.Data.DataLoader
     train_loader = [(x, y) for (x, y) in t.train_loader]
@@ -127,9 +127,11 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
             x, y = x |> permutedims, y |> permutedims
             train_loss += t.loss_fn(t.model, x, y)
 
-            if (num_steps % grid_update_freq == 0) && (num_steps < stop_grid_update_step) && update_grid_bool
+            if (step % grid_update_freq == 0) && (step < stop_grid_update_step) && update_grid_bool
                 update_grid!(t.model, x)
             end
+
+            step += 1
         end
 
         for (x, y) in test_loader
@@ -144,6 +146,8 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
         log_csv(epoch, time() - start_time, train_loss, test_loss, reg_, file_name; log_time=t.log_time)
         
         epoch += 1
+
+        return false
     end
 
     # Adapted from https://github.com/baggepinnen/FluxOptTools.jl
@@ -170,9 +174,8 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
 
     fg!, p0 = get_fg()
     res = Optim.optimize(Optim.only_fg!(fg!), p0, opt_get(t.opt), Optim.Options(show_trace=true, iterations=t.max_epochs, callback=log_callback))
-    # Flux.loadparams!(t.model, res.minimizer)
-    copy!(params, res.minimizer)
-    Flux.loadparams!(t.model, params)
+    _, re = Flux.destructure(t.model)
+    Flux.loadmodel!(t.model, re(res.minimizer))
 end
 
 end

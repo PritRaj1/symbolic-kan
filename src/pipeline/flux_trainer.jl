@@ -40,7 +40,7 @@ function init_flux_trainer(model, train_loader, test_loader, flux_optimiser; los
     return flux_trainer(model, train_loader, test_loader, flux_optimiser, loss_fn, max_epochs, verbose, log_time)
 end
 
-function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=50, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
+function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=1000, stop_grid_update_step=5000, reg_factor=1.0, mag_threshold=1e-16, 
     λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0)
     """
     Train symbolic model.
@@ -96,6 +96,7 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
 
     start_time = time()
     num_steps = t.max_epochs * length(t.train_loader.data)
+    step = 0
     for epoch in ProgressBar(1:t.max_epochs)
         train_loss = 0.0
         test_loss = 0.0
@@ -109,9 +110,10 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
             t.opt.opt_state, t.model = Optimisers.update(t.opt.opt_state, t.model, grad[1])
             train_loss += loss_val
 
-            if (num_steps % grid_update_freq == 0) && (num_steps < stop_grid_update_step) && update_grid_bool
+            if (step % grid_update_freq == 0) && (step < stop_grid_update_step) && update_grid_bool
                 update_grid!(t.model, x)
             end
+            step += 1
         end
 
         t.opt.LR = t.opt.LR_scheduler(epoch, t.opt.LR)

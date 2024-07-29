@@ -1,8 +1,8 @@
 module PipelineUtils
 
-export create_loaders, create_opt, step_decay_scheduler, log_csv, L2_loss!
+export create_loaders, log_csv, L2_loss!
 
-using Flux, Optimisers, Statistics, Random
+using Flux, Statistics, Random
 # using CUDA, KernelAbstractions
 
 include("../architecture/kan_model.jl")
@@ -78,61 +78,6 @@ function create_loaders(fcn; N_var=2, x_range=(-1.0,1.0), N_train=1000, N_test=1
     test_loader = Flux.Data.DataLoader((X_test, y_test); batchsize=batch_size)
 
     return train_loader, test_loader
-end
-
-### Step LR scheduler ### 
-struct decay_scheduler
-    step::Int
-    decay::Float64
-    min_LR::Float64
-end
-
-function step_decay_scheduler(step, decay, min_LR)
-    return decay_scheduler(step, decay, min_LR)
-end
-
-function (s::decay_scheduler)(epoch, LR)
-    return max(LR * s.decay^(epoch // s.step), s.min_LR)
-end
-
-### Optimiser ###
-optimiser_map = Dict(
-    "adam" => Optimisers.Adam,
-    "sgd" => Optimisers.Descent
-)
-
-mutable struct optimiser_state
-    opt_state
-    LR_scheduler
-    LR::Float32
-end
-
-function create_opt(model, type="adam"; LR=0.01, decay_scheduler=nothing)
-    """
-    Create optimiser.
-
-    Args:
-    - type: optimiser to use.
-    - schedule_LR: whether to schedule learning rate.
-    - LR: learning rate.
-    - step: step size for LR scheduler.
-    - decay: decay rate for LR scheduler.
-    - min_LR: minimum LR for LR scheduler.
-
-    Returns:
-    - optimiser: optimiser.
-    """
-    
-    if !isnothing(decay_scheduler)
-        schedule_fcn = decay_scheduler
-    else
-        schedule_fcn = (epoch, LR) -> LR
-    end
-
-    opt = optimiser_map[type](LR)
-    opt_state = Optimisers.setup(opt, model)
-
-    return optimiser_state(opt_state, schedule_fcn, LR)
 end
 
 end

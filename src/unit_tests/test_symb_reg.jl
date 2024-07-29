@@ -4,10 +4,12 @@ include("../pipeline/symbolic_regression.jl")
 include("../architecture/kan_model.jl")
 include("../pipeline/utils.jl")
 include("../pipeline/flux_trainer.jl")
+include("../pipeline/optimisation.jl")
 using .KolmogorovArnoldNets
 using .SymbolicRegression
 using .PipelineUtils
-using .Trainer
+using .FluxTrainer
+using .Optimisation
 
 # Test parameter fitting for symbolic reg
 function test_param_fitting()
@@ -85,7 +87,7 @@ function test_suggestion()
     f = x -> exp(sin(π*x[1] + x[2]^2))
     train_loader, test_loader = create_loaders(f, N_var=2, x_range=(-1,1), N_train=100, N_test=100, batch_size=10, init_seed=1234)
     lr_scheduler = step_decay_scheduler(5, 0.8, 1e-5)
-    opt = create_opt(model, "adam"; LR=0.0001, decay_scheduler=lr_scheduler)
+    opt = create_flux_opt(model, "adam"; LR=0.0001, decay_scheduler=lr_scheduler)
     trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=100, verbose=true)
     train!(trainer; λ=0.01)
     suggest_symbolic!(model, 1, 1, 1)
@@ -97,7 +99,7 @@ function test_auto()
     f = x -> exp(sin(π*x[1] + x[2]^2))
     train_loader, test_loader = create_loaders(f, N_var=2, x_range=(-1,1), N_train=100, N_test=100, batch_size=10, init_seed=1234)
     lr_scheduler = step_decay_scheduler(5, 0.8, 1e-5)
-    opt = create_opt(model, "adam"; LR=0.0001, decay_scheduler=lr_scheduler)
+    opt = create_flux_opt(model, "adam"; LR=0.0001, decay_scheduler=lr_scheduler)
     trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=100, verbose=true)
     train!(trainer; λ=0.01)
     auto_symbolic!(model; lib=["exp","sin","x^2"])
@@ -109,7 +111,7 @@ function test_formula()
     f = x -> exp(sin(π*x[1] + x[2]^2))
     train_loader, test_loader = create_loaders(f, N_var=2, x_range=(-1,1), N_train=100, N_test=100, batch_size=10, init_seed=1234)
     lr_scheduler = step_decay_scheduler(5, 0.98, 1e-5)
-    opt = create_opt(model, "adam"; LR=0.00008, decay_scheduler=lr_scheduler)
+    opt = create_flux_opt(model, "adam"; LR=0.00008, decay_scheduler=lr_scheduler)
     trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=100, verbose=true)
     train!(trainer; λ=0.01)
     acts, _ = symbolic_formula!(model)

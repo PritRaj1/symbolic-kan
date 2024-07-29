@@ -1,4 +1,4 @@
-module Trainer
+module FluxTrainer
 
 export init_flux_trainer, train!
 
@@ -21,7 +21,7 @@ mutable struct flux_trainer
     log_time::Bool
 end
 
-function init_flux_trainer(model, train_loader, test_loader, optimiser; loss_fn=nothing, max_epochs=100, verbose=true, log_time=true)
+function init_flux_trainer(model, train_loader, test_loader, flux_optimiser; loss_fn=nothing, max_epochs=100, verbose=true, log_time=true)
     """
     Initialise trainer for training symbolic model.
 
@@ -37,7 +37,7 @@ function init_flux_trainer(model, train_loader, test_loader, optimiser; loss_fn=
     Returns:
     - t: trainer object.
     """
-    return flux_trainer(model, train_loader, test_loader, optimiser, loss_fn, max_epochs, verbose, log_time)
+    return flux_trainer(model, train_loader, test_loader, flux_optimiser, loss_fn, max_epochs, verbose, log_time)
 end
 
 function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=50, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 

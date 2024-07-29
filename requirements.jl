@@ -3,6 +3,8 @@ using Pkg
 Pkg.add("Flux")
 Pkg.add("NNlib")
 Pkg.add("Optim")
+Pkg.add("FluxOptTools")
+Pkg.add("LineSearches")
 Pkg.add("CUDA")
 Pkg.add("cuDNN")
 Pkg.add("LinearAlgebra")

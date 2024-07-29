@@ -1,7 +1,7 @@
 using PackageCompiler
 
 create_sysimage(
-    ["Flux", "NNlib", "Optim", "CUDA", "cuDNN", "LinearAlgebra", "KernelAbstractions", "Tullio", "SymPy", "Test", "Random", "Statistics", "GLM", "DataFrames", "Optimisers", "PyCall", "Zygote", "ProgressBars", "CSV", "Conda", "Dates", "Printf", "Makie", "GLMakie", "FileIO", "IntervalSets"],
+    ["Flux", "NNlib", "Optim", "CUDA", "cuDNN", "LinearAlgebra", "KernelAbstractions", "Tullio", "SymPy", "Test", "Random", "Statistics", "GLM", "DataFrames", "Optimisers", "PyCall", "Zygote", "ProgressBars", "CSV", "Conda", "Dates", "Printf", "Makie", "GLMakie", "FileIO", "IntervalSets", "LineSearches", "FluxOptTools"],
     sysimage_path="precompile.so", precompile_execution_file="precompile.jl"
     )
 

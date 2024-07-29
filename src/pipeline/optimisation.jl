@@ -70,11 +70,10 @@ linesearch_map = Dict(
 struct optim_opt
     type
     line_search
-    LR::Float32
     m::Int
 end
 
-function create_optim_opt(model, type="l-bfgs", line_search="strongwolfe"; LR=0.1, m=10, c_1=1e-4, c_2=0.9, ρ=0.5, ϵ=1e-8)
+function create_optim_opt(model, type="l-bfgs", line_search="strongwolfe"; m=10, c_1=1e-4, c_2=0.9, ρ=0.5, ϵ=1e-8)
     """
     Create optimiser.
 
@@ -97,7 +96,7 @@ function create_optim_opt(model, type="l-bfgs", line_search="strongwolfe"; LR=0.
         line_search = linesearch_map[line_search]
     end
 
-    return optim_opt(type, line_search, LR, m)
+    return optim_opt(type, line_search, m)
 end
 
 function opt_get(o)
@@ -112,9 +111,9 @@ function opt_get(o)
     """
 
     if o.type == "l-bfgs" 
-        return Optim.LBFGS(m=o.m, linesearch=o.line_search, P=o.LR)
+        return Optim.LBFGS(m=o.m, linesearch=o.line_search)
     elseif o.type == "cg"
-        return Optim.ConjugateGradient(linesearch=o.line_search, P=o.LR)
+        return Optim.ConjugateGradient(linesearch=o.line_search)
     else
         return Optim.NelderMead()
     end

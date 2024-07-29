@@ -2,7 +2,7 @@ module OptimTrainer
 
 export init_optim_trainer, train!
 
-using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optim, Zygote
+using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optim, FluxOptTools
 
 include("utils.jl")
 include("../pipeline/optimisation.jl")
@@ -10,7 +10,6 @@ include("../architecture/kan_model.jl")
 using .PipelineUtils: log_csv, L2_loss!
 using .KolmogorovArnoldNets: fwd!, update_grid!
 using .Optimisation: opt_get
-
 
 mutable struct optim_trainer
     model
@@ -150,29 +149,8 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
         return false
     end
 
-    # Adapted from https://github.com/baggepinnen/FluxOptTools.jl
-    function get_fg()
-        pars, re = Flux.destructure(t.model)
-        p0 = zeros(eltype(pars), length(pars))
-        copy!(p0, pars)
-        fg! = function (F,G,w)
-            copy!(pars, w)
-            params = re(pars)
-            Flux.loadmodel!(t.model, params)
-            if !isnothing(G)
-                l, grads = Flux.withgradient(m -> batch_train!(m), t.model)
-                grads = Flux.destructure(grads[1])[1][1:length(w)] # Extract only gradients relevant for training 
-                copy!(G, grads)
-                return l
-            end
-            if !isnothing(F)
-                return batch_train!(t.model)
-            end
-        end
-        return fg!, p0
-    end
-
-    fg!, p0 = get_fg()
+    params = Flux.params(t.model)
+    _, _, fg!, p0 = optfuns(() -> batch_train!(t.model), params)
     res = Optim.optimize(Optim.only_fg!(fg!), p0, opt_get(t.opt), Optim.Options(show_trace=true, iterations=t.max_epochs, callback=log_callback, x_abstol=1e-8, f_abstol=1e-8, g_abstol=1e-8))
     _, re = Flux.destructure(t.model)
     Flux.loadmodel!(t.model, re(res.minimizer))

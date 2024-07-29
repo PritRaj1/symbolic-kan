@@ -107,6 +107,7 @@ function fwd!(model, x)
         in_range = std(pre_acts, dims=1).+ 0.1
         out_range = std(post_acts, dims=1) .+ 0.1
         scales = PadToShape(out_range ./ in_range, (1, maximum(model.widths), maximum(model.widths)))
+        scales = ifelse.(isnan.(scales), 0.0, scales)
         model.act_scale = vcat(model.act_scale, scales)
         
         add_to_array!(model.pre_acts, pre_acts)

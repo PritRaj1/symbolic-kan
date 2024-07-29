@@ -58,25 +58,38 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
         
         # L2 regularisation
         function non_linear(x; th=mag_threshold, factor=reg_factor)
-            term1 = ifelse.(x .< th, 1.0, 0.0)
-            term2 = ifelse.(x .> th, 1.0, 0.0)
+            term1 = ifelse.(x .< th, Float32(1.0), Float32(0.0))
+            term2 = ifelse.(x .> th, Float32(1.0), Float32(0.0))
             return term1 .* x .* factor .+ term2 .* (x .+ (factor - 1) .* th)
         end
 
         reg_ = 0.0
         for i in eachindex(acts_scale[:, 1, 1])
-            reg_ += sum(abs2, non_linear(acts_scale[i, :, :]))
+            vec = reshape(acts_scale[i, :, :], :)
+            p = vec ./ sum(vec)
+            l1 = sum(non_linear(vec))
+            entropy = -1 * sum(p .* log.(p .+ 1e-4))
+            reg_ += (l1 * λ_l1) + (entropy * λ_entropy)
+        end
+
+        for i in eachindex(m.act_fcns)
             coeff_l1 = sum(mean(abs.(m.act_fcns[i].coef), dims=2))
-            reg_ += λ_l1 * coeff_l1 * λ_coefdiff * λ_coef
+            coeff_l1 = isnan(coeff_l1) ? Float32(0.0) : coeff_l1
+            coeff_diff_l1 = sum(mean(abs.(diff(m.act_fcns[i].coef, dims=2)), dims=2))
+            coeff_diff_l1 = isnan(coeff_diff_l1) ? Float32(0.0) : coeff_diff_l1
+            reg_ += (λ_coef * coeff_l1) + (λ_coefdiff * coeff_diff_l1)
         end
 
         return reg_
     end
 
-    # l1 rregularisation loss
+    # l1 regularisation loss
     function reg_loss!(m, x, y)
         l2 = L2_loss!(m, x, y)
-        return mean(l2 .+ λ * reg(m))
+        reg_ = reg(m)
+        reg_ = λ * reg_
+        loss = mean(l2 .+ reg_)
+        return loss
     end
 
     if isnothing(t.loss_fn!)
@@ -131,7 +144,7 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
         test_loss /= length(t.test_loader.data)
 
         time_epoch = time() - start_time
-        reg_val = mean(reg(t.model))
+        reg_val = reg(t.model)
         log_csv(epoch, time_epoch, train_loss, test_loss, reg_val, file_name; t.log_time)
 
         if t.verbose

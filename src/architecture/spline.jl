@@ -93,7 +93,6 @@ function B_batch(x, grid; degree::Int64, σ=nothing)
     Returns:
         A matrix of size (d, m, n) containing the B-spline basis functions evaluated at the points x.
     """
-    println(size(x))
     
     # B-spline basis functions of degree 0 are piecewise constant functions: B = 1 if x in [grid[p], grid[p+1]) else 0
     if degree == 0
@@ -130,26 +129,26 @@ function B_batch(x, grid; degree::Int64, σ=nothing)
     return B 
 end
 
-function B_batch_RBF(x, grid; degree=nothing, σ=1.0)
-    """
-    Compute the B-spline basis functions for a batch of points x and a grid of knots using the RBF kernel.
+# function B_batch_RBF(x, grid; degree=nothing, σ=1.0)
+#     """
+#     Compute the B-spline basis functions for a batch of points x and a grid of knots using the RBF kernel.
 
-    Args:
-        x: A matrix of size (d, n) containing the points at which to evaluate the B-spline basis functions.
-        grid: A matrix of size (d, m) containing the grid of knots.
-        sigma: The bandwidth of the RBF kernel.
+#     Args:
+#         x: A matrix of size (d, n) containing the points at which to evaluate the B-spline basis functions.
+#         grid: A matrix of size (d, m) containing the grid of knots.
+#         sigma: The bandwidth of the RBF kernel.
 
-    Returns:
-        A matrix of size (d, m, n) containing the B-spline basis functions evaluated at the points x.
-    """
-    B = @tullio out[n, d, m] := exp(-sum((x[n, d] - grid[d, m])^2) / (2*σ[1]^2))
-    return B
+#     Returns:
+#         A matrix of size (d, m, n) containing the B-spline basis functions evaluated at the points x.
+#     """
+#     B = @tullio out[n, d, m] := exp(-sum((x[n, d] - grid[d, m])^2) / (2*σ[1]^2))
+#     return B
 
-end
+# end
 
 BasisFcn = Dict(
     "spline" => B_batch,
-    "RBF" => B_batch_RBF
+    # "RBF" => B_batch_RBF
 )[method]
 
 function coef2curve(x_eval, grid, coef; k::Int64, scale=1.0)
@@ -171,7 +170,7 @@ function coef2curve(x_eval, grid, coef; k::Int64, scale=1.0)
     return y_eval
 end
 
-function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0)
+function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0, ε=1e-4)
     """
     Convert B-spline curves to B-spline coefficients using least squares.
 
@@ -184,19 +183,33 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0)
     Returns:
         A matrix of size (d, m, l, k) containing the B-spline coefficients.
     """
-    b_size = size(grid, 1)
+    b_size = size(x_eval, 1)
+    in_dim = size(x_eval, 2)
     n_coeffs = size(grid, 2) - k - 1
     out_dim = size(y_eval, 3)
     B = BasisFcn(x_eval, grid; degree=k, σ=scale) 
 
     # Compute the B-spline coefficients using least squares with \ operator
     B = expand_B(B, n_coeffs)
-    B = QR_decomp(B)
-    # B = removeZero.(B; ε=1e-1)
-    coef = @tullio out[j, q, p] := B[i, j, p] \ y_eval[i, j, q]
-    println("coef: ", coef[1,1,:])
+    println("B: ", size(B), "b_size", b_size, "n_coeffs", n_coeffs)
+    B = permutedims(B, [2, 1, 3])
+    B = reshape(B, in_dim, 1, b_size, n_coeffs)
+    B = repeat(B, 1, out_dim, 1, 1)
 
-    return coef
+    y_eval = permutedims(y_eval, [2, 3, 1]) 
+    y_eval = reshape(y_eval, size(y)..., 1)
+
+    Bt = permutedims(B, [1, 2, 4, 3])
+    BtB = @tullio out[i, j, m, p] := Bt[i, j, m, n] * B[i, j, n, p]
+    Bty = @tullio out[i, j, m, p] := Bt[i, j, m, n] * y_eval[i, j, n, p]
+    n1, n2, n, _ = size(BtB)
+    identity = reshape(Float32.(I(n)), 1, 1, n, n)
+    identity = repeat(identity, n1, n2, 1, 1)
+    A = BtB .+ ε .* identity
+    coef = pinv(A) * Bty
+    println("Coef: ", coef)
+
+    return coef[:, :, :, 1]
 end
 
 end

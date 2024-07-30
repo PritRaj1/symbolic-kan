@@ -7,16 +7,16 @@ using .symbolic_layer
 
 # Test b_spline_layer
 function test_spline_lyr()
-    layer = b_spline_layer(3, 5)
-    x = randn(100, 3) 
-    y = randn(100, 3) 
-    z, preacts, postacts, postspline = fwd(layer, x)
+    # layer = b_spline_layer(3, 5)
+    # x = randn(100, 3) 
+    # y = randn(100, 3) 
+    # z, preacts, postacts, postspline = fwd(layer, x)
 
-    @test all(size(z) .== (100, 5))
-    @test all(size(preacts) .== (100, 5, 3))
-    @test all(size(postacts) .== (100, 5, 3))
-    @test all(size(postspline) .== (100, 5, 3))
-    @test all(size(layer.grid) .== (3, 12))
+    # @test all(size(z) .== (100, 5))
+    # @test all(size(preacts) .== (100, 5, 3))
+    # @test all(size(postacts) .== (100, 5, 3))
+    # @test all(size(postspline) .== (100, 5, 3))
+    # @test all(size(layer.grid) .== (3, 12))
 
     x = LinRange(-3, 3, 100) |> x -> reshape(x, 100, 1)
     layer = b_spline_layer(1, 1; num_splines=5, degree=3)

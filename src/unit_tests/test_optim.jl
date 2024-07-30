@@ -12,11 +12,11 @@ using .Plotting
 using .Optimisation
 
 function test_trainer()
-    train_loader, test_loader = create_loaders(x -> x[1] * x[2], N_var=2, x_range=(-1,1), N_train=1000, N_test=1000, batch_size=1000, normalise_input=false, init_seed=1234)
+    train_loader, test_loader = create_loaders(x -> x[1] * x[2], N_var=2, x_range=(-1,1), N_train=2000, N_test=2000, batch_size=200, normalise_input=false, init_seed=1234)
     model = KAN([2,5,1]; k=3, grid_interval=5)
     opt = create_optim_opt(model, "bfgs", "hagerzhang")
-    trainer = init_optim_trainer(model, train_loader, test_loader, opt; max_epochs=100, verbose=true)
-    train!(trainer; λ=1.0, λ_l1=1.0, λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1)
+    trainer = init_optim_trainer(model, train_loader, test_loader, opt; max_epochs=50, verbose=true)
+    train!(trainer; λ=0.1, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1)
 
     @test sum(trainer.model.act_scale) > 0.0
     return trainer.model, first(test_loader)[1] |> permutedims

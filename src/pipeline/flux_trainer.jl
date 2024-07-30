@@ -8,9 +8,11 @@ using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optimisers
 include("utils.jl")
 include("../architecture/kan_model.jl")
 include("../utils.jl")
+include("../pipeline/optimisation.jl")
 using .PipelineUtils: log_csv, L2_loss!, diff3
 using .KolmogorovArnoldNets: fwd!, update_grid!
-using .Utils: removeNaN
+using .Utils: removeNaN, smooth_transition1, smooth_transition2
+using .Optimisation
 
 mutable struct flux_trainer
     model
@@ -42,7 +44,7 @@ function init_flux_trainer(model, train_loader, test_loader, flux_optimiser; los
     return flux_trainer(model, train_loader, test_loader, flux_optimiser, loss_fn, max_epochs, verbose, log_time)
 end
 
-function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=2, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
+function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=5, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
     λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0)
     """
     Train symbolic model.
@@ -65,8 +67,8 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
         
         # L2 regularisation
         function non_linear(x; th=mag_threshold, factor=reg_factor)
-            term1 = ifelse.(x .< th, Float32(1.0), Float32(0.0))
-            term2 = ifelse.(x .> th, Float32(1.0), Float32(0.0))
+            term1 = smooth_transition2.(x, th)
+            term2 = smooth_transition1.(x, th)
             return term1 .* x .* factor .+ term2 .* (x .+ (factor - 1) .* th)
         end
 
@@ -75,7 +77,7 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
             vec = reshape(acts_scale[i, :, :], :)
             p = vec ./ sum(vec)
             l1 = sum(non_linear(vec))
-            entropy = -1 * sum(p .* log2.(p .+ 1e-3))
+            entropy = -1 * sum(p .* log.(p .+ Float32(1e-3)))
             reg_ += (l1 * λ_l1) + (entropy * λ_entropy)
         end
 
@@ -93,7 +95,6 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
         l2 = L2_loss!(m, x, y)
         reg_ = reg(m)
         reg_ = λ * reg_
-        # println("L2: $l2, Reg: $reg_")
         return l2 .+ reg_
     end
 
@@ -151,6 +152,11 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
 
         if (epoch % grid_update_freq == 0) && (epoch < stop_grid_update_step) && update_grid_bool
             update_grid!(t.model, x_collection)
+
+            # Have to reset momentum for Adam
+            if t.opt.type == "adam"
+                t.opt = create_flux_opt(t.model, t.opt.type; LR=t.opt.LR, decay_scheduler=t.opt.LR_scheduler)
+            end
         end
 
         train_loss /= length(t.train_loader.data)

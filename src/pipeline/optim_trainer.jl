@@ -77,7 +77,7 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
             vec = reshape(acts_scale[i, :, :], :)
             p = vec ./ sum(vec)
             l1 = sum(non_linear(vec))
-            entropy = -1 * sum(p .* log.(p .+ 1e-3f0))
+            entropy = -1 * sum(p .* log.(p .+ Float32(1e-3)))
             reg_ += (l1 * λ_l1) + (entropy * λ_entropy)
         end
 
@@ -93,7 +93,6 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
     # l1 regularisation loss
     function reg_loss!(m, x, y)
         l2 = L2_loss!(m, x, y)
-        println(typeof(l2))
         reg_ = reg(m)
         reg_ = λ * reg_
         return l2 .+ reg_
@@ -162,6 +161,7 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
 
         if (epoch % grid_update_freq == 0) && (epoch < stop_grid_update_step) && update_grid_bool
             update_grid!(t.model, x_collection)
+            Flux.update!
         end
 
         train_loss = train_loss / length(train_loader)

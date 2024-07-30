@@ -20,6 +20,10 @@ function removeZero(x; ε=1e-3)
     return iszero(x) ? Float32(ε) : x
 end
 
+# Smooth sigmoid approximation of thresholding
+smooth_transition1(x, y; steepness=5.0f0) = σ(steepness * (x - y))
+smooth_transition2(x, y; steepness=5.0f0) = 1.0f0 - σ(steepness * (x - y))
+
 function sparse_mask(in_dim, out_dim)
     """
     Create a sparse mask for the KAN layer.

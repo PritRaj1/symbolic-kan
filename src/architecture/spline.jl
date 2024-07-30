@@ -6,7 +6,7 @@ using Flux, Tullio, LinearAlgebra
 # using CUDA, KernelAbstractions
 
 include("../utils.jl")
-using .Utils: removeNaN, removeZero
+using .Utils: removeNaN, removeZero, smooth_transition1, smooth_transition2
 
 method = get(ENV, "METHOD", "spline") # "spline" or "RBF"; RBF not properly implemented yet
 
@@ -33,7 +33,7 @@ function expand_B(B, nc)
 
 end
 
-function QR_decomp(A; ε=1e-1)
+function QR_decomp(A; ε=1e-4)
     """
     Returns Q matrix from QR factorisation of A.
 
@@ -93,26 +93,30 @@ function B_batch(x, grid; degree::Int64, σ=nothing)
     Returns:
         A matrix of size (d, m, n) containing the B-spline basis functions evaluated at the points x.
     """
-    # Expand for broadcasting
-    x_eval = repeat(reshape(x, size(x)..., 1), 1, 1, size(grid, 2) - 1)
-    grid_eval = repeat(reshape(grid, 1, size(grid)...), size(x, 1), 1, 1)
+    println(size(x))
     
     # B-spline basis functions of degree 0 are piecewise constant functions: B = 1 if x in [grid[p], grid[p+1]) else 0
-    grid_1 = grid_eval[:, :, 1:end-1] # grid[p]
-    grid_2 = grid_eval[:, :, 2:end] # grid[p+1]
+    if degree == 0
+        # Expand for broadcasting
+        x_eval = repeat(reshape(x, size(x)..., 1), 1, 1, size(grid, 2) - 1)
+        grid_eval = repeat(reshape(grid, 1, size(grid)...), size(x, 1), 1, 1)
 
-    term1 = ifelse.(x_eval .>= grid_1, Float32(1.0), Float32(0.0))
-    term2 = ifelse.(x_eval .< grid_2, Float32(1.0), Float32(0.0))
-    term1 |> collect 
-    term2 |> collect 
+        grid_1 = grid_eval[:, :, 1:end-1] # grid[p]
+        grid_2 = grid_eval[:, :, 2:end] # grid[p+1]
+    
+        # Apply the smooth thresholding functions
+        term1 = ifelse.(x_eval .>= grid_1, Float32(1), Float32(0))
+        term2 = ifelse.(x_eval .< grid_2, Float32(1), Float32(0))
 
-    B = @tullio res[d, p, n] := term1[d, p, n] * term2[d, p, n]
+        B = @tullio res[d, p, n] := term1[d, p, n] * term2[d, p, n]
+    
+    else
+        # Compute the B-spline basis functions of degree k
+        k = degree
+        B = B_batch(x, grid; degree=k-1)
+        x = reshape(x, size(x)..., 1) 
+        grid = reshape(grid, 1, size(grid)...) 
 
-    x = reshape(x, size(x)..., 1) 
-    grid = reshape(grid, 1, size(grid)...) 
-
-    # Compute the B-spline basis functions of degree k
-    for k in 1:degree 
         numer1 = x .- grid[:, :, 1:(end - k - 1)]
         denom1 = grid[:, :, (k + 1):end-1] .- grid[:, :, 1:(end - k - 1)]
         numer2 = grid[:, :, (k + 2):end] .- x
@@ -121,7 +125,7 @@ function B_batch(x, grid; degree::Int64, σ=nothing)
         B_i2 = B[:, :, 2:end]
         B = @tullio out[d, n, m] := (numer1[d, n, m] / denom1[1, n, m] * B_i1[d, n, m]) + (numer2[d, n, m] / denom2[1, n, m] * B_i2[d, n, m])
     end
-
+    
     B = removeNaN.(B)
     return B 
 end
@@ -190,6 +194,7 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0)
     B = QR_decomp(B)
     # B = removeZero.(B; ε=1e-1)
     coef = @tullio out[j, q, p] := B[i, j, p] \ y_eval[i, j, q]
+    println("coef: ", coef[1,1,:])
 
     return coef
 end

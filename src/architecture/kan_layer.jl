@@ -34,7 +34,7 @@ function b_spline_layer(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_s
     
     init_σ = 1.0
     ε = ((rand(num_splines + 1, in_dim, out_dim) .- 0.5) .* ε_scale ./ num_splines)  
-    coef = curve2coef(grid[:, degree:end-degree-1] |> permutedims, ε, grid; k=degree, scale=init_σ)
+    coef = curve2coef(grid[:, degree+1:end-degree] |> permutedims, ε, grid; k=degree, scale=init_σ)
     
     if sparse_init
         mask = sparse_mask(in_dim, out_dim)
@@ -85,11 +85,12 @@ function update_lyr_grid!(l, x; margin=0.01)
     
     # Compute the B-spline basis functions of degree k
     x_sort = sortslices(x, dims=1)
+    println("x_sort: ", size(x_sort))
     current_splines = coef2curve(x_sort, l.grid, l.coef; k=l.degree, scale=l.RBF_σ)
 
     # Adaptive grid - concentrate grid points around regions of higher density
     num_interval = size(l.grid, 2) - 2*l.degree - 1
-    ids = [div(b_size * i, num_interval) for i in 1:num_interval]
+    ids = [div(b_size * i, num_interval) + 1 for i in 0:num_interval-1]
     grid_adaptive = zeros(Float32, 0, size(x, 2)) 
     for idx in ids
         grid_adaptive = vcat(grid_adaptive, x_sort[idx:idx, :])
@@ -104,8 +105,11 @@ function update_lyr_grid!(l, x; margin=0.01)
 
     # Grid is a convex combination of the uniform and adaptive grid
     grid = @tullio out[i, j] := l.grid_eps * grid_uniform[i, j] + (1 - l.grid_eps) * grid_adaptive[i, j]
+    println("grid: ", grid)
     l.grid = extend_grid(grid, l.degree)
+    println("l.grid: ", l.grid)
     l.coef = curve2coef(x_sort, current_splines, l.grid; k=l.degree, scale=l.RBF_σ)
+    println("l.coef: ", l.coef)
 end
 
 function get_subset(l::kan_dense, in_indices, out_indices)

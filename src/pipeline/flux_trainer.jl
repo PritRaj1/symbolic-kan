@@ -7,7 +7,7 @@ using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optimisers
 
 include("utils.jl")
 include("../architecture/kan_model.jl")
-using .PipelineUtils: log_csv, L2_loss!
+using .PipelineUtils: log_csv, L2_loss!, diff3
 using .KolmogorovArnoldNets: fwd!, update_grid!
 
 mutable struct flux_trainer
@@ -68,15 +68,13 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
             vec = reshape(acts_scale[i, :, :], :)
             p = vec ./ sum(vec)
             l1 = sum(non_linear(vec))
-            entropy = -1 * sum(p .* log.(p .+ 1e-4))
+            entropy = -1 * sum(p .* log.(p .+ 1e-3))
             reg_ += (l1 * λ_l1) + (entropy * λ_entropy)
         end
 
         for i in eachindex(m.act_fcns)
             coeff_l1 = sum(mean(abs.(m.act_fcns[i].coef), dims=2))
-            coeff_l1 = isnan(coeff_l1) ? Float32(0.0) : coeff_l1
-            coeff_diff_l1 = sum(mean(abs.(diff(m.act_fcns[i].coef, dims=2)), dims=2))
-            coeff_diff_l1 = isnan(coeff_diff_l1) ? Float32(0.0) : coeff_diff_l1
+            coeff_diff_l1 = sum(mean(abs.(diff3(m.act_fcns[i].coef)), dims=2))
             reg_ += (λ_coef * coeff_l1) + (λ_coefdiff * coeff_diff_l1)
         end
 

@@ -7,16 +7,58 @@ using Zygote: @adjoint
 # using CUDA, KernelAbstractions
 
 include("../utils.jl")
-using .Utils: sparse_mask
+using .Utils: removeNaN, removeZero
 
 method = get(ENV, "METHOD", "spline") # "spline" or "RBF"; RBF not properly implemented yet
 
-function removeNaN(x)
-    return isnan(x) ? Float32(0.0) : x
+function expand_B(B, nc)
+    """
+    Expand the B-spline basis functions to include the number of coefficients.
+
+    Args:
+        B: A matrix of size (d, m, n) containing the B-spline basis functions.
+        nc: The number of coefficients to include.
+
+    Returns:
+        A matrix of size (d, m, nc) containing the expanded B-spline basis functions.
+    """
+    b_size, in_dim, og_size = size(B)
+    new_B = zeros(Float32, b_size, in_dim, 0) 
+
+    for c in 1:nc
+        og_idx = (c - 1) % og_size + 1
+        new_B = cat(new_B, B[:, :, og_idx:og_idx], dims=3)
+    end
+
+    return new_B
+
 end
 
-function removeZero(x; ε=1e-3)
-    return iszero(x) ? Float32(ε) : x
+function QR_decomp(A; ε=1e-1)
+    """
+    Returns Q matrix from QR factorisation of A.
+
+    Args:
+        A: Matrix to factorize, 3 dimensions.
+        ε: Threshold for zero values.
+    """
+    d1, d2, d3 = size(A)
+    
+    last_dim = d3 < d2 ? d3 : d2
+    Q = zeros(Float32, 0, d2, last_dim)
+    
+    # Batch dim 
+    for b in 1:d1
+        slice = A[b, :, :]
+        
+        Q_slice = qr(slice).Q
+        Q_slice = Matrix{Float32}(Q_slice) 
+        Q_slice = reshape(Q_slice, 1, size(Q_slice)...)
+        
+        Q = vcat(Q, Q_slice)
+    end
+    
+    return removeZero.(Q; ε=ε) # Even adding Iε incurs numerical instability, so I just remove zeros entirely
 end
 
 function extend_grid(grid, k_extend=0)
@@ -122,6 +164,7 @@ function coef2curve(x_eval, grid, coef; k::Int64, scale=1.0)
     """
     
     b_splines = BasisFcn(x_eval, grid; degree=k, σ=scale)
+    b_splines = expand_B(b_splines, size(coef, 3))
     y_eval = @tullio out[i, j, l] := b_splines[i, j, k] * coef[j, l, k]
     return y_eval
 end
@@ -145,9 +188,10 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0)
     B = BasisFcn(x_eval, grid; degree=k, σ=scale) 
 
     # Compute the B-spline coefficients using least squares with \ operator
-    B = removeZero.(B)
+    B = expand_B(B, n_coeffs)
+    B = QR_decomp(B)
     coef = @tullio out[j, q, p] := B[i, j, p] \ y_eval[i, j, q]
-    
+
     return coef
 end
 

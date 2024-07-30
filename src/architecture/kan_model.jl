@@ -7,6 +7,8 @@ using Flux, Tullio, NNlib, Random, Statistics, SymPy
 
 include("kan_layer.jl")
 include("symbolic_layer.jl")
+include("../utils.jl")
+using .Utils: removeNaN, removeZero
 using .dense_kan: b_spline_layer, update_lyr_grid!, get_subset, fwd
 using .symbolic_layer: symbolic_kan_layer, symb_fwd, get_symb_subset
 
@@ -103,11 +105,19 @@ function fwd!(model, x)
         x_eval = x_numerical .+ x_symbolic
         post_acts = post_acts_numerical .+ post_acts_symbolic
 
+        # isnan.(x_numerical) .&& println("NaNs in the activations at layer $(i)")
+        # isnan.(x_symbolic) .&& println("NaNs in the symbolic activations at layer $(i)")
+        # isnan.(post_acts_numerical) .&& println("NaNs in the post-activations at layer $(i)")
+        # isnan.(post_acts_symbolic) .&& println("NaNs in the symbolic post-activations at layer $(i)")
+        # isnan.(x_eval) .&& println("NaNs in the activations at layer $(i)")
+        # isnan.(post_acts) .&& println("NaNs in the post-activations at layer $(i)")
+        # isnan.(pre_acts) .&& println("NaNs in the pre-activations at layer $(i)")
+
         # Scales for l1 regularisation
-        in_range = std(pre_acts, dims=1).+ 0.1
-        out_range = std(post_acts, dims=1) .+ 0.1
+        in_range = std(pre_acts, dims=1) .+ 0.1
+        out_range = std(post_acts, dims=1)
+        in_range = removeZero.(in_range; ε=1e-1)
         scales = PadToShape(out_range ./ in_range, (1, maximum(model.widths), maximum(model.widths)))
-        scales = ifelse.(isnan.(scales), 0.0, scales)
         model.act_scale = vcat(model.act_scale, scales)
         
         add_to_array!(model.pre_acts, pre_acts)

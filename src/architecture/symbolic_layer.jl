@@ -40,7 +40,7 @@ function apply_fcn(x, y; fcn)
     end
 end
 
-function symb_fwd(l, x; avoid_singular=false, y_th=10.0)
+function symb_fwd(l, x; avoid_singular=true, y_th=10.0)
     """
     Apply symbolic dense layer to input x using Kolmogorov-Arnold theorm.
     

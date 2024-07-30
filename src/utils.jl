@@ -11,6 +11,15 @@ using Flux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random
 #     return USE_GPU ? gpu(x) : x
 # end
 
+
+function removeNaN(x)
+    return isnan(x) ? Float32(0.0) : x
+end
+
+function removeZero(x; ε=1e-3)
+    return iszero(x) ? Float32(ε) : x
+end
+
 function sparse_mask(in_dim, out_dim)
     """
     Create a sparse mask for the KAN layer.

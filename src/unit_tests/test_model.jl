@@ -9,7 +9,7 @@ function test_fwd()
     Random.seed!(123)
     x = randn(100, 2)
     y = fwd!(model, x)
-    @test all(size(y) .== (100, 2))
+    @test all(size(y) .== (100, 3))
 end
 
 function test_grid()

@@ -7,7 +7,7 @@ using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optim, Zygote
 include("utils.jl")
 include("../pipeline/optimisation.jl")
 include("../architecture/kan_model.jl")
-using .PipelineUtils: log_csv, L2_loss!
+using .PipelineUtils: log_csv, L2_loss!, diff3
 using .KolmogorovArnoldNets: fwd!, update_grid!
 using .Optimisation: opt_get
 
@@ -45,7 +45,7 @@ function init_optim_trainer(model, train_loader, test_loader, optim_optimiser; l
 end
 
 function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=1000, stop_grid_update_step=5000, reg_factor=1.0, mag_threshold=1e-16, 
-    λ=0.01, λ_l1=0.01, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0)
+    λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0)
     """
     Train symbolic model.
 
@@ -72,15 +72,13 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
             vec = reshape(acts_scale[i, :, :], :)
             p = vec ./ sum(vec)
             l1 = sum(non_linear(vec))
-            entropy = -1 * sum(p .* log.(p .+ 1e-4))
+            entropy = -1 * sum(p .* log.(p .+ 1e-3))
             reg_ += (l1 * λ_l1) + (entropy * λ_entropy)
         end
 
         for i in eachindex(m.act_fcns)
             coeff_l1 = sum(mean(abs.(m.act_fcns[i].coef), dims=2))
-            coeff_l1 = isnan(coeff_l1) ? Float32(0.0) : coeff_l1
-            coeff_diff_l1 = sum(mean(abs.(diff(m.act_fcns[i].coef, dims=2)), dims=2))
-            coeff_diff_l1 = isnan(coeff_diff_l1) ? Float32(0.0) : coeff_diff_l1
+            coeff_diff_l1 = sum(mean(abs.(diff3(m.act_fcns[i].coef)), dims=2))
             reg_ += (λ_coef * coeff_l1) + (λ_coefdiff * coeff_diff_l1)
         end
 

@@ -7,8 +7,10 @@ using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optimisers
 
 include("utils.jl")
 include("../architecture/kan_model.jl")
+include("../utils.jl")
 using .PipelineUtils: log_csv, L2_loss!, diff3
 using .KolmogorovArnoldNets: fwd!, update_grid!
+using .Utils: removeNaN
 
 mutable struct flux_trainer
     model
@@ -40,7 +42,7 @@ function init_flux_trainer(model, train_loader, test_loader, flux_optimiser; los
     return flux_trainer(model, train_loader, test_loader, flux_optimiser, loss_fn, max_epochs, verbose, log_time)
 end
 
-function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=1000, stop_grid_update_step=5000, reg_factor=1.0, mag_threshold=1e-16, 
+function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=2, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
     λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0)
     """
     Train symbolic model.
@@ -51,6 +53,11 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
     Returns:
     - model: trained model.
     """
+    λ = Float32(λ)
+    λ_l1 = Float32(λ_l1)
+    λ_entropy = Float32(λ_entropy)
+    λ_coef = Float32(λ_coef)
+    λ_coefdiff = Float32(λ_coefdiff)
 
     # Regularisation
     function reg(m)
@@ -63,12 +70,12 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
             return term1 .* x .* factor .+ term2 .* (x .+ (factor - 1) .* th)
         end
 
-        reg_ = 0.0
+        reg_ = Float32(0.0)
         for i in eachindex(acts_scale[:, 1, 1])
             vec = reshape(acts_scale[i, :, :], :)
             p = vec ./ sum(vec)
             l1 = sum(non_linear(vec))
-            entropy = -1 * sum(p .* log.(p .+ 1e-3))
+            entropy = -1 * sum(p .* log2.(p .+ 1e-3))
             reg_ += (l1 * λ_l1) + (entropy * λ_entropy)
         end
 
@@ -86,8 +93,8 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
         l2 = L2_loss!(m, x, y)
         reg_ = reg(m)
         reg_ = λ * reg_
-        loss = mean(l2 .+ reg_)
-        return loss
+        # println("L2: $l2, Reg: $reg_")
+        return l2 .+ reg_
     end
 
     if isnothing(t.loss_fn!)
@@ -106,9 +113,14 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
         t.log_time ? write(file, "Epoch,Time (s),Train Loss,Test Loss,Regularisation\n") : write(file, "Epoch,Train Loss,Test Loss,Regularisation\n")
     end
 
+    # All x for gird update
+    x_collection = zeros(Float32, size(first(t.train_loader)[1])[1], 0)
+    for (x, y) in t.train_loader
+        x_collection = hcat(x_collection, x)
+    end
+    x_collection = x_collection |> permutedims
+
     start_time = time()
-    num_steps = t.max_epochs * length(t.train_loader.data)
-    step = 0
     for epoch in ProgressBar(1:t.max_epochs)
         train_loss = 0.0
         test_loss = 0.0
@@ -122,10 +134,9 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
             t.opt.opt_state, t.model = Optimisers.update(t.opt.opt_state, t.model, grad[1])
             train_loss += loss_val
 
-            if (step % grid_update_freq == 0) && (step < stop_grid_update_step) && update_grid_bool
-                update_grid!(t.model, x)
+            if t.verbose
+                println("Mean grad:", mean(Flux.destructure(grad[1])[1]))
             end
-            step += 1
         end
 
         t.opt.LR = t.opt.LR_scheduler(epoch, t.opt.LR)
@@ -136,6 +147,10 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
         for (x, y) in t.test_loader
             x, y = x |> permutedims, y |> permutedims
             test_loss += t.loss_fn!(t.model, x, y)
+        end
+
+        if (epoch % grid_update_freq == 0) && (epoch < stop_grid_update_step) && update_grid_bool
+            update_grid!(t.model, x_collection)
         end
 
         train_loss /= length(t.train_loader.data)

@@ -21,10 +21,10 @@ end
 
 function symbolic_kan_layer(in_dim::Int, out_dim::Int)
     mask = zeros(out_dim, in_dim)
-    fcns = [[x -> x*0.0 for i in 1:in_dim] for j in 1:out_dim] 
-    fcns_avoid_singular = [[(x, y_th) -> (x*0.0, x*0.0) for i in 1:in_dim] for j in 1:out_dim]
+    fcns = [[x -> x*0.0f0 for i in 1:in_dim] for j in 1:out_dim] 
+    fcns_avoid_singular = [[(x, y_th) -> (x*0.0f0, x*0.0f0) for i in 1:in_dim] for j in 1:out_dim]
     fcn_names = [["0" for i in 1:in_dim] for j in 1:out_dim]
-    fcn_sympys = [[x -> x*0.0 for i in 1:in_dim] for j in 1:out_dim] 
+    fcn_sympys = [[x -> x*0.0f0 for i in 1:in_dim] for j in 1:out_dim] 
     affine = zeros(out_dim, in_dim, 4)
 
     return symbolic_dense(in_dim, out_dim, mask, fcns, fcns_avoid_singular, fcn_names, fcn_sympys, affine)
@@ -64,7 +64,7 @@ function symb_fwd(l, x; avoid_singular=true, y_th=10.0)
 
     post_acts = zeros(Float32, b_size, l.out_dim, 0) 
     for i in 1:l.in_dim
-        post_acts_ = zeros(b_size, 0) 
+        post_acts_ = zeros(Float32, b_size, 0) 
         for j in 1:l.out_dim
             term1 = l.affine[j, i, 1] .* x[:, i:i] .+ l.affine[j, i, 2]
             f_x = apply_fcn.(term1, y_th; fcn=fcns[j][i])
@@ -95,9 +95,9 @@ function get_symb_subset(l, in_indices, out_indices)
     l_sub.in_dim = length(in_indices)
     l_sub.out_dim = length(out_indices)
     
-    new_mask = zeros(l_sub.out_dim, 0) 
+    new_mask = zeros(Float32, l_sub.out_dim, 0) 
     for i in in_indices
-        new_mask_ = zeros(0, 1) 
+        new_mask_ = zeros(Float32, 0, 1) 
             for j in out_indices
                 new_mask_ = vcat(new_mask_, l.mask[j:j, i:i])
             end

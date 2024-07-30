@@ -97,7 +97,7 @@ function fwd!(model, x)
         x_numerical, pre_acts, post_acts_numerical, post_spline = fwd(model.act_fcns[i], x_eval)
 
         # Evaluate symbolic layer at x
-        x_symbolic, post_acts_symbolic = 0.0, 0.0
+        x_symbolic, post_acts_symbolic = Float32(0.0), Float32(0.0)
         if model.symbolic_enabled
             x_symbolic, post_acts_symbolic = symb_fwd(model.symbolic_fcns[i], x_eval)
         end
@@ -158,21 +158,21 @@ function set_mode!(model, l, i, j, mode; mask_n=nothing)
     """
 
     if mode == "s"
-        mask_n = 0.0
-        mask_s = 1.0
+        mask_n = 0.0f0
+        mask_s = 1.0f0
     elseif mode == "n"
-        mask_n = 1.0
-        mask_s = 0.0
+        mask_n = 1.0f0
+        mask_s = 0.0f0
     elseif mode == "sn" || mode == "ns"
         if isnothing(mask_n)
-            mask_n = 1.0
+            mask_n = 1.0f0
         else
             mask_n = mask_n
         end
-        mask_s = 1.0
+        mask_s = 1.0f0
     else
-        mask_n = 0.0
-        mask_s = 0.0
+        mask_n = 0.0f0
+        mask_s = 0.0f0
     end
 
     model.act_fcns[l].mask[i, j] = mask_n
@@ -191,12 +191,12 @@ function remove_node!(model, l, j; verbose=true)
     verbose && println("Removing neuron $(j) from layer $(l)")
 
     # Remove all incoming connections
-    model.act_fcns[l-1].mask[:, j] .= 0.0
-    model.symbolic_fcns[l-1].mask[j, :] .= 0.0
+    model.act_fcns[l-1].mask[:, j] .= 0.0f0
+    model.symbolic_fcns[l-1].mask[j, :] .= 0.0f0
 
     # Remove all outgoing connections
-    model.act_fcns[l].mask[j, :] .= 0.0
-    model.symbolic_fcns[l].mask[:, j] .= 0.0
+    model.act_fcns[l].mask[j, :] .= 0.0f0
+    model.symbolic_fcns[l].mask[:, j] .= 0.0f0
 end
 
 function prune(model; threshold=1e-3, mode="auto", active_neurons_id=nothing, verbose=true)
@@ -223,7 +223,7 @@ function prune(model; threshold=1e-3, mode="auto", active_neurons_id=nothing, ve
             out_important = ifelse.(maximum(model.act_scale[i+1, :, :], dims=1)[1, :, :] .> threshold, 1.0, 0.0)
             overall_important = in_important .* out_important
         elseif mode == "manual"
-            overall_important = zeros(Bool, model.widths[i+1])
+            overall_important = zeros(Flaot32, model.widths[i+1])
             overall_important[active_neurons_id[i+1]] .= 1.0
         end
 

@@ -21,7 +21,7 @@ function L2_loss!(model, x, y)
     - loss: L2 loss.
     """
     ŷ = fwd!(model, x)
-    return sum((ŷ .- y).^2)
+    return mean(sum((ŷ .- y).^2))
 end
 
 function diff3(A)

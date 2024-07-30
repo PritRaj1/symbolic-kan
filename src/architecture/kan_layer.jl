@@ -90,7 +90,7 @@ function update_lyr_grid!(l, x; margin=0.01)
     # Adaptive grid - concentrate grid points around regions of higher density
     num_interval = size(l.grid, 2) - 2*l.degree - 1
     ids = [div(b_size * i, num_interval) for i in 1:num_interval]
-    grid_adaptive = zeros(0, size(x, 2)) 
+    grid_adaptive = zeros(Float32, 0, size(x, 2)) 
     for idx in ids
         grid_adaptive = vcat(grid_adaptive, x_sort[idx:idx, :])
     end
@@ -124,17 +124,17 @@ function get_subset(l::kan_dense, in_indices, out_indices)
     l_sub.in_dim = length(in_indices)
     l_sub.out_dim = length(out_indices)
 
-    new_grid = zeros(0, size(l.grid, 2)) 
+    new_grid = zeros(Float32, 0, size(l.grid, 2)) 
     for i in in_indices
         new_grid = vcat(new_grid, l.grid[i:i, :])
     end
     l_sub.grid = new_grid
 
-    l_sub.ε = zeros(size(l.ε, 1), l_sub.in_dim, l_sub.out_dim) 
-    l_sub.coef = zeros(l_sub.in_dim, l_sub.out_dim, size(l.coef, 3)) 
-    l_sub.w_base = zeros(l_sub.in_dim, l_sub.out_dim) 
-    l_sub.w_sp = zeros(l_sub.in_dim, l_sub.out_dim) 
-    l_sub.mask = zeros(l_sub.in_dim, l_sub.out_dim) 
+    l_sub.ε = zeros(Float32, size(l.ε, 1), l_sub.in_dim, l_sub.out_dim) 
+    l_sub.coef = zeros(Float32, l_sub.in_dim, l_sub.out_dim, size(l.coef, 3)) 
+    l_sub.w_base = zeros(Float32, l_sub.in_dim, l_sub.out_dim) 
+    l_sub.w_sp = zeros(Float32, l_sub.in_dim, l_sub.out_dim) 
+    l_sub.mask = zeros(Float32, l_sub.in_dim, l_sub.out_dim) 
     
     for in_idx in eachindex(in_indices)
         for out_idx in eachindex(out_indices)

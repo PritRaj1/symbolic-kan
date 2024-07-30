@@ -3,7 +3,6 @@ module Spline
 export extend_grid, B_batch, coef2curve, curve2coef
 
 using Flux, Tullio, LinearAlgebra
-using Zygote: @adjoint
 # using CUDA, KernelAbstractions
 
 include("../utils.jl")
@@ -102,8 +101,8 @@ function B_batch(x, grid; degree::Int64, σ=nothing)
     grid_1 = grid_eval[:, :, 1:end-1] # grid[p]
     grid_2 = grid_eval[:, :, 2:end] # grid[p+1]
 
-    term1 = ifelse.(x_eval .>= grid_1, 1.0, 0.0)
-    term2 = ifelse.(x_eval .< grid_2, 1.0, 0.0)
+    term1 = ifelse.(x_eval .>= grid_1, Float32(1.0), Float32(0.0))
+    term2 = ifelse.(x_eval .< grid_2, Float32(1.0), Float32(0.0))
     term1 |> collect 
     term2 |> collect 
 
@@ -164,8 +163,7 @@ function coef2curve(x_eval, grid, coef; k::Int64, scale=1.0)
     """
     
     b_splines = BasisFcn(x_eval, grid; degree=k, σ=scale)
-    b_splines = expand_B(b_splines, size(coef, 3))
-    y_eval = @tullio out[i, j, l] := b_splines[i, j, k] * coef[j, l, k]
+    y_eval = @tullio out[i, j, l] := b_splines[i, j, p] * coef[j, l, k]
     return y_eval
 end
 
@@ -190,6 +188,7 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0)
     # Compute the B-spline coefficients using least squares with \ operator
     B = expand_B(B, n_coeffs)
     B = QR_decomp(B)
+    # B = removeZero.(B; ε=1e-1)
     coef = @tullio out[j, q, p] := B[i, j, p] \ y_eval[i, j, q]
 
     return coef

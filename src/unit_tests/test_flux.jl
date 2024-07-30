@@ -17,7 +17,7 @@ function test_trainer()
     lr_scheduler = step_decay_scheduler(5, 0.8, 1e-9)
     opt = create_flux_opt(model, "adam"; LR=1e-7, decay_scheduler=lr_scheduler)
     trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=100, verbose=true)
-    train!(trainer; λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.1, λ_coefdiff=0.1)
+    train!(trainer; λ=0.1, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1)
 
     @test sum(trainer.model.act_scale) > 0.0
     return trainer.model, first(test_loader)[1] |> permutedims

@@ -14,9 +14,9 @@ using .Optimisation
 function test_trainer()
     train_loader, test_loader = create_loaders(x -> x[1] * x[2], N_var=2, x_range=(-1,1), N_train=1000, N_test=1000, batch_size=1000, normalise_input=false, init_seed=1234)
     model = KAN([2,5,1]; k=3, grid_interval=5)
-    lr_scheduler = step_decay_scheduler(5, 0.68, 1e-5)
-    opt = create_flux_opt(model, "adam"; LR=0.0001, decay_scheduler=nothing)
-    trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=50, verbose=true)
+    lr_scheduler = step_decay_scheduler(5, 0.6, 1e-5)
+    opt = create_flux_opt(model, "adam"; LR=0.01, decay_scheduler=nothing)
+    trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=100, verbose=true)
     train!(trainer; λ=0.1, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1)
 
     @test sum(trainer.model.act_scale) > 0.0

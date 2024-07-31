@@ -3,6 +3,7 @@ module KolmogorovArnoldNets
 export KAN, fwd!, update_grid!, prune
 
 using Flux, Tullio, NNlib, Random, Statistics, SymPy
+using Zygote: @nograd
 # using CUDA, KernelAbstractions
 
 include("kan_layer.jl")
@@ -134,7 +135,7 @@ function fwd!(model, x)
     return x_eval
 end
 
-function update_grid!(model, x)
+@nograd function update_grid!(model, x)
     """
     Update the grid for each b-spline layer in the model.
     """

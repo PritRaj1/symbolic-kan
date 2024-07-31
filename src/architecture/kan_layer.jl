@@ -85,7 +85,6 @@ function update_lyr_grid!(l, x; margin=0.01)
     
     # Compute the B-spline basis functions of degree k
     x_sort = sortslices(x, dims=1)
-    println("x_sort: ", size(x_sort))
     current_splines = coef2curve(x_sort, l.grid, l.coef; k=l.degree, scale=l.RBF_σ)
 
     # Adaptive grid - concentrate grid points around regions of higher density
@@ -105,11 +104,8 @@ function update_lyr_grid!(l, x; margin=0.01)
 
     # Grid is a convex combination of the uniform and adaptive grid
     grid = @tullio out[i, j] := l.grid_eps * grid_uniform[i, j] + (1 - l.grid_eps) * grid_adaptive[i, j]
-    println("grid: ", grid)
     l.grid = extend_grid(grid, l.degree)
-    println("l.grid: ", l.grid)
     l.coef = curve2coef(x_sort, current_splines, l.grid; k=l.degree, scale=l.RBF_σ)
-    println("l.coef: ", l.coef)
 end
 
 function get_subset(l::kan_dense, in_indices, out_indices)

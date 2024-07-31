@@ -7,11 +7,9 @@ using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optimisers
 
 include("utils.jl")
 include("../architecture/kan_model.jl")
-include("../utils.jl")
 include("../pipeline/optimisation.jl")
 using .PipelineUtils: log_csv, L2_loss!, diff3
 using .KolmogorovArnoldNets: fwd!, update_grid!
-using .Utils: removeNaN, smooth_transition1, smooth_transition2
 using .Optimisation
 
 mutable struct flux_trainer
@@ -21,11 +19,12 @@ mutable struct flux_trainer
     opt
     loss_fn!
     max_epochs::Int
+    update_grid_bool::Bool
     verbose::Bool
     log_time::Bool
 end
 
-function init_flux_trainer(model, train_loader, test_loader, flux_optimiser; loss_fn=nothing, max_epochs=100, verbose=true, log_time=true)
+function init_flux_trainer(model, train_loader, test_loader, flux_optimiser; loss_fn=nothing, max_epochs=100, update_grid_bool=true, verbose=true, log_time=true)
     """
     Initialise trainer for training symbolic model.
 
@@ -41,10 +40,10 @@ function init_flux_trainer(model, train_loader, test_loader, flux_optimiser; los
     Returns:
     - t: trainer object.
     """
-    return flux_trainer(model, train_loader, test_loader, flux_optimiser, loss_fn, max_epochs, verbose, log_time)
+    return flux_trainer(model, train_loader, test_loader, flux_optimiser, loss_fn, max_epochs, update_grid_bool, verbose, log_time)
 end
 
-function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=5, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
+function train!(t::flux_trainer; log_loc="logs/", grid_update_num=10, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
     λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0)
     """
     Train symbolic model.
@@ -61,14 +60,22 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
     λ_coef = Float32(λ_coef)
     λ_coefdiff = Float32(λ_coefdiff)
 
+    # Params needed for grid updating
+    grid_update_freq = fld(stop_grid_update_step, grid_update_num)
+    x_collection = zeros(Float32, size(first(t.train_loader)[1])[1], 0)
+    for (x, y) in t.train_loader
+        x_collection = hcat(x_collection, x)
+    end
+    x_collection = x_collection |> permutedims
+
     # Regularisation
     function reg(m)
         acts_scale = m.act_scale
         
         # L2 regularisation
         function non_linear(x; th=mag_threshold, factor=reg_factor)
-            term1 = smooth_transition2.(x, th)
-            term2 = smooth_transition1.(x, th)
+            term1 = ifelse.(x .< th, Float32(1), Float32(0))
+            term2 = ifelse.(x .>= th, Float32(1), Float32(0))
             return term1 .* x .* factor .+ term2 .* (x .+ (factor - 1) .* th)
         end
 
@@ -91,7 +98,14 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
     end
 
     # l1 regularisation loss
-    function reg_loss!(m, x, y)
+    function reg_loss!(m, x, y; epoch=0)
+        
+        # Update grid once per epoch if it's time
+        if (epoch % grid_update_freq == 0) && (epoch < stop_grid_update_step) && t.update_grid_bool
+            update_grid!(t.model, x_collection)
+            t.update_grid_bool = false
+        end
+
         l2 = L2_loss!(m, x, y)
         reg_ = reg(m)
         reg_ = λ * reg_
@@ -102,61 +116,42 @@ function train!(t::flux_trainer; log_loc="logs/", update_grid_bool=true, grid_up
         t.loss_fn! = reg_loss!
     end
 
-    grid_update_freq = fld(stop_grid_update_step, grid_update_num)
-    date_str = Dates.format(now(), "yyyy-mm-dd_HH-MM-SS")
-
     # Create folders
     !isdir(log_loc) && mkdir(log_loc)
     
     # Create csv with header
+    date_str = Dates.format(now(), "yyyy-mm-dd_HH-MM-SS")
     file_name = log_loc * "log_" * date_str * ".csv"
     open(file_name, "w") do file
         t.log_time ? write(file, "Epoch,Time (s),Train Loss,Test Loss,Regularisation\n") : write(file, "Epoch,Train Loss,Test Loss,Regularisation\n")
     end
 
-    # All x for gird update
-    x_collection = zeros(Float32, size(first(t.train_loader)[1])[1], 0)
-    for (x, y) in t.train_loader
-        x_collection = hcat(x_collection, x)
-    end
-    x_collection = x_collection |> permutedims
-
     start_time = time()
     for epoch in ProgressBar(1:t.max_epochs)
         train_loss = 0.0
         test_loss = 0.0
+        t.update_grid_bool == true
 
         # Training
         Flux.trainmode!(t.model)
         for (x, y) in t.train_loader
             x, y = x |> permutedims, y |> permutedims
             
-            loss_val, grad = Flux.withgradient(m -> t.loss_fn!(m, x, y), t.model)
+            loss_val, grad = Flux.withgradient(m -> t.loss_fn!(m, x, y; epoch=epoch), t.model)
             t.opt.opt_state, t.model = Optimisers.update(t.opt.opt_state, t.model, grad[1])
             train_loss += loss_val
 
-            if t.verbose
-                println("Mean grad:", mean(Flux.destructure(grad[1])[1]))
-            end
         end
 
         t.opt.LR = t.opt.LR_scheduler(epoch, t.opt.LR)
         Optimisers.adjust!(t.opt.opt_state, t.opt.LR)
         
         # Testing
+        t.update_grid_bool == false
         Flux.testmode!(t.model)
         for (x, y) in t.test_loader
             x, y = x |> permutedims, y |> permutedims
-            test_loss += t.loss_fn!(t.model, x, y)
-        end
-
-        if (epoch % grid_update_freq == 0) && (epoch < stop_grid_update_step) && update_grid_bool
-            update_grid!(t.model, x_collection)
-
-            # Have to reset momentum for Adam
-            if t.opt.type == "adam"
-                t.opt = create_flux_opt(t.model, t.opt.type; LR=t.opt.LR, decay_scheduler=t.opt.LR_scheduler)
-            end
+            test_loss += t.loss_fn!(t.model, x, y; epoch=epoch)
         end
 
         train_loss /= length(t.train_loader.data)

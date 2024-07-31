@@ -20,12 +20,14 @@ mutable struct optim_trainer
     test_loader::Flux.Data.DataLoader
     opt
     loss_fn!
+    epoch::Int
     max_epochs::Int
+    update_grid_bool::Bool
     verbose::Bool
     log_time::Bool
 end
 
-function init_optim_trainer(model, train_loader, test_loader, optim_optimiser; loss_fn=nothing, max_epochs=100, verbose=true, log_time=true)
+function init_optim_trainer(model, train_loader, test_loader, optim_optimiser; loss_fn=nothing, max_epochs=100, update_grid_bool=true, verbose=true, log_time=true)
     """
     Initialise trainer for training symbolic model.
 
@@ -41,10 +43,10 @@ function init_optim_trainer(model, train_loader, test_loader, optim_optimiser; l
     Returns:
     - t: trainer object.
     """
-    return optim_trainer(model, train_loader, test_loader, optim_optimiser, loss_fn, max_epochs, verbose, log_time)
+    return optim_trainer(model, train_loader, test_loader, optim_optimiser, loss_fn, 0, max_epochs, update_grid_bool, verbose, log_time)
 end
 
-function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_update_num=10, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
+function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
     λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0)
     """
     Train symbolic model.
@@ -61,18 +63,39 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
     λ_coef = Float32(λ_coef)
     λ_coefdiff = Float32(λ_coefdiff)
 
+    # No batching for optim please
+    x_train = zeros(Float32, size(first(t.train_loader)[1])[1], 0)
+    y_train = zeros(Float32, size(first(t.train_loader)[2])[1], 0)
+    for (x, y) in t.train_loader
+        x_train = hcat(x_train, x)
+        y_train = hcat(y_train, y)
+    end
+    x_train = x_train |> permutedims
+    y_train = y_train |> permutedims
+
+    x_test = zeros(Float32, size(first(t.test_loader)[1])[1], 0)
+    y_test = zeros(Float32, size(first(t.test_loader)[2])[1], 0)
+    for (x, y) in t.test_loader
+        x_test = hcat(x_test, x)
+        y_test = hcat(y_test, y)
+    end
+    x_test = x_test |> permutedims
+    y_test = y_test |> permutedims
+
+    grid_update_freq = fld(stop_grid_update_step, grid_update_num)
+
     # Regularisation
     function reg(m)
         acts_scale = m.act_scale
         
         # L2 regularisation
         function non_linear(x; th=mag_threshold, factor=reg_factor)
-            term1 = ifelse.(x .< th, Float32(1.0), Float32(0.0))
-            term2 = ifelse.(x .> th, Float32(1.0), Float32(0.0))
+            term1 = ifelse.(x .< th, Float32(1), Float32(0))
+            term2 = ifelse.(x .>= th, Float32(1), Float32(0))
             return term1 .* x .* factor .+ term2 .* (x .+ (factor - 1) .* th)
         end
 
-        reg_ = 0.0
+        reg_ = Float32(0.0)
         for i in eachindex(acts_scale[:, 1, 1])
             vec = reshape(acts_scale[i, :, :], :)
             p = vec ./ sum(vec)
@@ -91,7 +114,13 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
     end
 
     # l1 regularisation loss
-    function reg_loss!(m, x, y)
+    function reg_loss!(m, x, y; epoch=0)
+        
+        # Update grid once per epoch if it's time
+        if (epoch % grid_update_freq == 0) && (epoch < stop_grid_update_step) && t.update_grid_bool
+            update_grid!(t.model, x)
+        end
+
         l2 = L2_loss!(m, x, y)
         reg_ = reg(m)
         reg_ = λ * reg_
@@ -102,75 +131,35 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
         t.loss_fn! = reg_loss!
     end
 
-    grid_update_freq = fld(stop_grid_update_step, grid_update_num)
-    date_str = Dates.format(now(), "yyyy-mm-dd_HH-MM-SS")
-
     # Create folders
     !isdir(log_loc) && mkdir(log_loc)
     
     # Create csv with header
+    date_str = Dates.format(now(), "yyyy-mm-dd_HH-MM-SS")
     file_name = log_loc * "log_" * date_str * ".csv"
     open(file_name, "w") do file
         t.log_time ? write(file, "Epoch,Time (s),Train Loss,Test Loss,Regularisation\n") : write(file, "Epoch,Train Loss,Test Loss,Regularisation\n")
     end
 
     start_time = time()
-    num_steps = t.max_epochs * length(t.train_loader.data)
-    epoch = 0
-
-    # All x for gird update
-    x_collection = zeros(Float32, size(first(t.train_loader)[1])[1], 0)
-    for (x, y) in t.train_loader
-        x_collection = hcat(x_collection, x)
-    end
-    x_collection = x_collection |> permutedims
-
-    # Create manual dataloaders from Flux.Data.DataLoader
-    train_loader = [(x, y) for (x, y) in t.train_loader]
-    test_loader = [(x, y) for (x, y) in t.test_loader]
 
     # Training
-    function batch_train!(m)
-        train_loss = 0.0
-
-        batch_step = 1
-        for (x, y) in train_loader
-            x, y = x |> permutedims, y |> permutedims
-            train_loss += t.loss_fn!(m, x, y)
-            train_loss = train_loss / batch_step
-            batch_step += 1
-        end
-
-        return train_loss
+    function train_loss!(m)
+        return t.loss_fn!(m, x_train, y_train; t.epoch)
     end
 
     # Evaluating callback
     function log_callback(state)
-        train_loss = 0.0
-        test_loss = 0.0
+        t.update_grid_bool = false
 
-        for (x, y) in train_loader
-            x, y = x |> permutedims, y |> permutedims
-            train_loss += t.loss_fn!(t.model, x, y)
-        end
-
-        for (x, y) in test_loader
-            x, y = x |> permutedims, y |> permutedims
-            test_loss += t.loss_fn!(t.model, x, y)
-        end
-
-        if (epoch % grid_update_freq == 0) && (epoch < stop_grid_update_step) && update_grid_bool
-            update_grid!(t.model, x_collection)
-            Flux.update!
-        end
-
-        train_loss = train_loss / length(train_loader)
-        test_loss = test_loss / length(test_loader)
-
+        train_loss = t.loss_fn!(t.model, x_train, y_train; t.epoch)
+        test_loss = t.loss_fn!(t.model, x_test, y_test; t.epoch)
         reg_ = reg(t.model)
-        log_csv(epoch, time() - start_time, train_loss, test_loss, reg_, file_name; log_time=t.log_time)
         
-        epoch += 1
+        log_csv(t.epoch, time() - start_time, train_loss, test_loss, reg_, file_name; log_time=t.log_time)
+        
+        t.epoch += 1
+        t.update_grid_bool = true
 
         return false
     end
@@ -197,7 +186,7 @@ function train!(t::optim_trainer; log_loc="logs/", update_grid_bool=true, grid_u
         return fg!, p0
     end
 
-    fg!, p0 = get_fg((m) -> batch_train!(m))
+    fg!, p0 = get_fg((m) -> train_loss!(m))
     res = Optim.optimize(Optim.only_fg!(fg!), p0, opt_get(t.opt), Optim.Options(show_trace=true, iterations=t.max_epochs, callback=log_callback, x_abstol=1e-8, f_abstol=1e-8, g_abstol=1e-8))
     _, re = Flux.destructure(t.model)
     Flux.loadmodel!(t.model, re(res.minimizer))

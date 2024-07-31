@@ -33,33 +33,6 @@ function expand_B(B, nc)
 
 end
 
-function QR_decomp(A; ε=1e-4)
-    """
-    Returns Q matrix from QR factorisation of A.
-
-    Args:
-        A: Matrix to factorize, 3 dimensions.
-        ε: Threshold for zero values.
-    """
-    d1, d2, d3 = size(A)
-    
-    last_dim = d3 < d2 ? d3 : d2
-    Q = zeros(Float32, 0, d2, last_dim)
-    
-    # Batch dim 
-    for b in 1:d1
-        slice = A[b, :, :]
-        
-        Q_slice = qr(slice).Q
-        Q_slice = Matrix{Float32}(Q_slice) 
-        Q_slice = reshape(Q_slice, 1, size(Q_slice)...)
-        
-        Q = vcat(Q, Q_slice)
-    end
-    
-    return removeZero.(Q; ε=ε) # Even adding Iε incurs numerical instability, so I just remove zeros entirely
-end
-
 function extend_grid(grid, k_extend=0)
     """
     Extend the grid of knots to include the boundary knots.
@@ -189,27 +162,42 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0, ε=1e-4)
     out_dim = size(y_eval, 3)
     B = BasisFcn(x_eval, grid; degree=k, σ=scale) 
 
-    # Compute the B-spline coefficients using least squares with \ operator
+    # Expand to size
     B = expand_B(B, n_coeffs)
-    println("B: ", size(B), "b_size", b_size, "n_coeffs", n_coeffs)
     B = permutedims(B, [2, 1, 3])
     B = reshape(B, in_dim, 1, b_size, n_coeffs)
     B = repeat(B, 1, out_dim, 1, 1)
 
     y_eval = permutedims(y_eval, [2, 3, 1]) 
-    y_eval = reshape(y_eval, size(y)..., 1)
 
+    # Get BtB and Bty
     Bt = permutedims(B, [1, 2, 4, 3])
-    BtB = @tullio out[i, j, m, p] := Bt[i, j, m, n] * B[i, j, n, p]
-    Bty = @tullio out[i, j, m, p] := Bt[i, j, m, n] * y_eval[i, j, n, p]
+    
+    BtB = @tullio out[i, j, p, p] := Bt[i, j, p, n] * B[i, j, n, p]
     n1, n2, n, _ = size(BtB)
-    identity = reshape(Float32.(I(n)), 1, 1, n, n)
-    identity = repeat(identity, n1, n2, 1, 1)
-    A = BtB .+ ε .* identity
-    coef = pinv(A) * Bty
-    println("Coef: ", coef)
+    eye = Matrix{Float32}(I, n, n) .* ε
+    eye = reshape(eye, 1, 1, n, n)
+    eye = repeat(eye, n1, n2, 1, 1)
+    BtB = BtB .+ eye
 
-    return coef[:, :, :, 1]
+    Bty = @tullio out[i, j, p] := Bt[i, j, p, n] * y_eval[i, j, n]
+    
+    # x = (BtB)^-1 * Bty
+    coef = @tullio out[i, j, p] :=   inv(BtB[i, j, p, p]) * Bty[i, j, p]
+
+    # coef = zeros(Float32, 0, out_dim, size(BtB, 3))
+    # for i in 1:in_dim
+    #     coef_ = zeros(Float32, 0, size(BtB, 3))
+    #     for j in 1:out_dim
+    #         lstq = pinv(BtB[i, j, :, :]) * Bty[i, j, :]
+    #         lstq = reshape(lstq, 1, length(lstq))
+    #         coef_ = vcat(coef_, lstq)
+    #     end
+    #     coef_ = reshape(coef_, 1, size(coef_)...)
+    #     coef = vcat(coef, coef_)
+    # end
+
+    return coef
+
 end
-
 end

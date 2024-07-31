@@ -174,8 +174,9 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
             copy!(pars, w)
             Flux.loadparams!(t.model, pars)
             if isnothing(G)
-                l, back = Zygote.pullback(loss, t.model)
-                grads = back(1.0)
+                l, grad = Flux.withgradient(loss, t.model)
+                grads = grad[1]
+                println(grads)
                 copy!(G, grads)
                 return l
             end
@@ -186,8 +187,8 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
         return fg!, p0
     end
 
-    fg!, p0 = get_fg((m) -> train_loss!(m))
-    res = Optim.optimize(Optim.only_fg!(fg!), p0, opt_get(t.opt), Optim.Options(show_trace=true, iterations=t.max_epochs, callback=log_callback, x_abstol=1e-8, f_abstol=1e-8, g_abstol=1e-8))
+    opt_fg, p0 = get_fg((m) -> train_loss!(m))
+    res = Optim.optimize(Optim.only_fg!(opt_fg), p0, opt_get(t.opt), Optim.Options(show_trace=true, iterations=t.max_epochs, callback=log_callback, x_abstol=1e-8, f_abstol=1e-8, g_abstol=1e-8))
     _, re = Flux.destructure(t.model)
     Flux.loadmodel!(t.model, re(res.minimizer))
 end

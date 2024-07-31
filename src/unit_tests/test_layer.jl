@@ -18,7 +18,7 @@ function test_spline_lyr()
     @test all(size(postspline) .== (100, 5, 3))
     @test all(size(layer.grid) .== (3, 12))
 
-    x = LinRange(-1, 1, 100) |> x -> reshape(x, 100, 1)
+    x = LinRange(-3, 3, 100) |> x -> reshape(x, 100, 1)
     layer = b_spline_layer(1, 1; num_splines=5, degree=3)
     update_lyr_grid!(layer, x)
 

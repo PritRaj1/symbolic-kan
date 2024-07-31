@@ -10,29 +10,6 @@ using .Utils: removeNaN, removeZero, smooth_transition1, smooth_transition2
 
 method = get(ENV, "METHOD", "spline") # "spline" or "RBF"; RBF not properly implemented yet
 
-function expand_B(B, nc)
-    """
-    Expand the B-spline basis functions to include the number of coefficients.
-
-    Args:
-        B: A matrix of size (d, m, n) containing the B-spline basis functions.
-        nc: The number of coefficients to include.
-
-    Returns:
-        A matrix of size (d, m, nc) containing the expanded B-spline basis functions.
-    """
-    b_size, in_dim, og_size = size(B)
-    new_B = zeros(Float32, b_size, in_dim, 0) 
-
-    for c in 1:nc
-        og_idx = (c - 1) % og_size + 1
-        new_B = cat(new_B, B[:, :, og_idx:og_idx], dims=3)
-    end
-
-    return new_B
-
-end
-
 function extend_grid(grid, k_extend=0)
     """
     Extend the grid of knots to include the boundary knots.
@@ -139,7 +116,7 @@ function coef2curve(x_eval, grid, coef; k::Int64, scale=1.0)
     """
     
     b_splines = BasisFcn(x_eval, grid; degree=k, σ=scale)
-    y_eval = @tullio out[i, j, l] := b_splines[i, j, p] * coef[j, l, k]
+    y_eval = @tullio out[i, j, l] := b_splines[i, j, p] * coef[j, l, p]
     return y_eval
 end
 
@@ -161,9 +138,6 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0, ε=1e-4)
     n_coeffs = size(grid, 2) - k - 1
     out_dim = size(y_eval, 3)
     B = BasisFcn(x_eval, grid; degree=k, σ=scale) 
-
-    # Expand to size
-    B = expand_B(B, n_coeffs)
     B = permutedims(B, [2, 1, 3])
     B = reshape(B, in_dim, 1, b_size, n_coeffs)
     B = repeat(B, 1, out_dim, 1, 1)
@@ -183,19 +157,7 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0, ε=1e-4)
     Bty = @tullio out[i, j, p] := Bt[i, j, p, n] * y_eval[i, j, n]
     
     # x = (BtB)^-1 * Bty
-    coef = @tullio out[i, j, p] :=   inv(BtB[i, j, p, p]) * Bty[i, j, p]
-
-    # coef = zeros(Float32, 0, out_dim, size(BtB, 3))
-    # for i in 1:in_dim
-    #     coef_ = zeros(Float32, 0, size(BtB, 3))
-    #     for j in 1:out_dim
-    #         lstq = pinv(BtB[i, j, :, :]) * Bty[i, j, :]
-    #         lstq = reshape(lstq, 1, length(lstq))
-    #         coef_ = vcat(coef_, lstq)
-    #     end
-    #     coef_ = reshape(coef_, 1, size(coef_)...)
-    #     coef = vcat(coef, coef_)
-    # end
+    coef = @tullio out[i, j, p] := inv(BtB[i, j, p, p]) * Bty[i, j, p]
 
     return coef
 

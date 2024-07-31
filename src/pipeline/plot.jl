@@ -183,8 +183,7 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, mask=false, mode="sup
                 id_ = (i-1) * n_next + (j-1) 
 
                 if l < neuron_depth - 1
-                    alpha_plot = mask ? alpha[l, j, i] * model.mask[l][i] * model.mask[l + 1][j] : alpha[l, j, i] * alpha_mask
-
+                    
                     symbol_mask = model.symbolic_fcns[l].mask[j, i]
                     numerical_mask = model.act_fcns[l].mask[i, j]
                     
@@ -205,6 +204,8 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, mask=false, mode="sup
                     if alpha_mask == 0.0
                         hidespines!(ax)
                     end
+
+                    alpha_plot = mask ? alpha[l, j, i] * model.mask[l][i] * model.mask[l + 1][j] : alpha[l, j, i] * alpha_mask
 
                 else
                     alpha_plot = mask ? model.act_fcns[end].mask[end] * alpha[end, j, i] : alpha[end, j, i] * alpha_mask

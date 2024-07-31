@@ -5,11 +5,13 @@ include("../architecture/kan_model.jl")
 include("../pipeline/utils.jl")
 include("../pipeline/flux_trainer.jl")
 include("../pipeline/optimisation.jl")
+include("../pipeline/plot.jl")
 using .KolmogorovArnoldNets
 using .SymbolicRegression
 using .PipelineUtils
 using .FluxTrainer
 using .Optimisation
+using .Plotting
 
 # Test parameter fitting for symbolic reg
 function test_param_fitting()
@@ -87,7 +89,7 @@ function test_suggestion()
     f = x -> exp(sin(π*x[1] + x[2]^2))
     train_loader, test_loader = create_loaders(f, N_var=2, x_range=(-1,1), N_train=100, N_test=100, batch_size=10, init_seed=1234)
     lr_scheduler = step_decay_scheduler(5, 0.8, 1e-5)
-    opt = create_flux_opt(model, "adam"; LR=0.0001, decay_scheduler=lr_scheduler)
+    opt = create_flux_opt(model, "adam"; LR=0.01, decay_scheduler=lr_scheduler)
     trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=100, verbose=true)
     train!(trainer; λ=0.01)
     suggest_symbolic!(model, 1, 1, 1)
@@ -97,25 +99,26 @@ function test_auto()
     Random.seed!(123)
     model = KAN([2,5,1]; k=3, grid_interval=5)
     f = x -> exp(sin(π*x[1] + x[2]^2))
-    train_loader, test_loader = create_loaders(f, N_var=2, x_range=(-1,1), N_train=100, N_test=100, batch_size=10, init_seed=1234)
-    lr_scheduler = step_decay_scheduler(5, 0.8, 1e-5)
-    opt = create_flux_opt(model, "adam"; LR=0.0001, decay_scheduler=lr_scheduler)
-    trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=100, verbose=true)
-    train!(trainer; λ=0.01)
+    train_loader, test_loader = create_loaders(f, N_var=2, x_range=(-1,1), N_train=1000, N_test=1000, batch_size=50, init_seed=1234)
+    lr_scheduler = step_decay_scheduler(5, 0.98, 1e-2)
+    opt = create_flux_opt(model, "adam"; LR=0.01, decay_scheduler=lr_scheduler)
+    trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=250, verbose=true)
+    train!(trainer; λ=1, grid_update_num=5)
+    model = prune(model)
+    x = first(train_loader)[1] |> permutedims
+    fwd!(model, x) 
     auto_symbolic!(model; lib=["exp","sin","x^2"])
+    return model
 end
 
-function test_formula()
-    Random.seed!(123)
-    model = KAN([2,5,1]; k=3, grid_interval=5)
-    f = x -> exp(sin(π*x[1] + x[2]^2))
-    train_loader, test_loader = create_loaders(f, N_var=2, x_range=(-1,1), N_train=100, N_test=100, batch_size=10, init_seed=1234)
-    lr_scheduler = step_decay_scheduler(5, 0.98, 1e-5)
-    opt = create_flux_opt(model, "adam"; LR=0.00008, decay_scheduler=lr_scheduler)
-    trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=100, verbose=true)
-    train!(trainer; λ=0.01)
-    acts, _ = symbolic_formula!(model)
-    println(acts)
+function test_formula(model)
+    formula, _ = symbolic_formula!(model)
+    println(formula[1])
+    return formula[1]
+end
+
+function plot_symb(model, form)
+    plot_kan!(model; mask=true, in_vars=["x1", "x2"], out_vars=[string(formula)], title="KAN")
 end
 
 # test_param_fitting()
@@ -123,5 +126,6 @@ end
 # test_lock()
 # test_lock_symb()
 # test_suggestion()
-# test_auto()
-test_formula()
+model = test_auto()
+formula = test_formula(model)
+plot_symb(model, formula)

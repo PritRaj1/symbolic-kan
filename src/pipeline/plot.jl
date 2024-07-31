@@ -208,7 +208,28 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, mask=false, mode="sup
                     alpha_plot = mask ? alpha[l, j, i] * model.mask[l][i] * model.mask[l + 1][j] : alpha[l, j, i] * alpha_mask
 
                 else
-                    alpha_plot = mask ? model.act_fcns[end].mask[end] * alpha[end, j, i] : alpha[end, j, i] * alpha_mask
+                    symbol_mask = model.symbolic_fcns[end].mask[j, i]
+                    numerical_mask = model.act_fcns[end].mask[i, j]
+
+                    if symbol_mask > 0 && numerical_mask > 0
+                        color = :purple
+                        alpha_mask = 1.0
+                    elseif symbol_mask > 0 && numerical_mask == 0
+                        color = :red
+                        alpha_mask = 1.0
+                    elseif symbol_mask == 0.0 && numerical_mask > 0
+                        color = :black
+                        alpha_mask = 1.0
+                    else
+                        color = :white
+                        alpha_mask = 0.0
+                    end
+
+                    if alpha_mask == 0.0
+                        hidespines!(ax)
+                    end
+
+                    alpha_plot = mask ? model.mask[end][j] * alpha[end, j, i] * alpha_mask : alpha[end, j, i] * alpha_mask
                     alpha_plot = l == neuron_depth ? 0.0 : alpha_plot # Remove last line
                 end
 

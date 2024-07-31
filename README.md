@@ -28,9 +28,8 @@ bash src/unit_tests/run_tests.sh
 
 ## TODO
 
-1. Symbolic regression
-2. CUDA
-3. Optim for L-BFGS
+1. CUDA?
+2. Optim for L-BFGS - not working
 
 ## Message from author:
 

@@ -20,9 +20,10 @@ function removeZero(x; ε=1e-3)
     return iszero(x) ? Float32(ε) : x
 end
 
-# Smooth sigmoid approximation of thresholding
-smooth_transition1(x, y; steepness=5.0f0) = σ(steepness * (x - y))
-smooth_transition2(x, y; steepness=5.0f0) = 1.0f0 - σ(steepness * (x - y))
+# Rounds string formula to a certain number of digits.
+function round_formula(formula; digits=3)
+    return replace(formula, r"(\d+\.\d+)" => s -> string(round(parse(Float64, s), digits=digits)))
+end
 
 function sparse_mask(in_dim, out_dim)
     """

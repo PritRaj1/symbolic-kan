@@ -6,7 +6,7 @@ using Flux, Tullio, LinearAlgebra
 # using CUDA, KernelAbstractions
 
 include("../utils.jl")
-using .Utils: removeNaN, removeZero, smooth_transition1, smooth_transition2
+using .Utils: removeNaN, removeZero
 
 method = get(ENV, "METHOD", "spline") # "spline" or "RBF"; RBF not properly implemented yet
 
@@ -53,7 +53,7 @@ function B_batch(x, grid; degree::Int64, σ=nothing)
         grid_1 = grid_eval[:, :, 1:end-1] # grid[p]
         grid_2 = grid_eval[:, :, 2:end] # grid[p+1]
     
-        # Apply the smooth thresholding functions
+        # Apply thresholding 
         term1 = ifelse.(x_eval .>= grid_1, Float32(1), Float32(0))
         term2 = ifelse.(x_eval .< grid_2, Float32(1), Float32(0))
 

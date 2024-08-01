@@ -2,7 +2,7 @@ module SymbolicRegression
 
 export fit_params, fix_symbolic!, unfix_symbolic!, unfix_symb_all!, suggest_symbolic!, auto_symbolic!, symbolic_formula!
 
-using Flux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy
+using Flux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy, PyCall
 
 include("../architecture/kan_model.jl")
 include("../symbolic_lib.jl")
@@ -324,21 +324,7 @@ function auto_symbolic!(model; α_range=(-10, 10), β_range=(-10, 10), lib=nothi
     end
 end
 
-
-function ex_round(ex1; floating_digit)
-    """
-    Round all floating point numbers in a symbolic expression to a fixed number of digits.
-    """
-    ex2 = ex1
-    for a in sympy.preorder_traversal(ex1)
-        if typeof(a) == sympy.Float
-            ex2 = subs(ex2, a => round(a; digits=floating_digit))
-        end
-    end
-    return ex2
-end
-
-function symbolic_formula!(model; floating_digit=2, var=nothing, normaliser=nothing, output_normaliser=nothing, simplify=false)
+function symbolic_formula!(model; var=nothing, normaliser=nothing, output_normaliser=nothing, simplify=false)
     """
     Convert the activations of a model to symbolic formulas.
 
@@ -409,9 +395,9 @@ function symbolic_formula!(model; floating_digit=2, var=nothing, normaliser=noth
             symbolic_acts[end] = output_lyr
         end
 
-        model.symbolic_acts = [[ex_round(symbolic_acts[l][i]; floating_digit=floating_digit) for i in eachindex(symbolic_acts[l])] for l in eachindex(symbolic_acts)]
+        model.symbolic_acts = [[symbolic_acts[l][i] for i in eachindex(symbolic_acts[l])] for l in eachindex(symbolic_acts)]
 
-        return [ex_round(symbolic_acts[end][i]; floating_digit=floating_digit) for i in eachindex(symbolic_acts[end])], x0
+        return [symbolic_acts[end][i] for i in eachindex(symbolic_acts[end])], x0
     
     end
 end

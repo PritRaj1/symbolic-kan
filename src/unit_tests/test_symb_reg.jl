@@ -6,12 +6,14 @@ include("../pipeline/utils.jl")
 include("../pipeline/flux_trainer.jl")
 include("../pipeline/optimisation.jl")
 include("../pipeline/plot.jl")
+include("../utils.jl")
 using .KolmogorovArnoldNets
 using .SymbolicRegression
 using .PipelineUtils
 using .FluxTrainer
 using .Optimisation
 using .Plotting
+using .Utils: round_formula
 
 # Test parameter fitting for symbolic reg
 function test_param_fitting()
@@ -99,10 +101,10 @@ function test_auto()
     Random.seed!(123)
     model = KAN([2,5,1]; k=3, grid_interval=5)
     f = x -> exp(sin(π*x[1] + x[2]^2))
-    train_loader, test_loader = create_loaders(f, N_var=2, x_range=(-1,1), N_train=1000, N_test=1000, batch_size=50, init_seed=1234)
+    train_loader, test_loader = create_loaders(f, N_var=2, x_range=(-1,1), N_train=2000, N_test=2000, batch_size=100, init_seed=1234)
     lr_scheduler = step_decay_scheduler(5, 0.98, 1e-2)
     opt = create_flux_opt(model, "adam"; LR=0.01, decay_scheduler=lr_scheduler)
-    trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=250, verbose=true)
+    trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=150, verbose=true, update_grid_bool=false)
     train!(trainer; λ=1, grid_update_num=5)
     model = prune(model)
     x = first(train_loader)[1] |> permutedims
@@ -111,10 +113,14 @@ function test_auto()
     return model
 end
 
+
+
 function test_formula(model)
     formula, _ = symbolic_formula!(model)
     println(formula[1])
-    return formula[1]
+
+    formula = string(formula[1])
+    return round_formula(formula)
 end
 
 function plot_symb(model, form)

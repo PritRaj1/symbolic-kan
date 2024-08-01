@@ -48,7 +48,7 @@ function format_tick!(ax; x_min, x_max, y_min, y_max)
     ax.ytickformat = format_ticks
 end
 
-function plot_kan!(model; folder="figures/", μ=100, γ=3, mask=false, mode="supervised", σ=1.0, tick=false, sample=false, in_vars=nothing, out_vars=nothing, title=nothing)
+function plot_kan!(model; folder="figures/", model_name="kan", μ=100, γ=3, mask=false, mode="supervised", σ=1.0, tick=false, sample=false, in_vars=nothing, out_vars=nothing, title=nothing)
     """
     Plot KAN.
 
@@ -299,7 +299,7 @@ function plot_kan!(model; folder="figures/", μ=100, γ=3, mask=false, mode="sup
                 align=(:center, :center), fontsize=20σ)
 
     end
-    save(folder * "kan.png", fig)
+    save(folder * model_name * ".png", fig)
 end
 
 end

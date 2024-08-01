@@ -46,6 +46,7 @@ function test_sin_fitting()
     lines!(ax, x, y, label="data")
     lines!(ax, x, fcn.(3 .* x .+ 2) .* 5 .+ 0.7, label="true")
     lines!(ax, x, fcn.(params[1] .* x .+ params[2]) .* params[3] .+ params[4], label="fit")
+    Legend(fig, ax, position = :rt)
     save("figures/test_sin_fitting.png", fig)
 end
 
@@ -99,17 +100,17 @@ end
 
 function test_auto()
     Random.seed!(123)
-    model = KAN([2,5,1]; k=3, grid_interval=5)
-    f = x -> exp(sin(π*x[1] + x[2]^2))
-    train_loader, test_loader = create_loaders(f, N_var=2, x_range=(-1,1), N_train=2000, N_test=2000, batch_size=100, init_seed=1234)
+    model = KAN([2,4,1]; k=3, grid_interval=5)
+    f = x -> π*x[1] + x[2]^2
+    train_loader, test_loader = create_loaders(f, N_var=2, x_range=(-1,1), N_train=100, N_test=100, batch_size=100, init_seed=1234)
     lr_scheduler = step_decay_scheduler(5, 0.98, 1e-2)
-    opt = create_flux_opt(model, "adam"; LR=0.01, decay_scheduler=lr_scheduler)
-    trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=150, verbose=true, update_grid_bool=false)
-    train!(trainer; λ=1, grid_update_num=5)
-    model = prune(model)
+    opt = create_flux_opt(model, "adam"; LR=0.1, decay_scheduler=lr_scheduler)
+    trainer = init_flux_trainer(model, train_loader, test_loader, opt; max_epochs=1000, verbose=true, update_grid_bool=true)
+    train!(trainer; λ=0.1, grid_update_num=5)
+    model = prune(model; threshold=0.01)
     x = first(train_loader)[1] |> permutedims
     fwd!(model, x) 
-    auto_symbolic!(model; lib=["exp","sin","x^2"])
+    auto_symbolic!(model; lib=["sin", "cos", "exp", "log", "sqrt", "x^2"])
     return model
 end
 
@@ -124,7 +125,7 @@ function test_formula(model)
 end
 
 function plot_symb(model, form)
-    plot_kan!(model; mask=true, in_vars=["x1", "x2"], out_vars=[string(formula)], title="KAN")
+    plot_kan!(model; mask=true, in_vars=["x1", "x2"], out_vars=[string(form)], title="KAN")
 end
 
 # test_param_fitting()

@@ -158,7 +158,7 @@ function lock_symbolic!(l, i, j, fun_name; x=nothing, y=nothing, random=false, s
 
         # If x and y are provided, fit the function
         else
-            params, R2 = fit_params(x, y, fcn; α_range=α_range, β_range=β_range, μ=μ, verbose=verbose)
+            params, R2 = fit_params(x, y, fcn; α_range=α_range, β_range=β_range, μ=μ, verbose=false)
             l.fcns[j][i] = fcn
             l.fcns_avoid_singular[j][i] = fcn_avoid_singular
             set_affine!(l, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
@@ -314,7 +314,7 @@ function auto_symbolic!(model; α_range=(-10, 10), β_range=(-10, 10), lib=nothi
                     println("Skipping φ(", l, ", ", i, ", ", j, ") as it is already symbolic.")
                 else
                     best_name, best_fcn, best_R2 = suggest_symbolic!(model, l, i, j; α_range=α_range, β_range=β_range, lib=lib, top_K=5, verbose=verbose)
-                    fix_symbolic!(model, l, i, j, best_name; fit_params=true, α_range=α_range, β_range=β_range, grid_number=101, iterations=3, μ=1.0, random=false, seed=nothing, verbose=verbose)
+                    fix_symbolic!(model, l, i, j, best_name; fit_params=true, α_range=α_range, β_range=β_range, grid_number=201, iterations=10, μ=1.0, random=false, seed=nothing, verbose=verbose)
                     if verbose
                         println("Suggested: ", best_name, " for φ(", l, ", ", i, ", ", j, ") with R2: ", best_R2)
                     end

@@ -2,7 +2,7 @@ module OptimTrainer
 
 export init_optim_trainer, train!
 
-using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optim, Zygote, Optimisers
+using Flux, ProgressBars, Dates, Tullio, CSV, Statistics, Optim, Zygote#, FluxOptTools
 
 include("utils.jl")
 include("../pipeline/optimisation.jl")
@@ -166,32 +166,92 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
         return false
     end
 
-    # From https://github.com/baggepinnen/FluxOptTools.jl
-    function get_fg!(loss)
-        pars = Flux.params(t.model)
-        grads = Zygote.gradient(loss, t.model)
+    function dropnames(namedtuple::NamedTuple, names::Tuple{Vararg{Symbol}})
+        keepnames = Base.diff_names(Base._nt_names(namedtuple), names)
+        return NamedTuple{keepnames}(namedtuple)
+    end
 
+    # # From https://github.com/baggepinnen/FluxOptTools.jl
+    # function get_fg!(loss, model)
+    #     pars = Flux.trainable(model)
+    #     p0, re = Flux.destructure(pars)
+
+    #     function fg!(F,G,w)
+    #         copy!(p0, w)
+    #         Flux.loadmodel!(t.model, re(w))
+    #         if !isnothing(G)
+    #             l, grads = Flux.withgradient(loss, t.model)
+    #             grads = grads[1]
+
+    #             trainables = Flux.trainable(t.model)
+    #             drop_keys = ()
+    #             for key in keys(grads)
+    #                 if key ∉ trainables
+    #                     drop_keys = (drop_keys..., :key)
+    #                 else
+    #                     trainables_ = Flux.trainable(t.model.:key)
+    #                     drop_keys_ = ()
+    #                     for key_ in keys(grads[key])
+    #                         if key_ ∉ trainables_
+    #                             drop_keys_ = (drop_keys_..., :key_)
+    #                         end
+    #                     end
+    #                     grads[key][key_] = dropnames(grads[key][key_], drop_keys_)
+    #                 end
+    #             end
+
+    #             grads = dropnames(grads, drop_keys)
+    #             println(grads)
+    #             println("=====================================================")
+    #             println(pars)
+    #             grads = Flux.destructure(grads)[1]
+    #             copy!(G, grads)
+    #             return l
+    #         end
+    #         if !isnothing(F)
+    #             return loss(t.model)
+    #         end
+    #     end
+    #     return fg!, p0
+    # end
+
+    # fg!, p0 = get_fg!((m) -> train_loss!(m), t.model)
+
+    # println(fg!(nothing, nothing, p0))
+
+    function optfuns(loss, pars::Union{Flux.Params, Zygote.Params})
+        grads = Zygote.gradient(loss, pars)
         p0 = zeros(pars)
         copy!(p0, pars)
-        function fg!(F,G,w)
+        gradfun = function (g,w)
             copy!(pars, w)
-            Flux.loadparams!(t.model, pars)
+            grads = Zygote.gradient(loss, pars)
+            copy!(g, grads)
+        end
+        lossfun = function (w)
+            copy!(pars, w)
+            loss()
+        end
+        fg! = function (F,G,w)
+            copy!(pars, w)
             if !isnothing(G)
-                l, grads = Zygote.withgradient(loss, t.model)
-                grads = Flux.trainable(grads[1])
-                grads = Flux.destructure(grads)[1]
-
-                copy!(G, grads[1:length(w)])
+                l, back = Zygote.withgradient(loss, pars)
+                grads = back[1]
+                copy!(G, grads)
                 return l
             end
             if !isnothing(F)
-                return loss(t.model)
+                return loss()
             end
         end
-        return fg!, p0
+        lossfun, gradfun, fg!, p0
     end
 
-    fg!, p0 = get_fg!((m) -> train_loss!(m))
+    params = Flux.params(Flux.trainables(t.model))
+    l, grads = Zygote.withgradient(() -> train_loss!(t.model), params)
+    println(grads[1])
+    _, _, fg!, p0 = optfuns(() -> train_loss!(t.model), params)
+
     res = Optim.optimize(Optim.only_fg!(fg!), p0, opt_get(t.opt), Optim.Options(show_trace=true, iterations=t.max_epochs, callback=log_callback))
     params = Flux.params(t.model)
     params = copy!(params, res.minimizer)

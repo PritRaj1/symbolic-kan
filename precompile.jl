@@ -26,3 +26,6 @@ using Makie
 using GLMakie
 using FileIO
 using IntervalSets
+using PackageCompiler
+using Plots
+using DifferentialEquations

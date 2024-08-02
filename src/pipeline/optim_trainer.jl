@@ -3,6 +3,7 @@ module OptimTrainer
 export init_optim_trainer, train!
 
 using Lux, ProgressBars, Dates, Tullio, CSV, Statistics, Zygote, Random, ComponentArrays, Optimization, OptimizationOptimJL, Accessors
+using Optimisers: destructure
 
 include("utils.jl")
 include("../pipeline/optimisation.jl")
@@ -82,6 +83,9 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
     x_train, y_train = t.train_data
     x_test, y_test = t.test_data
 
+    # Array setup: pars = flattened parameters, re = restructure function
+    pars, re = destructure(t.params)
+
     # Regularisation
     function reg(ps, acts_scale)
         
@@ -102,8 +106,8 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
         end
 
         for i in eachindex(t.model.act_fcns)
-            coeff_l1 = sum(mean(abs.(ps.act_fcns_ps[Symbol("layer_$i")].coef), dims=2))
-            coeff_diff_l1 = sum(mean(abs.(diff3(ps.act_fcns_ps[Symbol("layer_$i")].coef)), dims=2))
+            coeff_l1 = sum(mean(abs.(ps[Symbol("coef_$i")]), dims=2))
+            coeff_diff_l1 = sum(mean(abs.(diff3(ps[Symbol("coef_$i")])), dims=2))
             reg_ += (λ_coef * coeff_l1) + (λ_coefdiff * coeff_diff_l1)
         end
 
@@ -113,6 +117,7 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
 
     # l1 regularisation loss
     function reg_loss(ps, s)
+        ps = re(ps)
         ŷ, scales, t.state = t.model(t.x, ps, t.state)
         l2 = mean(sum((ŷ .- t.y).^2))
         reg_ = reg(ps, scales)
@@ -127,10 +132,10 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
     start_time = time()
 
     function log_callback!(state::Optimization.OptimizationState, obj)
-        t.params = state.u
+        t.params = re(state.u)
 
         t.x, t.y = x_test, y_test
-        test_loss = t.loss_fn(t.params, nothing)
+        test_loss = t.loss_fn(state.u, nothing)
         ŷ, scales, t.state = t.model(t.x, t.params, t.state)
         reg_ = reg(t.params, scales)
         t.x, t.y = x_train, y_train
@@ -139,7 +144,7 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
         new_p = nothing
         if (t.epoch % grid_update_freq == 0) && (t.epoch < stop_grid_update_step) && t.update_grid_bool
             t.model, new_p, t.state = update_grid(t.model, x_train, t.params, t.state)
-            @reset state.u = new_p
+            @reset state.u = destructure(new_p)[1]
             t.params = new_p
         end
         
@@ -161,11 +166,10 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
         t.log_time ? write(file, "Epoch,Time (s),Train Loss,Test Loss,Regularisation\n") : write(file, "Epoch,Train Loss,Test Loss,Regularisation\n")
     end
 
-    pars = ComponentVector(t.params)
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
     res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, abstol=1e-32, reltol=1e-32)
-    t.params = res.u
+    t.params = re(res.minimizer)
     return t.model, t.params, t.state
 end
 

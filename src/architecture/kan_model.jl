@@ -29,7 +29,7 @@ struct KAN <: Lux.AbstractExplicitLayer
     symbolic_fcns
 end
 
-function KAN_model(widths; k=3, grid_interval=3, ε_scale=0.1f0, μ_scale=0.0f0, σ_scale=1.0f0, base_act=NNlib.hardtanh, symbolic_enabled=true, grid_eps=1.0f0, grid_range=(-1f0, 1f0))
+function KAN_model(widths; k=3, grid_interval=3, ε_scale=0.1f0, μ_scale=0.0f0, σ_scale=1.0f0, base_act=NNlib.selu, symbolic_enabled=true, grid_eps=1.0f0, grid_range=(-1f0, 1f0))
     depth = length(widths) - 1
 
     act_fcns = []
@@ -39,7 +39,7 @@ function KAN_model(widths; k=3, grid_interval=3, ε_scale=0.1f0, μ_scale=0.0f0,
         base_scale = (μ_scale * (1 / √(widths[i])) 
         .+ σ_scale .* (randn(Float32, widths[i], widths[i + 1]) .* 2 .- 1) .* (1 / √(widths[i])))
         
-        spline = KAN_Dense(widths[i], widths[i + 1]; num_splines=grid_interval, degree=k, ε_scale=ε_scale, σ_base=base_scale, σ_sp=base_scale, base_act=base_act, grid_eps=grid_eps, grid_range=grid_range)
+        spline = KAN_Dense(widths[i], widths[i + 1]; num_splines=grid_interval, degree=k, ε_scale=ε_scale, σ_base=base_scale, σ_sp=1.0, base_act=base_act, grid_eps=grid_eps, grid_range=grid_range)
         push!(act_fcns, spline)
         
         symbolic = SymbolicDense(widths[i], widths[i + 1])
@@ -50,15 +50,23 @@ function KAN_model(widths; k=3, grid_interval=3, ε_scale=0.1f0, μ_scale=0.0f0,
 end
 
 function Lux.initialparameters(rng::AbstractRNG, m::KAN)
-    act_fcns_ps = NamedTuple(Symbol("layer_$i") => Lux.initialparameters(rng, m.act_fcns[i]) for i in 1:m.depth)
-    symbolic_fcns_ps =  NamedTuple(Symbol("layer_$i") => Lux.initialparameters(rng, m.symbolic_fcns[i]) for i in 1:m.depth)
-    biases = NamedTuple(Symbol("layer_$i") => zeros(Float32, 1, m.widths[i+1]) for i in 1:m.depth)
+    # Create one long named tuple
+    ps = NamedTuple(Symbol("bias_$i") => zeros(Float32, 1, m.widths[i+1]) for i in 1:m.depth)
+    
+    for i in 1:m.depth
 
-    ps = (
-        act_fcns_ps=act_fcns_ps,
-        symbolic_fcns_ps=symbolic_fcns_ps,
-        biases=biases
-    )
+        # Parameters for the spline layer
+        layer_ps = Lux.initialparameters(rng, m.act_fcns[i])
+        ε, coef, w_base, w_sp = layer_ps[:ε], layer_ps[:coef], layer_ps[:w_base], layer_ps[:w_sp]
+        kan_tuple = NamedTuple{(Symbol("ε_$i"), Symbol("coef_$i"), Symbol("w_base_$i"), Symbol("w_sp_$i"))}((ε, coef, w_base, w_sp))
+        ps = merge(ps, kan_tuple)
+
+        # Parameters for the symbolic layer
+        symb_ps = Lux.initialparameters(rng, m.symbolic_fcns[i])
+        symb_tuple = NamedTuple{(Symbol("affine_$i"),)}((symb_ps,))
+        ps = merge(ps, symb_tuple)
+    end
+
     return ps
 end
 
@@ -103,12 +111,21 @@ function (m::KAN)(x, ps, st)
 
     for i in 1:m.depth
         # spline(x)
-        x_numerical, spline_st = m.act_fcns[i](x_eval, ps.act_fcns_ps[Symbol("layer_$i")], st.act_fcns_st[i])
+        kan_ps = (
+            ε = ps[Symbol("ε_$i")],
+            coef = ps[Symbol("coef_$i")],
+            w_base = ps[Symbol("w_base_$i")],
+            w_sp = ps[Symbol("w_sp_$i")]
+        )
+        x_numerical, spline_st = m.act_fcns[i](x_eval, kan_ps, st.act_fcns_st[i])
         
         # Evaluate symbolic layer at x
         x_symbolic, symbolic_st = Float32(0.0), Float32(0.0)
         if m.symbolic_enabled
-            x_symbolic, symbolic_st = m.symbolic_fcns[i](x_eval, ps.symbolic_fcns_ps[Symbol("layer_$i")], st.symbolic_fcns_st[i])
+            symb_ps = (
+                affine = ps[Symbol("affine_$i")]
+            )
+            x_symbolic, symbolic_st = m.symbolic_fcns[i](x_eval, affine, st.symbolic_fcns_st[i])
         end
 
         x_eval = x_numerical .+ x_symbolic
@@ -126,7 +143,7 @@ function (m::KAN)(x, ps, st)
         add_to_array!(post_splines_arr, spline_st.post_spline)
 
         # Add bias b(x)
-        b = repeat(ps.biases[Symbol("layer_$i")], size(x_eval, 1), 1)
+        b = repeat(ps[Symbol("bias_$i")], size(x_eval, 1), 1)
         x_eval = @tullio res[m, n] := x_eval[m, n] + b[m, n]
 
         add_to_array!(acts_arr, copy(x_eval))
@@ -231,17 +248,31 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.2, mode="auto", active_n
 
     for i in 1:size(st.act_scale, 1)
         if i < size(st.act_scale, 1) - 1
-            @reset ps_pruned.biases[Symbol("layer_$i")] = ps.biases[Symbol("layer_$i")][:, active_neurons_id[i+1]]
+            @reset ps_pruned[:bias_$(i)] = ps[:bias_$(i)][:, active_neurons_id[i+1]]
         end
 
-        new_fcn, ps_new, st_new = get_subset(m.act_fcns[i], ps.act_fcns_ps[Symbol("layer_$i")], st.act_fcns_st[i], active_neurons_id[i], active_neurons_id[i+1])
+        kan_ps = (
+            ε = ps[Symbol("ε_$i")],
+            coef = ps[Symbol("coef_$i")],
+            w_base = ps[Symbol("w_base_$i")],
+            w_sp = ps[Symbol("w_sp_$i")]
+        )
+
+        symb_ps = (
+            affine = ps[Symbol("affine_$i")]
+        )
+
+        new_fcn, ps_new, st_new = get_subset(m.act_fcns[i], kan_ps, st.act_fcns_st[i], active_neurons_id[i], active_neurons_id[i+1])
         @reset model_pruned.act_fcns[i] = new_fcn
-        @reset ps_pruned.act_fcns_ps[Symbol("layer_$i")] = ps_new
+        ε, coef, w_base, w_sp = ps_new[:ε], ps_new[:coef], ps_new[:w_base], ps_new[:w_sp]
+        kan_tuple = NamedTuple{(Symbol("ε_$i"), Symbol("coef_$i"), Symbol("w_base_$i"), Symbol("w_sp_$i"))}((ε, coef, w_base, w_sp))
+        ps_pruned = merge(ps_pruned, kan_tuple)
         @reset st_pruned.act_fcns_st[i] = st_new
 
-        new_fcn, ps_new, st_new = get_symb_subset(m.symbolic_fcns[i], ps.symbolic_fcns_ps[Symbol("layer_$i")], st.symbolic_fcns_st[i], active_neurons_id[i], active_neurons_id[i+1])
+        new_fcn, ps_new, st_new = get_symb_subset(m.symbolic_fcns[i], symb_ps, st.symbolic_fcns_st[i], active_neurons_id[i], active_neurons_id[i+1])
         @reset model_pruned.symbolic_fcns[i] = new_fcn
-        @reset ps_pruned.symbolic_fcns_ps[Symbol("layer_$i")] = ps_new
+        symb_tuple = NamedTuple{(Symbol("affine_$i"),)}((ps_new,))
+        ps_pruned = merge(ps_pruned, symb_tuple)
         @reset st_pruned.symbolic_fcns_st[i] = st_new
 
         @reset model_pruned.widths[i] = length(active_neurons_id[i])
@@ -262,14 +293,19 @@ end
  
     for i in 1:model.depth
         _, _, st = model(x, ps, st)
-        new_l, new_ps, new_st = update_lyr_grid(model.act_fcns[i], ps.act_fcns_ps[Symbol("layer_$i")], st.act_fcns_st[i], st.acts[i])
-        @reset model.act_fcns[i] = new_l
-        push!(act_fcns_ps_arr, new_ps)
-        push!(acts_fcns_st, new_st)
-    end
 
-    for i in eachindex(act_fcns_ps_arr)
-        @reset ps.act_fcns_ps[Symbol("layer_$i")] = act_fcns_ps_arr[i]
+        kan_ps = (
+            ε = ps[Symbol("ε_$i")],
+            coef = ps[Symbol("coef_$i")],
+            w_base = ps[Symbol("w_base_$i")],
+            w_sp = ps[Symbol("w_sp_$i")]
+        )
+
+        new_l, new_ps, new_st = update_lyr_grid(model.act_fcns[i], kan_ps, st.act_fcns_st[i], st.acts[i])
+        @reset model.act_fcns[i] = new_l
+        new_tuple = NamedTuple{(Symbol("ε_$i"), Symbol("coef_$i"), Symbol("w_base_$i"), Symbol("w_sp_$i"))}((new_ps.ε, new_ps.coef, new_ps.w_base, new_ps.w_sp))
+        ps = merge(ps, new_tuple)
+        push!(acts_fcns_st, new_st)
     end
 
     updated_st = (

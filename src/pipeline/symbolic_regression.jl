@@ -247,14 +247,16 @@ function fix_symbolic(model, ps, st, l, i, j, fcn_name; fit_params=true, α_rang
     if !fit_params
         R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[l], ps.symbolic_fcns_ps[Symbol("layer_$l")], i, j, fcn_name)
         @reset model.symbolic_fcns[l] = new_l
-        @reset ps.symbolic_fcns_ps[Symbol("layer_$l")] = new_ps
+        symb_tuple = NamedTuple{(Symbol("affine_$i"),)}((new_ps,))
+        ps = merge(ps, symb_tuple)
         return nothing, model, ps, st
     else
         x = st.acts[l][:, i]
         y = st.post_acts[l][:, j, i]
         R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[l], ps.symbolic_fcns_ps[Symbol("layer_$l")], i, j, fcn_name; x=x, y=y, α_range=α_range, β_range=β_range, μ=μ, random=random, seed=seed, verbose=verbose)
         @reset model.symbolic_fcns[l] = new_l
-        @reset ps.symbolic_fcns_ps[Symbol("layer_$l")] = new_ps
+        symb_tuple = NamedTuple{(Symbol("affine_$i"),)}((new_ps,))
+        ps = merge(ps, symb_tuple)
         return R2, model, ps, st
     end 
 end
@@ -409,7 +411,7 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
         for j in 1:model.widths[l+1]
             yj = 0.0
             for i in 1:model.widths[l]
-                a, b, c, d = ps.symbolic_fcns_ps[Symbol("layer_$l")][j, i, :]
+                a, b, c, d = ps[Symbol("affine_$l")][j, i, :]
                 
                 try 
                     sympy_fcn = model.symbolic_fcns[l].fcns[j][i]
@@ -423,7 +425,7 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
             if simplify
                 push!(y, sympy.simplify(yj + model.biases[l][1, j]))
             else
-                push!(y, yj + ps.biases[Symbol("layer_$l")][1, j])
+                push!(y, yj + ps[Symbol("bias_$l")][1, j])
             end
 
         end

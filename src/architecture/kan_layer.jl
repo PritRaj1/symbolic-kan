@@ -20,23 +20,28 @@ struct kan_dense <: Lux.AbstractExplicitLayer
     base_act
     grid_eps::Float32
     grid_range::Tuple{Float32, Float32}
+    ε_scale::Float32
+    σ_base::Matrix{Float32}
+    σ_sp::Float32
 end
 
-function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=0.1, σ_base=1.0, σ_sp=1.0, base_act=NNlib.selu, grid_eps=0.02, grid_range=(-1, 1))
+function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=0.1, σ_base=nothing, σ_sp=1.0, base_act=NNlib.selu, grid_eps=0.02, grid_range=(-1, 1))
     grid = range(grid_range[1], grid_range[2], length=num_splines + 1) |> collect |> x -> reshape(x, 1, length(x))
     grid = repeat(grid, in_dim, 1) 
     grid = extend_grid(grid, degree) 
     init_σ = 1.0
+
+    σ_base = isnothing(σ_base) ? ones(Float32, in_dim, out_dim) : σ_base
     
-    return kan_dense(in_dim, out_dim, num_splines, degree, grid, init_σ, base_act, grid_eps, grid_range)
+    return kan_dense(in_dim, out_dim, num_splines, degree, grid, init_σ, base_act, grid_eps, grid_range, ε_scale, σ_base, σ_sp)
 end
 
 function Lux.initialparameters(rng::AbstractRNG, l::kan_dense)
-    ε = ((rand(rng, Float32, l.num_splines + 1, l.in_dim, l.out_dim) .- 0.5f0) .* 0.1f0 ./ l.num_splines)
+    ε = ((rand(rng, Float32, l.num_splines + 1, l.in_dim, l.out_dim) .- 0.5f0) .* l.ε_scale ./ l.num_splines)
     coef = curve2coef(l.grid[:, l.degree+1:end-l.degree] |> permutedims, ε, l.grid; k=l.degree, scale=l.RBF_σ)
     
-    w_base = ones(Float32, l.in_dim, l.out_dim) .* 1.0f0
-    w_sp = ones(Float32, l.in_dim, l.out_dim) .* 1.0f0
+    w_base = ones(Float32, l.in_dim, l.out_dim) .* l.σ_base
+    w_sp = ones(Float32, l.in_dim, l.out_dim) .* l.σ_sp
 
     return (ε=ε, coef=coef, w_base=w_base, w_sp=w_sp)
 end
@@ -137,7 +142,8 @@ function get_subset(l, ps, st, in_indices, out_indices)
     """
     l_sub = kan_dense(length(in_indices), length(out_indices), 
                      l.num_splines, l.degree, l.grid[in_indices, :], 
-                     l.RBF_σ, l.base_act, l.grid_eps, l.grid_range)
+                     l.RBF_σ, l.base_act, l.grid_eps, l.grid_range,
+                        l.ε_scale, l.σ_base[in_indices, out_indices], l.σ_sp)
 
     # Initialize new parameters
     ps_sub = (

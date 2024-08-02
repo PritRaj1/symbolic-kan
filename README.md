@@ -7,7 +7,8 @@ WORK IN PROGRESS
 Thank you to KindXiaoming and the rest of the KAN community for putting this awesome network out there for the world to see.
 
 <p align="center">
-<img src="figures/kan.png" alt="KAN Architecture" width="70%"
+<img src="figures/kan.png" alt="KAN Architecture" width="48%" style="padding-right: 20px;">
+<img src="figures/symbolic_test.png" alt="KAN Architecture" width="48%">
 </p>
 
 ## To run
@@ -29,7 +30,3 @@ bash src/unit_tests/run_tests.sh
 ## TODO
 
 1. CUDA?
-
-## Message from author:
-
-A very important takeaway: if you ever decide to do something similar, (e.g. you decide to work with Optim optimisers), USE LUX INSTEAD OF FLUX. Explicit gradients are much easier to work with, meanwhile whilst working with Optim, I've had to call destrcuture/restructure which is quite inefficient. Plus, development has been hell.

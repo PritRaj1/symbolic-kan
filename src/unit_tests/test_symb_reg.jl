@@ -87,7 +87,7 @@ function test_suggestion()
     f = x -> exp(sin(π*x[1] + x[2]^2))
     train_data, test_data = create_data(x -> x[1] * x[2], N_var=2, x_range=(-1,1), N_train=500, N_test=500, normalise_input=false, init_seed=1234)
     opt = create_optim_opt(model, "bfgs", "hagerzhang")
-    trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_epochs=100, verbose=true)
+    trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=100, verbose=true)
     train!(trainer; λ=0.1, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1)
     model, ps, st = trainer.model, trainer.params, trainer.state
     model, ps, st, best_name, best_fcn, best_R2 = suggest_symbolic(model, ps, st, 1, 1, 1)
@@ -102,7 +102,7 @@ function test_auto()
     f = x -> exp(sin(π*x[1] + x[2]^2))
     train_data, test_data = create_data(x -> x[1] * x[2], N_var=2, x_range=(-1,1), N_train=500, N_test=500, normalise_input=false, init_seed=1234)
     opt = create_optim_opt(model, "l-bfgs", "hagerzhang")
-    trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_epochs=100, verbose=true)
+    trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=1e8, verbose=true)
     train!(trainer; λ=0.1, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1)
     model, ps, st = trainer.model, trainer.params, trainer.state
     model, ps, st = prune(Random.default_rng(), model, ps, st)
@@ -119,7 +119,7 @@ function test_formula(model, ps, st)
 end
 
 function plot_symb(model, st, form)
-    plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[form], title="symbolic_test")
+    plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[form], title="Symbolic KAN", model_name="symbolic_test")
 end
 
 @testset "KAN_model Tests" begin

@@ -20,7 +20,7 @@ mutable struct optim_trainer
     opt
     loss_fn
     epoch::Int
-    max_epochs::Int
+    max_iters::Int
     update_grid_bool::Bool
     verbose::Bool
     log_time::Bool
@@ -28,7 +28,7 @@ mutable struct optim_trainer
     y::AbstractArray
 end
 
-function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, optim_optimiser; loss_fn=nothing, max_epochs=100, update_grid_bool=true, verbose=true, log_time=true)
+function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, optim_optimiser; loss_fn=nothing, max_iters=1e5, update_grid_bool=true, verbose=true, log_time=true)
     """
     Initialise trainer for training symbolic model.
 
@@ -39,7 +39,7 @@ function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, opti
     - test_data: tuple of testing data.
     - optimiser: optimiser object.
     - loss_fn: loss function.
-    - max_epochs: maximum number of epochs.
+    - max_iters: maximum number of epochs.
     - update_grid_bool: whether to update grid.
     - verbose: whether to print training progress.
     - log_time: whether to log time.
@@ -48,7 +48,7 @@ function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, opti
     - t: trainer object.
     """
     params, state = Lux.setup(rng, model)
-    return optim_trainer(model, params, state, train_data, test_data, optim_optimiser, loss_fn, 0, max_epochs, update_grid_bool, verbose, log_time, train_data...)
+    return optim_trainer(model, params, state, train_data, test_data, optim_optimiser, loss_fn, 0, max_iters, update_grid_bool, verbose, log_time, train_data...)
 end
 
 function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
@@ -164,7 +164,7 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
     pars = ComponentVector(t.params)
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
-    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_epochs, callback=log_callback!, abstol=1e-32, reltol=1e-32)
+    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, abstol=1e-32, reltol=1e-32)
     t.params = res.u
 end
 

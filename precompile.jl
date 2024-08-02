@@ -19,7 +19,6 @@ using PyCall
 using Zygote
 using ProgressBars
 using CSV
-using Conda
 using Dates
 using Printf
 using Makie

@@ -75,6 +75,7 @@ function Lux.initialstates(rng::AbstractRNG, m::KAN)
         post_splines = [],
         act_scale = zeros(Float32, 0, maximum(m.widths), maximum(m.widths)),
         mask = [ones(Float32, widths) for widths in m.widths[1:end]],
+        symbolic_acts = []
     )
 
     return st
@@ -151,8 +152,12 @@ function remove_node(st, l, j; verbose=true)
     Masks all incoming and outgoing activation functions for the neuron to zero.
 
     Args:
+        st: State of the model.
         l: Layer index.
         j: Neuron index.
+
+    Returns:
+        st: Updated state of the model.
     """
     verbose && println("Removing neuron $(j) from layer $(l)")
 
@@ -173,6 +178,10 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=1e-3, mode="auto", active_
     If the neuron has a small range of activation, shave off the neuron.
 
     Args:
+        rng: Random number generator.
+        m: Model.
+        ps: Parameters.
+        st: State.
         l: Layer index.
         i: Neuron input index.
         j: Neuron output index.
@@ -180,6 +189,8 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=1e-3, mode="auto", active_
 
     Returns:
         model_pruned: Pruned model.
+        ps_pruned: Pruned parameters.
+        st_pruned: Pruned state.
     """
     mask = []
     add_to_array!(mask, ones(m.widths[1], ))
@@ -230,6 +241,8 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=1e-3, mode="auto", active_
         @reset model_pruned.symbolic_fcns[i] = new_fcn
         @reset ps_pruned.symbolic_fcns_ps[Symbol("layer_$i")] = ps_new
         @reset st_pruned.symbolic_fcns_st[i] = st_new
+
+        @reset model_pruned.widths[i] = length(active_neurons_id[i])
     end
 
     return model_pruned, ps_pruned, st_pruned

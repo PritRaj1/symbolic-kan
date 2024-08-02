@@ -8,8 +8,7 @@ function test_fwd()
     model = KAN_model([2,5,3]; k=3, grid_interval=5)
     ps = Lux.initialparameters(Random.default_rng(), model)
     st = Lux.initialstates(Random.default_rng(), model)
-    
-    Random.seed!(123)
+
     x = randn(Float32, 100, 2)
     y, st = model(x, ps, st)
     @test all(size(y) .== (100, 3))
@@ -19,10 +18,9 @@ function test_grid()
     Random.seed!(123)
     model = KAN_model([2,5,1]; k=3, grid_interval=5)
     ps, st = Lux.setup(Random.default_rng(), model)
-    
+
     before = model.act_fcns[1].grid[1, :]
     
-    Random.seed!(123)
     x = randn(Float32, 100, 2) .* 5
     model, ps, st = update_grid(model, x, ps, st)
     

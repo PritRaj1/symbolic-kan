@@ -1,64 +1,8 @@
 module Optimisation
 
-export step_decay_scheduler, create_flux_opt, create_optim_opt, opt_get
+export create_optim_opt, opt_get
 
 using Lux, OptimizationOptimJL, LineSearches, Optimisers
-
-### Step LR scheduler ### 
-struct decay_scheduler
-    step::Int
-    decay::Float64
-    min_LR::Float64
-end
-
-function step_decay_scheduler(step, decay, min_LR)
-    return decay_scheduler(step, decay, min_LR)
-end
-
-function (s::decay_scheduler)(epoch, LR)
-    return max(LR * s.decay^(epoch // s.step), s.min_LR)
-end
-
-### Flux optimiser ###
-flux_map = Dict(
-    "adam" => Optimisers.Adam,
-    "sgd" => Optimisers.Descent
-)
-
-mutable struct flux_opt
-    type
-    opt_state
-    LR_scheduler
-    LR::Float32
-end
-
-function create_flux_opt(model, type="adam"; LR=0.01, decay_scheduler=nothing)
-    """
-    Create optimiser.
-
-    Args:
-    - type: optimiser to use.
-    - schedule_LR: whether to schedule learning rate.
-    - LR: learning rate.
-    - step: step size for LR scheduler.
-    - decay: decay rate for LR scheduler.
-    - min_LR: minimum LR for LR scheduler.
-
-    Returns:
-    - optimiser: optimiser.
-    """
-    
-    if !isnothing(decay_scheduler)
-        schedule_fcn = decay_scheduler
-    else
-        schedule_fcn = (epoch, LR) -> LR
-    end
-
-    opt = flux_map[type](LR)
-    opt_state = Optimisers.setup(opt, model)
-
-    return flux_opt(type, opt_state, schedule_fcn, LR)
-end
 
 ## Optim optimiser ##
 linesearch_map = Dict(

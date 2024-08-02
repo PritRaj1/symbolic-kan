@@ -1,14 +1,12 @@
 module SymbolicRegression
 
-export fit_params, fix_symbolic!, unfix_symbolic!, unfix_symb_all!, suggest_symbolic!, auto_symbolic!, symbolic_formula!
+export fit_params, set_affine, lock_symbolic, set_mode, fix_symbolic, unfix_symbolic, unfix_symb_all, suggest_symbolic, auto_symbolic, symbolic_formula
 
 using Flux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy, Accessors
 
-include("../architecture/kan_model.jl")
 include("../symbolic_lib.jl")
 include("../architecture/symbolic_layer.jl")
 include("../utils.jl")
-using .KolmogorovArnoldNets: set_mode!
 using .SymbolicLib: SYMBOLIC_LIB
 using .Utils: meshgrid, expand_apply
 
@@ -93,7 +91,7 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_numb
     return [α_best, β_best, w_best, b_best], R2_best
 end
 
-function set_affine!(ps, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)
+function set_affine(ps, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)
     """
     Set affine parameters for symbolic dense layer.
     
@@ -106,15 +104,15 @@ function set_affine!(ps, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)
     - a3: param3.
     - a4: param4.
     """
-    @reset ps.affine[j, i, 1] = a1
-    @reset ps.affine[j, i, 2] = a2
-    @reset ps.affine[j, i, 3] = a3
-    @reset ps.affine[j, i, 4] = a4
+    @reset ps[j, i, 1] = a1
+    @reset ps[j, i, 2] = a2
+    @reset ps[j, i, 3] = a3
+    @reset ps[j, i, 4] = a4
 
-
+    return ps
 end
 
-function lock_symbolic!(l, i, j, fun_name; x=nothing, y=nothing, random=false, seed=nothing, α_range=(-10, 10), β_range=(-10, 10), μ=1.0, verbose=true)
+function lock_symbolic(l, ps, i, j, fun_name; x=nothing, y=nothing, random=false, seed=nothing, α_range=(-10, 10), β_range=(-10, 10), μ=1.0, verbose=true)
     """
     Fix a symbolic function for a particular input-output pair, 
     
@@ -141,53 +139,89 @@ function lock_symbolic!(l, i, j, fun_name; x=nothing, y=nothing, random=false, s
         fcn_sympy = SYMBOLIC_LIB[fun_name][2]
         fcn_avoid_singular = SYMBOLIC_LIB[fun_name][3]
 
-        l.fcn_sympys[j][i] = fcn_sympy
-        l.fcn_names[j][i] = fun_name
+        @reset l.fcn_sympys[j][i] = fcn_sympy
+        @reset l.fcn_names[j][i] = fun_name
 
         # If x and y are not provided, just set the function
         if isnothing(x) || isnothing(y)
-            l.fcns[j][i] = fcn
-            l.fcns_avoid_singular[j][i] = fcn_avoid_singular
+            @reset l.fcns[j][i] = fcn
+            @reset l.fcns_avoid_singular[j][i] = fcn_avoid_singular
 
             # Set affine parameters either to random values or to default values
             if !random
-                set_affine!(l, j, i)
+                ps = set_affine(ps, j, i)
             else
                 Random.seed!(seed)
                 params = rand(4) .* 2 .- 1
-                set_affine!(l, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
+                ps = set_affine(ps, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
             end
 
         # If x and y are provided, fit the function
         else
             params, R2 = fit_params(x, y, fcn; α_range=α_range, β_range=β_range, μ=μ, verbose=false)
-            l.fcns[j][i] = fcn
-            l.fcns_avoid_singular[j][i] = fcn_avoid_singular
-            set_affine!(l, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
-            return R2
+            @reset l.fcns[j][i] = fcn
+            @reset l.fcns_avoid_singular[j][i] = fcn_avoid_singular
+            ps = set_affine(ps, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
+            return R2, l, ps
         end
 
     # fun_name is a symbolic function
     else
-        l.fcns[j][i] = fun_name
-        l.fcn_sympys[j][i] = fun_name
-        l.fcns_avoid_singular[j][i] = fun_name
-        l.fcn_names[j][i] = "anonymous"
+        @reset l.fcns[j][i] = fun_name
+        @reset l.fcn_sympys[j][i] = fun_name
+        @reset l.fcns_avoid_singular[j][i] = fun_name
+        @reset l.fcn_names[j][i] = "anonymous"
 
         # Set affine parameters either to random values or to default values
         if !random
-            set_affine!(l, j, i)
+            ps = set_affine(ps, j, i)
         else
             Random.seed!(seed)
             params = rand(4) .* 2 .- 1
-            set_affine!(l, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
+            ps = set_affine(ps, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
         end
     end
 
-    return nothing
+    return nothing, l, ps
 end
 
-function fix_symbolic!(model, l, i, j, fcn_name; fit_params=true, α_range=(-10, 10), β_range=(-10, 10), grid_number=101, iterations=3, μ=1.0, random=false, seed=nothing, verbose=true)
+function set_mode(st, l, i, j, mode; mask_n=nothing)
+    """
+    Set neuron (l, i, j) to mode.
+
+    Args:
+        l: Layer index.
+        i: Neuron input index.
+        j: Neuron output index.
+        mode: 'n' (numeric) or 's' (symbolic) or 'ns' (combined)
+        mask_n: Magnitude of the mask for numeric neurons.
+    """
+
+    if mode == "s"
+        mask_n = 0.0f0
+        mask_s = 1.0f0
+    elseif mode == "n"
+        mask_n = 1.0f0
+        mask_s = 0.0f0
+    elseif mode == "sn" || mode == "ns"
+        if isnothing(mask_n)
+            mask_n = 1.0f0
+        else
+            mask_n = mask_n
+        end
+        mask_s = 1.0f0
+    else
+        mask_n = 0.0f0
+        mask_s = 0.0f0
+    end
+
+    @reset st.act_fcns_st[l].mask[i, j] = mask_n
+    @reset st.symbolic_fcns_st[l].mask[j, i] = mask_s
+
+    return st
+end
+
+function fix_symbolic(model, ps, st, l, i, j, fcn_name; fit_params=true, α_range=(-10, 10), β_range=(-10, 10), grid_number=101, iterations=3, μ=1.0, random=false, seed=nothing, verbose=true)
     """
     Set the activation for element (l, i, j) to a fixed symbolic function.
 
@@ -208,20 +242,24 @@ function fix_symbolic!(model, l, i, j, fcn_name; fit_params=true, α_range=(-10,
     Returns:
         R2 (or nothing): Coefficient of determination.
     """
-    set_mode!(model, l, i, j, "s")
+    st = set_mode(st, l, i, j, "s")
     
     if !fit_params
-        R2 = lock_symbolic!(model.symbolic_fcns[l], i, j, fcn_name)
-        return nothing
+        R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[l], ps.symbolic_fcns_ps[Symbol("layer_$l")], i, j, fcn_name)
+        @reset model.symbolic_fcns[l] = new_l
+        @reset ps.symbolic_fcns_ps[Symbol("layer_$l")] = new_ps
+        return nothing, model, ps, st
     else
-        x = model.acts[l][:, i]
-        y = model.post_acts[l][:, j, i]
-        R2 = lock_symbolic!(model.symbolic_fcns[l], i, j, fcn_name; x=x, y=y, α_range=α_range, β_range=β_range, μ=μ, random=random, seed=seed, verbose=verbose)
-        return R2
+        x = st.acts[l][:, i]
+        y = st.post_acts[l][:, j, i]
+        R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[l], ps.symbolic_fcns_ps[Symbol("layer_$l")], i, j, fcn_name; x=x, y=y, α_range=α_range, β_range=β_range, μ=μ, random=random, seed=seed, verbose=verbose)
+        @reset model.symbolic_fcns[l] = new_l
+        @reset ps.symbolic_fcns_ps[Symbol("layer_$l")] = new_ps
+        return R2, model, ps, st
     end 
 end
 
-function unfix_symbolic!(model, l, i, j)
+function unfix_symbolic(st, l, i, j)
     """
     Unfix the symbolic function for element (l, i, j).
 
@@ -230,23 +268,24 @@ function unfix_symbolic!(model, l, i, j)
         i: Neuron input index.
         j: Neuron output index.
     """
-    return set_mode!(model, l, i, j, "n")
+    return set_mode(st, l, i, j, "n")
 end
 
-function unfix_symb_all!(model)
+function unfix_symb_all(model, st)
     """
     Unfix all symbolic functions in the model.
     """
     for l in 1:model.depth
         for i in 1:model.widths[l]
             for j in 1:model.widths[l + 1]
-                model = unfix_symbolic!(model, l, i, j)
+                st = unfix_symbolic!(model, l, i, j)
             end
         end
     end
+    return st
 end
 
-function suggest_symbolic!(model, l, i, j; α_range=(-10, 10), β_range=(-10, 10), lib=nothing, top_K=5, verbose=true)
+function suggest_symbolic(model, ps, st, l, i, j; α_range=(-10, 10), β_range=(-10, 10), lib=nothing, top_K=5, verbose=true)
     """
     Suggest potential symbolic functions for φ(l, i, j).
 
@@ -276,11 +315,11 @@ function suggest_symbolic!(model, l, i, j; α_range=(-10, 10), β_range=(-10, 10
     end
     
     for (name, fcn) in symbolic_lib
-        R2 = fix_symbolic!(model, l, i, j, name; fit_params=true, α_range=α_range, β_range=β_range, grid_number=101, iterations=3, μ=1.0, random=false, seed=nothing, verbose=verbose)
+        R2, model, ps, st = fix_symbolic(model, ps, st, l, i, j, name; fit_params=true, α_range=α_range, β_range=β_range, grid_number=101, iterations=3, μ=1.0, random=false, seed=nothing, verbose=verbose)
         push!(R2s, R2)
     end
 
-    unfix_symbolic!(model, l, i, j)
+    st = unfix_symbolic(st, l, i, j)
     sorted_R2s = sortperm(R2s, rev=true)
     top_K = min(top_K, length(sorted_R2s))
     top_R2s = sorted_R2s[1:top_K]
@@ -296,10 +335,10 @@ function suggest_symbolic!(model, l, i, j; α_range=(-10, 10), β_range=(-10, 10
     best_fcn = collect(symbolic_lib)[top_R2s[1]][2]
     best_R2 = R2s[top_R2s[1]]
 
-    return best_name, best_fcn, best_R2
+    return model, ps, st, best_name, best_fcn, best_R2
 end
 
-function auto_symbolic!(model; α_range=(-10, 10), β_range=(-10, 10), lib=nothing, verbose=true)
+function auto_symbolic(model, ps, st; α_range=(-10, 10), β_range=(-10, 10), lib=nothing, verbose=true)
     """
     Automatically replace all splines in the model with best fitting symbolic functions.
     
@@ -312,11 +351,11 @@ function auto_symbolic!(model; α_range=(-10, 10), β_range=(-10, 10), lib=nothi
     for l in eachindex(model.widths[1:end-1])
         for i in 1:model.widths[l]
             for j in 1:model.widths[l+1]
-                if model.symbolic_fcns[l].mask[j, i] > 0.0
+                if st.symbolic_fcns_st[l].mask[j, i] > 0.0
                     println("Skipping φ(", l, ", ", i, ", ", j, ") as it is already symbolic.")
                 else
-                    best_name, best_fcn, best_R2 = suggest_symbolic!(model, l, i, j; α_range=α_range, β_range=β_range, lib=lib, top_K=5, verbose=verbose)
-                    fix_symbolic!(model, l, i, j, best_name; fit_params=true, α_range=α_range, β_range=β_range, grid_number=201, iterations=10, μ=1.0, random=false, seed=nothing, verbose=verbose)
+                    model, ps, st, best_name, best_fcn, best_R2 = suggest_symbolic(model, ps, st, l, i, j; α_range=α_range, β_range=β_range, lib=lib, top_K=5, verbose=verbose)
+                    _, model, ps, st = fix_symbolic(model, ps, st, l, i, j, best_name; fit_params=true, α_range=α_range, β_range=β_range, grid_number=201, iterations=10, μ=1.0, random=false, seed=nothing, verbose=verbose)
                     if verbose
                         println("Suggested: ", best_name, " for φ(", l, ", ", i, ", ", j, ") with R2: ", best_R2)
                     end
@@ -324,9 +363,10 @@ function auto_symbolic!(model; α_range=(-10, 10), β_range=(-10, 10), lib=nothi
             end
         end
     end
+    return model, ps, st
 end
 
-function symbolic_formula!(model; var=nothing, normaliser=nothing, output_normaliser=nothing, simplify=false)
+function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output_normaliser=nothing, simplify=false)
     """
     Convert the activations of a model to symbolic formulas.
 
@@ -369,7 +409,7 @@ function symbolic_formula!(model; var=nothing, normaliser=nothing, output_normal
         for j in 1:model.widths[l+1]
             yj = 0.0
             for i in 1:model.widths[l]
-                a, b, c, d = model.symbolic_fcns[l].affine[j, i, :]
+                a, b, c, d = ps.symbolic_fcns_ps[Symbol("layer_$l")][j, i, :]
                 
                 try 
                     sympy_fcn = model.symbolic_fcns[l].fcns[j][i]
@@ -383,7 +423,7 @@ function symbolic_formula!(model; var=nothing, normaliser=nothing, output_normal
             if simplify
                 push!(y, sympy.simplify(yj + model.biases[l][1, j]))
             else
-                push!(y, yj + model.biases[l][1, j])
+                push!(y, yj + ps.biases[Symbol("layer_$l")][1, j])
             end
 
         end
@@ -397,9 +437,21 @@ function symbolic_formula!(model; var=nothing, normaliser=nothing, output_normal
             symbolic_acts[end] = output_lyr
         end
 
-        model.symbolic_acts = [[symbolic_acts[l][i] for i in eachindex(symbolic_acts[l])] for l in eachindex(symbolic_acts)]
+        new_symbolic_acts = [[symbolic_acts[l][i] for i in eachindex(symbolic_acts[l])] for l in eachindex(symbolic_acts)]
 
-        return [symbolic_acts[end][i] for i in eachindex(symbolic_acts[end])], x0
+        st = (
+        act_fcns_st=st.act_fcns_st,
+        symbolic_fcns_st=st.symbolic_fcns_st,
+        acts = st.acts,
+        pre_acts = st.pre_acts,
+        post_acts = st.post_acts,
+        post_splines = st.post_splines,
+        act_scale = st.act_scale,
+        mask = st.mask,
+        symbolic_acts = new_symbolic_acts
+        )
+
+        return [symbolic_acts[end][i] for i in eachindex(symbolic_acts[end])], x0, st
     
     end
 end

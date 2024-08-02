@@ -33,13 +33,16 @@ function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, opti
     Initialise trainer for training symbolic model.
 
     Args:
+    - rng: random number generator.
     - model: symbolic model to train.
-    - train_loader: training dataloader.
-    - test_loader: test dataloader.
+    - train_data: tuple of training data.
+    - test_data: tuple of testing data.
     - optimiser: optimiser object.
     - loss_fn: loss function.
     - max_epochs: maximum number of epochs.
+    - update_grid_bool: whether to update grid.
     - verbose: whether to print training progress.
+    - log_time: whether to log time.
 
     Returns:
     - t: trainer object.
@@ -55,9 +58,19 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
 
     Args:
     - t: trainer object.
+    - log_loc: location to save logs.
+    - grid_update_num: number of times to update grid.
+    - stop_grid_update_step: number of epochs to stop updating grid.
+    - reg_factor: regularisation factor for non_linear.
+    - mag_threshold: threshold for regularisation.
+    - λ: regularisation factor.
+    - λ_l1: l1 regularisation factor.
+    - λ_entropy: entropy regularisation factor.
+    - λ_coef: coefficient regularisation factor.
+    - λ_coefdiff: coefficient difference regularisation factor.
 
     Returns:
-    - model: trained model.
+    - nothing: the trainer object is updated in place.
     """
     λ = Float32(λ)
     λ_l1 = Float32(λ_l1)
@@ -151,8 +164,7 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
     pars = ComponentVector(t.params)
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
-
-    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_epochs, callback=log_callback!)
+    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_epochs, callback=log_callback!, abstol=1e-32, reltol=1e-32)
     t.params = res.u
 end
 

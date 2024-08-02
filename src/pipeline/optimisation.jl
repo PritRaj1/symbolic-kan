@@ -2,7 +2,7 @@ module Optimisation
 
 export step_decay_scheduler, create_flux_opt, create_optim_opt, opt_get
 
-using Flux, Optim, LineSearches, Optimisers
+using Lux, OptimizationOptimJL, LineSearches, Optimisers
 
 ### Step LR scheduler ### 
 struct decay_scheduler

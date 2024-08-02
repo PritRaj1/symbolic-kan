@@ -2,7 +2,7 @@ module SymbolicRegression
 
 export fit_params, fix_symbolic!, unfix_symbolic!, unfix_symb_all!, suggest_symbolic!, auto_symbolic!, symbolic_formula!
 
-using Flux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy, PyCall
+using Flux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy, Accessors
 
 include("../architecture/kan_model.jl")
 include("../symbolic_lib.jl")
@@ -93,7 +93,7 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_numb
     return [α_best, β_best, w_best, b_best], R2_best
 end
 
-function set_affine!(l, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)
+function set_affine!(ps, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)
     """
     Set affine parameters for symbolic dense layer.
     
@@ -106,10 +106,12 @@ function set_affine!(l, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)
     - a3: param3.
     - a4: param4.
     """
-    l.affine[j, i, 1] = a1
-    l.affine[j, i, 2] = a2
-    l.affine[j, i, 3] = a3
-    l.affine[j, i, 4] = a4
+    @reset ps.affine[j, i, 1] = a1
+    @reset ps.affine[j, i, 2] = a2
+    @reset ps.affine[j, i, 3] = a3
+    @reset ps.affine[j, i, 4] = a4
+
+
 end
 
 function lock_symbolic!(l, i, j, fun_name; x=nothing, y=nothing, random=false, seed=nothing, α_range=(-10, 10), β_range=(-10, 10), μ=1.0, verbose=true)

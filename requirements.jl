@@ -1,9 +1,8 @@
 using Pkg
 
-Pkg.add("Flux")
+Pkg.add("Lux")
 Pkg.add("NNlib")
-Pkg.add("Optim")
-Pkg.add("FluxOptTools")
+Pkg.add("OptimizationOptimJL")
 Pkg.add("LineSearches")
 Pkg.add("CUDA")
 Pkg.add("cuDNN")
@@ -31,3 +30,6 @@ Pkg.add("IntervalSets")
 Pkg.add("PackageCompiler")
 Pkg.add("Plots")
 Pkg.add("DifferentialEquations")
+Pkg.add("Accessors")
+Pkg.add("Optimisers")
+Pkg.add("ComponentArrays")

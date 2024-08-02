@@ -1,39 +1,64 @@
-using Test, Random, Flux, Statistics
+using Test, Random, Lux, Statistics, Zygote
 
 include("../architecture/kan_model.jl")
 using .KolmogorovArnoldNets
 
 function test_fwd()
     Random.seed!(123)
-    model = KAN([2,5,3]; k=3, grid_interval=5)
+    model = KAN_model([2,5,3]; k=3, grid_interval=5)
+    ps = Lux.initialparameters(Random.default_rng(), model)
+    st = Lux.initialstates(Random.default_rng(), model)
+    
     Random.seed!(123)
-    x = randn(100, 2)
-    y = fwd!(model, x)
+    x = randn(Float32, 100, 2)
+    y, st = model(x, ps, st)
     @test all(size(y) .== (100, 3))
 end
 
 function test_grid()
     Random.seed!(123)
-    model = KAN([2,5,1]; k=3, grid_interval=5)
+    model = KAN_model([2,5,1]; k=3, grid_interval=5)
+    ps, st = Lux.setup(Random.default_rng(), model)
+    
     before = model.act_fcns[1].grid[1, :]
+    
     Random.seed!(123)
-    x = randn(100, 2) .* 5
-    update_grid!(model, x)
+    x = randn(Float32, 100, 2) .* 5
+    model, ps, st = update_grid(model, x, ps, st)
+    
     after = model.act_fcns[1].grid[1, :]
     @test abs(sum(before) - sum(after)) > 0.1
 end
 
 function test_opt()
     Random.seed!(123)
-    model = KAN([2,5,1]; k=3, grid_interval=5)
-    x = randn(100, 2)
+    model = KAN_model([2,5,1]; k=3, grid_interval=5)
+    ps, st = Lux.setup(Random.default_rng(), model)
+    
+    x = randn(Float32, 100, 2)
 
-    loss(m) = sum((fwd!(m, x)[1] .- 1).^2)
-    loss_val, grad = Flux.withgradient(m -> loss(m), model)
+    function loss(ps)
+        y, _ = model(x, ps, st)
+        return sum((y .- 1).^2)
+    end
+
+    loss_val, grad = Zygote.withgradient(loss, ps)
     @test abs(loss_val) > 0
 end
 
+function test_prune()
+    Random.seed!(123)
+    model = KAN_model([2,5,1]; k=3, grid_interval=5)
+    ps, st = Lux.setup(Random.default_rng(), model)
+   
+    x = randn(Float32, 100, 2)
+    y, st = model(x, ps, st)
+    model, ps, st = prune(Random.default_rng(), model, ps, st)
+end
 
-test_fwd()
-test_grid()
-test_opt()
+@testset "KAN_model Tests" begin
+    test_fwd()
+    test_grid()
+    test_opt()
+    test_prune()
+end

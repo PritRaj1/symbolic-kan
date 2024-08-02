@@ -1,6 +1,6 @@
 using Flux
 using NNlib
-using Optim
+using OptimizationOptimJL
 using LineSearches
 using FluxOptTools
 using CUDA
@@ -29,3 +29,6 @@ using IntervalSets
 using PackageCompiler
 using Plots
 using DifferentialEquations
+using Accessors
+using Optimisers
+using ComponentArrays

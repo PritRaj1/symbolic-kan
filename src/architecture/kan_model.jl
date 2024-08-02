@@ -246,8 +246,8 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.2, mode="auto", active_n
     ps_pruned = Lux.initialparameters(rng, model_pruned)
     st_pruned = Lux.initialstates(rng, model_pruned)
 
-    for i in 1:size(st.act_scale, 1)
-        if i < size(st.act_scale, 1) - 1
+    for i in 1:m.depth
+        if i < m.depth - 1
             bias_tuple = NamedTuple{(Symbol("bias_$i"),)}((ps[Symbol("bias_$i")][:, active_neurons_id[i+1]]))
             ps_pruned = merge(ps_pruned, bias_tuple)
         end

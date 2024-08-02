@@ -140,10 +140,25 @@ function get_subset(l, ps, st, in_indices, out_indices)
         ps_subset: The subset parameters.
         st_subset: The subset state.
     """
-    l_sub = kan_dense(length(in_indices), length(out_indices), 
-                     l.num_splines, l.degree, l.grid[in_indices, :], 
-                     l.RBF_σ, l.base_act, l.grid_eps, l.grid_range,
-                        l.ε_scale, l.σ_base[in_indices, out_indices], l.σ_sp)
+    l_sub = KAN_Dense(l.in_dim, l.out_dim;
+        num_splines=l.num_splines,
+        degree=l.degree,
+        ε_scale=l.ε_scale,
+        σ_base=l.σ_base[in_indices, out_indices],
+        σ_sp=l.σ_sp,
+        base_act=l.base_act,
+        grid_eps=l.grid_eps,
+        grid_range=l.grid_range
+    )
+
+    @reset l_sub.in_dim = length(in_indices)
+    @reset l_sub.out_dim = length(out_indices)
+
+    new_grid = zeros(Float32, 0, size(l.grid, 2)) 
+    for i in in_indices
+        new_grid = vcat(new_grid, l.grid[i:i, :])
+    end
+    @reset l_sub.grid = new_grid
 
     # Initialize new parameters
     ps_sub = (

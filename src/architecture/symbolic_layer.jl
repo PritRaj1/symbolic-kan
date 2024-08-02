@@ -75,7 +75,9 @@ function (l::symbolic_dense)(x, ps, st; avoid_singular=true, y_th=10.0f0)
 end
 
 function get_symb_subset(l::symbolic_dense, ps, st, in_indices, out_indices)
-    l_sub = SymbolicDense(length(in_indices), length(out_indices))
+    l_sub = SymbolicDense(l.in_dim, l.out_dim)
+    @reset l_sub.in_dim = length(in_indices)
+    @reset l_sub.out_dim = length(out_indices)
     
     ps_sub = (
         affine = ps[out_indices, in_indices, :]

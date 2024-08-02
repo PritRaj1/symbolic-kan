@@ -148,7 +148,6 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
             t.params = new_p
         end
         
-        
         log_csv(t.epoch, time() - start_time, obj, test_loss, reg_, file_name; log_time=t.log_time)
         
         t.epoch += 1
@@ -169,7 +168,7 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
     res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, abstol=1e-32, reltol=1e-32)
-    t.params = re(res.minimizer)
+    t.params = re(res.u)
     return t.model, t.params, t.state
 end
 

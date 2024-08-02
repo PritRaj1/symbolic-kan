@@ -143,7 +143,7 @@ function (m::KAN)(x, ps, st)
         mask = st.mask,
     )
 
-    return x_eval, new_st
+    return x_eval, act_scale_arr, new_st
 end
 
 function remove_node(st, l, j; verbose=true)

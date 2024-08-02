@@ -16,11 +16,11 @@ function test_trainer()
     model = KAN_model([2,5,1]; k=3, grid_interval=5)
     opt = create_optim_opt(model, "bfgs", "backtrack")
     trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=1e6, verbose=true)
-    model, params, state = train!(trainer; λ=0.1, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1)
+    model, params, state = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1)
 
     # check loss
     x, y = train_data
-    ŷ, state = model(x, params, state)
+    ŷ, scales, state = model(x, params, state)
     loss = sum((ŷ .- y).^2)
     println("Loss: ", loss)
 
@@ -32,7 +32,7 @@ function test_prune(model, ps, st, x)
     mask_before = st.mask[1]
     model, ps, st = prune(Random.default_rng(), model, ps, st)
     mask_after = st.mask
-    y, st = model(x, ps, st)
+    y, scales, st = model(x, ps, st)
 
     sum_mask_after = 0.0
     for i in eachindex(mask_after)

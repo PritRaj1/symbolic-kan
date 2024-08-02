@@ -83,8 +83,7 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
     x_test, y_test = t.test_data
 
     # Regularisation
-    function reg(ps, st)
-        acts_scale = st.act_scale
+    function reg(ps, acts_scale)
         
         # L2 regularisation
         function non_linear(x; th=mag_threshold, factor=reg_factor)
@@ -114,9 +113,9 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
 
     # l1 regularisation loss
     function reg_loss(ps, s)
-        ŷ, t.state = t.model(t.x, ps, t.state)
+        ŷ, scales, t.state = t.model(t.x, ps, t.state)
         l2 = mean(sum((ŷ .- t.y).^2))
-        reg_ = reg(ps, t.state)
+        reg_ = reg(ps, scales)
         reg_ = λ * reg_
         return l2 .+ reg_
     end

@@ -88,7 +88,7 @@ function test_suggestion()
     train_data, test_data = create_data(x -> x[1] * x[2], N_var=2, x_range=(-1,1), N_train=500, N_test=500, normalise_input=false, init_seed=1234)
     opt = create_optim_opt(model, "bfgs", "backtrack")
     trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=100, verbose=true)
-    model, ps, st = train!(trainer; λ=0.1, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1)
+    model, ps, st = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1)
     model, ps, st, best_name, best_fcn, best_R2 = suggest_symbolic(model, ps, st, 1, 1, 1)
     @test best_R2 >= 0.8
 end
@@ -102,10 +102,10 @@ function test_auto()
     train_data, test_data = create_data(x -> x[1] * x[2], N_var=2, x_range=(-1,1), N_train=5000, N_test=5000, normalise_input=false, init_seed=1234)
     opt = create_optim_opt(model, "bfgs", "backtrack")
     trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=1e6, verbose=true)
-    model, ps, st = train!(trainer; λ=0.1, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1)
-    y, st = model(train_data[1], ps, st)
+    model, ps, st = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1)
+    y, scales, st = model(train_data[1], ps, st)
     model, ps, st = prune(Random.default_rng(), model, ps, st)
-    y, st = model(train_data[1], ps, st)
+    y, scales, st = model(train_data[1], ps, st)
     model, ps, st = auto_symbolic(model, ps, st; lib=["sin", "cos", "exp", "log", "sqrt", "x^2"])
     return model, ps, st
 end

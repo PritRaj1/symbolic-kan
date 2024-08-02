@@ -122,12 +122,12 @@ function plot_symb(model, st, form)
     plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[form], title="Pruned Symbolic KAN", model_name="symbolic_test_pruned")
 end
 
-# @testset "KAN_model Tests" begin
-#     test_param_fitting()
-#     test_sin_fitting()
-#     test_lock_symb()
-#     test_suggestion()
-# end
+@testset "KAN_model Tests" begin
+    test_param_fitting()
+    test_sin_fitting()
+    test_lock_symb()
+    test_suggestion()
+end
 
 m, p, s = test_auto()
 formula, st = test_formula(m, p, s)

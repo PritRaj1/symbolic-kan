@@ -245,7 +245,7 @@ function fix_symbolic(model, ps, st, l, i, j, fcn_name; fit_params=true, α_rang
     st = set_mode(st, l, i, j, "s")
     
     if !fit_params
-        R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[l], ps.symbolic_fcns_ps[Symbol("layer_$l")], i, j, fcn_name)
+        R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[l], NamedTuple{(Symbol("affine_$i"),)}, i, j, fcn_name)
         @reset model.symbolic_fcns[l] = new_l
         symb_tuple = NamedTuple{(Symbol("affine_$i"),)}((new_ps,))
         ps = merge(ps, symb_tuple)
@@ -253,7 +253,7 @@ function fix_symbolic(model, ps, st, l, i, j, fcn_name; fit_params=true, α_rang
     else
         x = st.acts[l][:, i]
         y = st.post_acts[l][:, j, i]
-        R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[l], ps.symbolic_fcns_ps[Symbol("layer_$l")], i, j, fcn_name; x=x, y=y, α_range=α_range, β_range=β_range, μ=μ, random=random, seed=seed, verbose=verbose)
+        R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[l], NamedTuple{(Symbol("affine_$i"),)}, i, j, fcn_name; x=x, y=y, α_range=α_range, β_range=β_range, μ=μ, random=random, seed=seed, verbose=verbose)
         @reset model.symbolic_fcns[l] = new_l
         symb_tuple = NamedTuple{(Symbol("affine_$i"),)}((new_ps,))
         ps = merge(ps, symb_tuple)

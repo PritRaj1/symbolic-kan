@@ -248,7 +248,8 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.2, mode="auto", active_n
 
     for i in 1:size(st.act_scale, 1)
         if i < size(st.act_scale, 1) - 1
-            @reset ps_pruned[:bias_$(i)] = ps[:bias_$(i)][:, active_neurons_id[i+1]]
+            bias_tuple = NamedTuple{(Symbol("bias_$i"),)}((ps[Symbol("bias_$i")][:, active_neurons_id[i+1]]))
+            ps_pruned = merge(ps_pruned, bias_tuple)
         end
 
         kan_ps = (

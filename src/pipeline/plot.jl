@@ -167,7 +167,7 @@ function plot_kan(model, st; folder="figures/", model_name="kan", μ=100, γ=3, 
     hidedecorations!(ax)
     hidespines!(ax)
 
-    color = :purple
+    color = nothing
     for l in 1:neuron_depth
         n = widths[l]
         spacing = A / n
@@ -229,7 +229,7 @@ function plot_kan(model, st; folder="figures/", model_name="kan", μ=100, γ=3, 
                         hidespines!(ax)
                     end
 
-                    alpha_plot = mask ? st.mask[end][j] * alpha[end, j, i] * alpha_mask : alpha[end, j, i] * alpha_mask
+                    alpha_plot = mask ? st.mask[end-1][i] * alpha[end, j, i] * alpha_mask : alpha[end, j, i] * alpha_mask
                     alpha_plot = l == neuron_depth ? 0.0 : alpha_plot # Remove last line
                 end
 

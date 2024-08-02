@@ -7,9 +7,10 @@ WORK IN PROGRESS
 Thank you to KindXiaoming and the rest of the KAN community for putting this awesome network out there for the world to see.
 
 <p align="center">
-<img src="figures/kan.png" alt="KAN Architecture" width="48%" style="padding-right: 20px;">
-<img src="figures/symbolic_test.png" alt="KAN Architecture" width="48%">
+<img src="figures/symbolic_test.png" alt="KAN Network" width="48%" style="padding-right: 20px;">
+<img src="figures/symbolic_test_pruned.png" alt="Pruned KAN Network" width="48%">
 </p>
+
 
 ## To run
 

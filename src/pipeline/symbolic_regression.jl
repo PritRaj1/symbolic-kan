@@ -247,7 +247,7 @@ function fix_symbolic(model, ps, st, l, i, j, fcn_name; fit_params=true, α_rang
     if !fit_params
         R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[l], ps[Symbol("affine_$l")], i, j, fcn_name)
         @reset model.symbolic_fcns[l] = new_l
-        symb_tuple = NamedTuple{(Symbol("affine_$i"),)}((new_ps,))
+        symb_tuple = NamedTuple{(Symbol("affine_$l"),)}((new_ps,))
         ps = merge(ps, symb_tuple)
         return nothing, model, ps, st
     else
@@ -255,7 +255,7 @@ function fix_symbolic(model, ps, st, l, i, j, fcn_name; fit_params=true, α_rang
         y = st.post_acts[l][:, j, i]
         R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[l], ps[Symbol("affine_$l")], i, j, fcn_name; x=x, y=y, α_range=α_range, β_range=β_range, μ=μ, random=random, seed=seed, verbose=verbose)
         @reset model.symbolic_fcns[l] = new_l
-        symb_tuple = NamedTuple{(Symbol("affine_$i"),)}((new_ps,))
+        symb_tuple = NamedTuple{(Symbol("affine_$l"),)}((new_ps,))
         ps = merge(ps, symb_tuple)
         return R2, model, ps, st
     end 
@@ -350,7 +350,7 @@ function auto_symbolic(model, ps, st; α_range=(-10, 10), β_range=(-10, 10), li
         lib: Symbolic library.
         verbose: Print updates.
     """
-    for l in eachindex(model.depth)
+    for l in eachindex(model.widths[1:end-1])
         for i in 1:model.widths[l]
             for j in 1:model.widths[l+1]
                 if st.symbolic_fcns_st[l].mask[j, i] > 0.0
@@ -412,9 +412,8 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
             yj = 0.0
             for i in 1:model.widths[l]
                 a, b, c, d = ps[Symbol("affine_$l")][j, i, :]
-                
+                sympy_fcn = model.symbolic_fcns[l].fcns[j][i]
                 try 
-                    sympy_fcn = model.symbolic_fcns[l].fcns[j][i]
                     yj += c * sympy_fcn(a * x[i] + b) + d
                 catch
                     println("Make sure all activations need to be converted to symbolic formulas first!")
@@ -423,7 +422,7 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
             end
 
             if simplify
-                push!(y, sympy.simplify(yj + model.biases[l][1, j]))
+                push!(y, sympy.simplify(yj + ps[Symbol("bias_$l")][1, j]))
             else
                 push!(y, yj + ps[Symbol("bias_$l")][1, j])
             end

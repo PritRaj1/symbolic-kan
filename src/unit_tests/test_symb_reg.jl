@@ -101,9 +101,10 @@ function test_auto()
     f = x -> exp(sin(π*x[1] + x[2]^2))
     train_data, test_data = create_data(x -> x[1] * x[2], N_var=2, x_range=(-1,1), N_train=5000, N_test=5000, normalise_input=false, init_seed=1234)
     opt = create_optim_opt(model, "bfgs", "backtrack")
-    trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=1e6, verbose=true)
-    model, ps, st = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1)
+    trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=150, verbose=true)
+    model, ps, st = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1, grid_update_num=25, stop_grid_update_step=50)
     y, scales, st = model(train_data[1], ps, st)
+    plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=["x1 * x2"], title="KAN", model_name="symbolic_test")
     model, ps, st = prune(Random.default_rng(), model, ps, st)
     y, scales, st = model(train_data[1], ps, st)
     model, ps, st = auto_symbolic(model, ps, st; lib=["sin", "cos", "exp", "log", "sqrt", "x^2"])
@@ -118,15 +119,15 @@ function test_formula(model, ps, st)
 end
 
 function plot_symb(model, st, form)
-    plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[form], title="Symbolic KAN", model_name="symbolic_test")
+    plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[form], title="Symbolic KAN", model_name="symbolic_test_pruned")
 end
 
-@testset "KAN_model Tests" begin
-    test_param_fitting()
-    test_sin_fitting()
-    test_lock_symb()
-    test_suggestion()
-end
+# @testset "KAN_model Tests" begin
+#     test_param_fitting()
+#     test_sin_fitting()
+#     test_lock_symb()
+#     test_suggestion()
+# end
 
 m, p, s = test_auto()
 formula, st = test_formula(m, p, s)

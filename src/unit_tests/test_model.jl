@@ -42,7 +42,6 @@ function test_opt()
 
     ps = ComponentVector(ps)
     loss_val, grad = Zygote.withgradient(loss, ps)
-    println(grad[1])
     @test abs(loss_val) > 0
 end
 
@@ -54,6 +53,7 @@ function test_prune()
     x = randn(Float32, 100, 2)
     y, scales, st = model(x, ps, st)
     model, ps, st = prune(Random.default_rng(), model, ps, st)
+    y, scales, st = model(x, ps, st)
 end
 
 @testset "KAN_model Tests" begin

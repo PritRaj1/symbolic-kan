@@ -153,12 +153,7 @@ function get_subset(l, ps, st, in_indices, out_indices)
 
     @reset l_sub.in_dim = length(in_indices)
     @reset l_sub.out_dim = length(out_indices)
-
-    new_grid = zeros(Float32, 0, size(l.grid, 2)) 
-    for i in in_indices
-        new_grid = vcat(new_grid, l.grid[i:i, :])
-    end
-    @reset l_sub.grid = new_grid
+    @reset l_sub.grid = l.grid[in_indices, :]
 
     # Initialize new parameters
     ps_sub = (

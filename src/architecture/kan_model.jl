@@ -211,7 +211,8 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.2, mode="auto", active_n
     """
     mask = []
     add_to_array!(mask, ones(m.widths[1], ))
-    active_neurons_id = [[1:m.widths[1]...]]
+    active_neurons_id = []
+    add_to_array!(active_neurons_id, [1:m.widths[1]...])
     overall_important = nothing
 
     for i in 1:m.depth-1
@@ -226,12 +227,16 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.2, mode="auto", active_n
 
         add_to_array!(mask, overall_important)
         cart_ind = findall(x -> x > 0.0, overall_important)
-        push!(active_neurons_id, [i[1] for i in cart_ind])
+        add_to_array!(active_neurons_id, [i[1] for i in cart_ind])
     end
     
-    push!(active_neurons_id, [1:m.widths[end]...])
+    add_to_array!(active_neurons_id, [1:m.widths[end]...])
     add_to_array!(mask, ones(Float32, m.widths[end], ))
     @reset st.mask = mask
+
+    if verbose
+        println("Active neurons: ", active_neurons_id)
+    end
 
     for i in 1:m.depth-1
         for j in 1:m.widths[i+1]
@@ -246,31 +251,31 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.2, mode="auto", active_n
     ps_pruned = Lux.initialparameters(rng, model_pruned)
     st_pruned = Lux.initialstates(rng, model_pruned)
 
-    for i in 1:m.depth
-        if i < m.depth - 1
-            bias_tuple = NamedTuple{(Symbol("bias_$i"),)}((ps[Symbol("bias_$i")][:, active_neurons_id[i+1]]))
+    for i in 1:size(st.act_scale, 1)
+        if i < size(st.act_scale, 1)
+            bias_tuple = NamedTuple{(Symbol("bias_$i"),)}([ps[Symbol("bias_$i")][:, active_neurons_id[i+1]]])
             ps_pruned = merge(ps_pruned, bias_tuple)
         end
 
         kan_ps = (
-            ε = ps[Symbol("ε_$i")],
-            coef = ps[Symbol("coef_$i")],
-            w_base = ps[Symbol("w_base_$i")],
-            w_sp = ps[Symbol("w_sp_$i")]
+            ε = ps_pruned[Symbol("ε_$i")],
+            coef = ps_pruned[Symbol("coef_$i")],
+            w_base = ps_pruned[Symbol("w_base_$i")],
+            w_sp = ps_pruned[Symbol("w_sp_$i")]
         )
 
         symb_ps = (
-            affine = ps[Symbol("affine_$i")]
+            affine = ps_pruned[Symbol("affine_$i")]
         )
 
-        new_fcn, ps_new, st_new = get_subset(m.act_fcns[i], kan_ps, st.act_fcns_st[i], active_neurons_id[i], active_neurons_id[i+1])
+        new_fcn, ps_new, st_new = get_subset(model_pruned.act_fcns[i], kan_ps, st_pruned.act_fcns_st[i], active_neurons_id[i], active_neurons_id[i+1])
         @reset model_pruned.act_fcns[i] = new_fcn
         ε, coef, w_base, w_sp = ps_new[:ε], ps_new[:coef], ps_new[:w_base], ps_new[:w_sp]
         kan_tuple = NamedTuple{(Symbol("ε_$i"), Symbol("coef_$i"), Symbol("w_base_$i"), Symbol("w_sp_$i"))}((ε, coef, w_base, w_sp))
         ps_pruned = merge(ps_pruned, kan_tuple)
         @reset st_pruned.act_fcns_st[i] = st_new
 
-        new_fcn, ps_new, st_new = get_symb_subset(m.symbolic_fcns[i], symb_ps, st.symbolic_fcns_st[i], active_neurons_id[i], active_neurons_id[i+1])
+        new_fcn, ps_new, st_new = get_symb_subset(m.symbolic_fcns[i], symb_ps, st_pruned.symbolic_fcns_st[i], active_neurons_id[i], active_neurons_id[i+1])
         @reset model_pruned.symbolic_fcns[i] = new_fcn
         symb_tuple = NamedTuple{(Symbol("affine_$i"),)}((ps_new,))
         ps_pruned = merge(ps_pruned, symb_tuple)
@@ -280,6 +285,7 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.2, mode="auto", active_n
     end
 
     @reset st_pruned.mask = mask
+    @reset model_pruned.depth = length(model_pruned.widths) - 1
 
     return model_pruned, ps_pruned, st_pruned
 end

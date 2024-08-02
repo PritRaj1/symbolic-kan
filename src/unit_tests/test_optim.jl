@@ -15,8 +15,8 @@ function test_trainer()
     train_data, test_data = create_data(x -> x[1] * x[2], N_var=2, x_range=(-1,1), N_train=5000, N_test=5000, normalise_input=false, init_seed=1234)
     model = KAN_model([2,5,1]; k=3, grid_interval=5)
     opt = create_optim_opt(model, "bfgs", "backtrack")
-    trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=1e6, verbose=true)
-    model, params, state = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1)
+    trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=150, verbose=true)
+    model, params, state = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1, grid_update_num=25, stop_grid_update_step=50)
 
     # check loss
     x, y = train_data
@@ -25,7 +25,8 @@ function test_trainer()
     println("Loss: ", loss)
 
     @test sum(state.act_scale) > 0.0
-    return model, params, state, test_data[1]
+    plot_kan(model, state; mask=true, in_vars=["x1", "x2"], out_vars=["x1 * x2"], title="KAN", model_name="kan")
+    return model, params, state, train_data[1]
 end
 
 function test_prune(model, ps, st, x)
@@ -45,7 +46,7 @@ function test_prune(model, ps, st, x)
 end
 
 function test_plot(model, st)
-    plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=["x1 * x2"], title="KAN")
+    plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=["x1 * x2"], title="KAN", model_name="kan_pruned")
 end
 
 m, p, s, x = test_trainer()

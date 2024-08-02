@@ -261,7 +261,7 @@ end
     acts_fcns_st = []
  
     for i in 1:model.depth
-        _, st = model(x, ps, st)
+        _, _, st = model(x, ps, st)
         new_l, new_ps, new_st = update_lyr_grid(model.act_fcns[i], ps.act_fcns_ps[Symbol("layer_$i")], st.act_fcns_st[i], st.acts[i])
         @reset model.act_fcns[i] = new_l
         push!(act_fcns_ps_arr, new_ps)

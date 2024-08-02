@@ -274,11 +274,9 @@ end
         push!(acts_fcns_st, new_st)
     end
 
-    updated_ps = (
-        act_fcns_ps=NamedTuple(Symbol("layer_$i") => act_fcns_ps_arr[i] for i in 1:model.depth),
-        symbolic_fcns_ps=ps.symbolic_fcns_ps,
-        biases=ps.biases
-    )
+    for i in eachindex(act_fcns_ps_arr)
+        @reset ps.act_fcns_ps[Symbol("layer_$i")] = act_fcns_ps_arr[i]
+    end
 
     updated_st = (
         act_fcns_st=acts_fcns_st,
@@ -291,7 +289,7 @@ end
         mask = st.mask,
     )
         
-    return model, updated_ps, updated_st
+    return model, ps, updated_st
 end
     
 end

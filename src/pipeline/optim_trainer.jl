@@ -2,7 +2,7 @@ module OptimTrainer
 
 export init_optim_trainer, train!
 
-using Lux, ProgressBars, Dates, Tullio, CSV, Statistics, Zygote, Random, ComponentArrays, Optimization, OptimizationOptimJL
+using Lux, ProgressBars, Dates, Tullio, CSV, Statistics, Zygote, Random, ComponentArrays, Optimization, OptimizationOptimJL, Accessors
 
 include("utils.jl")
 include("../pipeline/optimisation.jl")
@@ -114,7 +114,7 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
 
     start_time = time()
 
-    function log_callback!(state::Optimization.OptimizationState, obj::Float64)
+    function log_callback!(state::Optimization.OptimizationState, obj)
         t.params = state.u
 
         t.x, t.y = x_test, y_test
@@ -123,11 +123,13 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
         t.x, t.y = x_train, y_train
 
         # Update grid once per epoch if it's time
+        new_p = nothing
         if (t.epoch % grid_update_freq == 0) && (t.epoch < stop_grid_update_step) && t.update_grid_bool
             t.model, new_p, t.state = update_grid(t.model, x_train, t.params, t.state)
+            @reset state.u = new_p
+            t.params = new_p
         end
-        state.u = new_p
-        t.params = new_p
+        
         
         log_csv(t.epoch, time() - start_time, obj, test_loss, reg_, file_name; log_time=t.log_time)
         
@@ -151,7 +153,6 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
     optprob = Optimization.OptimizationProblem(optf, pars)
 
     res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_epochs, callback=log_callback!)
-    println(res)
     t.params = res.u
 end
 

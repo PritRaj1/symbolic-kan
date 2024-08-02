@@ -23,8 +23,8 @@ function test_trainer()
 end
 
 function test_prune(trainer, x)
-    mask_before = model.mask[1]
     model, ps, st = trainer.model, trainer.params, trainer.state
+    mask_before = model.mask[1]
     model, ps, st = prune(Random.default_rng(), model, ps, st)
     mask_after = st.mask
     y, st = model(x, ps, st)

@@ -131,7 +131,8 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
 
         t.x, t.y = x_test, y_test
         test_loss = t.loss_fn(t.params, nothing)
-        reg_ = reg(t.params, t.state)
+        ŷ, scales, t.state = t.model(t.x, t.params, t.state)
+        reg_ = reg(t.params, scales)
         t.x, t.y = x_train, y_train
 
         # Update grid once per epoch if it's time

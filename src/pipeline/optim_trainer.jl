@@ -52,7 +52,7 @@ function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, opti
     return optim_trainer(model, params, state, train_data, test_data, optim_optimiser, loss_fn, 0, max_iters, update_grid_bool, verbose, log_time, train_data...)
 end
 
-function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
+function train!(t::optim_trainer; log_loc="logs/", grid_update_num=5, stop_grid_update_step=10, reg_factor=1.0, mag_threshold=1e-16, 
     λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0)
     """
     Train symbolic model.
@@ -168,8 +168,8 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
     res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, abstol=1e-32, reltol=1e-32)
-    t.params = re(res.u)
-    return t.model, t.params, t.state
+    t.params = re(res.minimizer)
+    return t.model, re(res.minimizer), t.state
 end
 
 end

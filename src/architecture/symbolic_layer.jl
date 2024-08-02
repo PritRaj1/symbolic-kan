@@ -2,7 +2,7 @@ module symbolic_layer
 
 export SymbolicDense, symbolic_dense, get_symb_subset
 
-using Lux, Tullio, Random, SymPy
+using Lux, Tullio, Random, SymPy, Accessors
 # using CUDA, KernelAbstractions
 
 include("../symbolic_lib.jl")
@@ -88,14 +88,10 @@ function get_symb_subset(l::symbolic_dense, ps, st, in_indices, out_indices)
         post_acts = nothing
     )
 
-    l_sub = symbolic_dense(
-        length(in_indices),
-        length(out_indices),
-        [[l.fcns[j][i] for i in in_indices] for j in out_indices],
-        [[l.fcns_avoid_singular[j][i] for i in in_indices] for j in out_indices],
-        [[l.fcn_names[j][i] for i in in_indices] for j in out_indices],
-        [[l.fcn_sympys[j][i] for i in in_indices] for j in out_indices]
-    )
+    @reset l_sub.fcns = [[l.fcns[j][i] for i in in_indices] for j in out_indices]
+    @reset l_sub.fcns_avoid_singular = [[l.fcns_avoid_singular[j][i] for i in in_indices] for j in out_indices]
+    @reset l_sub.fcn_names = [[l.fcn_names[j][i] for i in in_indices] for j in out_indices]
+    @reset l_sub.fcn_sympys = [[l.fcn_sympys[j][i] for i in in_indices] for j in out_indices]
 
     return l_sub, ps_sub, st_sub
 end

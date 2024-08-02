@@ -172,7 +172,7 @@ function remove_node(st, l, j; verbose=true)
     return st
 end
 
-function prune(rng::AbstractRNG, m, ps, st; threshold=1e-3, mode="auto", active_neurons_id=nothing, verbose=true)
+function prune(rng::AbstractRNG, m, ps, st; threshold=0.2, mode="auto", active_neurons_id=nothing, verbose=true)
     """
     Prune the activation of neuron (l, i, j) based on the threshold.
     If the neuron has a small range of activation, shave off the neuron.
@@ -195,29 +195,31 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=1e-3, mode="auto", active_
     mask = []
     add_to_array!(mask, ones(m.widths[1], ))
     active_neurons_id = [[1:m.widths[1]...]]
+    overall_important = nothing
 
     for i in 1:m.depth-1
         if mode == "auto"
-            in_important = ifelse.(maximum(st.act_scale[i, :, :], dims=2)[1, :, :] .> threshold, 1.0, 0.0)
-            out_important = ifelse.(maximum(st.act_scale[i+1, :, :], dims=1)[1, :, :] .> threshold, 1.0, 0.0)
+            in_important = ifelse.(maximum(st.act_scale[i, :, :], dims=2)[1, :, :] .> threshold, Float32(1.0),  Float32(0.0))
+            out_important = ifelse.(maximum(st.act_scale[i+1, :, :], dims=1)[1, :, :] .> threshold,  Float32(1.0),  Float32(0.0))
             overall_important = in_important .* out_important
         elseif mode == "manual"
             overall_important = zeros(Float32, m.widths[i+1])
             overall_important[active_neurons_id[i+1]] .= 1.0
         end
 
-        push!(mask, overall_important)
-        cart_ind = findall(x -> x == true, overall_important)
+        add_to_array!(mask, overall_important)
+        cart_ind = findall(x -> x > 0.0, overall_important)
         push!(active_neurons_id, [i[1] for i in cart_ind])
     end
     
     push!(active_neurons_id, [1:m.widths[end]...])
-    push!(mask, ones(Float32, m.widths[end], ))
+    add_to_array!(mask, ones(Float32, m.widths[end], ))
+    @reset st.mask = mask
 
     for i in 1:m.depth-1
         for j in 1:m.widths[i+1]
             if !(j in active_neurons_id[i+1])
-                new_st = remove_node(st, i+1, j; verbose=verbose)
+                st = remove_node(st, i+1, j; verbose=verbose)
             end
         end
     end
@@ -244,6 +246,8 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=1e-3, mode="auto", active_
 
         @reset model_pruned.widths[i] = length(active_neurons_id[i])
     end
+
+    @reset st_pruned.mask = mask
 
     return model_pruned, ps_pruned, st_pruned
 end

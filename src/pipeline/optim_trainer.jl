@@ -166,6 +166,7 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=10, stop_grid
     optprob = Optimization.OptimizationProblem(optf, pars)
     res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, abstol=1e-32, reltol=1e-32)
     t.params = res.u
+    return t.model, t.params, t.state
 end
 
 end

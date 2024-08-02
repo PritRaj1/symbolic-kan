@@ -1,6 +1,6 @@
 module Plotting
 
-export plot_kan!
+export plot_kan
 
 using Flux, Statistics, Makie, GLMakie, FileIO, Printf, IntervalSets
 

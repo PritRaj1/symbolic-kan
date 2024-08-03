@@ -2,8 +2,8 @@ module Spline
 
 export extend_grid, B_batch, coef2curve, curve2coef
 
-using Flux, Tullio, LinearAlgebra
-# using CUDA, KernelAbstractions
+using Tullio, LinearAlgebra
+using CUDA, KernelAbstractions
 
 include("../utils.jl")
 using .Utils: removeNaN, removeZero
@@ -152,8 +152,8 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0, ε=1e-4)
     eye = Matrix{Float32}(I, n, n) .* ε
     eye = reshape(eye, 1, 1, n, n)
     eye = repeat(eye, n1, n2, 1, 1)
-    BtB = BtB .+ eye
-
+    BtB = BtB + eye #@tullio out[i, j, p, n] := BtB[i, j, p, n] + eye[i, j, p, n]
+    
     Bty = @tullio out[i, j, p] := Bt[i, j, p, n] * y_eval[i, j, n]
     
     # x = (BtB)^-1 * Bty

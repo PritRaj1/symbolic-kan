@@ -80,6 +80,6 @@ data = DataFrame(time=time_data, θ1=θ1_data, ω1=ω1_data, θ2=θ2_data, ω2=�
 if !isdir("data")
     mkdir("data")
 end
-CSV.write("double_pendulum_data.csv", data)
+CSV.write("data/double_pendulum/double_pendulum_data.csv", data)
 
 

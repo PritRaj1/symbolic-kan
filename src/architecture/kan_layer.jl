@@ -8,7 +8,7 @@ using Lux, Tullio, NNlib, Random, Accessors
 include("spline.jl")
 include("../utils.jl")
 using .Spline: extend_grid, coef2curve, curve2coef
-using .Utils: sparse_mask
+using .Utils: sparse_mask, device
 
 struct kan_dense <: Lux.AbstractExplicitLayer
     in_dim::Int
@@ -28,7 +28,7 @@ end
 function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=0.1, σ_base=nothing, σ_sp=1.0, base_act=NNlib.selu, grid_eps=0.02, grid_range=(-1, 1))
     grid = range(grid_range[1], grid_range[2], length=num_splines + 1) |> collect |> x -> reshape(x, 1, length(x))
     grid = repeat(grid, in_dim, 1) 
-    grid = extend_grid(grid, degree) 
+    grid = extend_grid(grid, degree) |> device
     init_σ = 1.0
 
     σ_base = isnothing(σ_base) ? ones(Float32, in_dim, out_dim) : σ_base

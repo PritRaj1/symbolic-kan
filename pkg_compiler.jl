@@ -6,10 +6,8 @@ create_sysimage(
         "Tullio", "SymPy", "Test", "Random", "Statistics", "GLM", "DataFrames", "Optimisers", "PyCall",
         "Zygote", "ProgressBars", "CSV", "Dates", "Printf", "Makie", "GLMakie", "FileIO","IntervalSets", 
         "LineSearches", "FluxOptTools", "Plots", "DifferentialEquations", "Accessors", "Optimisers", 
-        "ComponentArrays"
+        "ComponentArrays", "ConfParser"
     ],
     sysimage_path="precompile.so",
     precompile_execution_file="precompile.jl"
 )
-
-# julia --sysimage precompile.so file.jl

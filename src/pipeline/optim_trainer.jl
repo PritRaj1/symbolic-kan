@@ -164,6 +164,7 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=5, stop_grid_
     open(file_name, "w") do file
         t.log_time ? write(file, "Epoch,Time (s),Train Loss,Test Loss,Regularisation\n") : write(file, "Epoch,Train Loss,Test Loss,Regularisation\n")
     end
+    println("Created log at $file_name")
 
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)

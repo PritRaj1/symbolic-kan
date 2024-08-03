@@ -26,8 +26,23 @@ bash setup.sh
 bash src/unit_tests/run_tests.sh
 ```
 
-3. Work in progress
+3. Generate double pendulum data, (and also plot)
+
+```bash
+julia --sysimage precompile.so double_pendulum.jl
+```
+
+4. Try predicting
+
+```bash
+julia --sysimage precompile.so main.jl
+```
 
 ## TODO
 
-1. CUDA?
+1. Feynmann Dataset
+2. CUDA?
+
+## Note from author.
+
+I chose to apply the KAN towards predicting the double pendulum because it looks cool as a GIF, and I'm interested to see whether or not the symbolic KAN can unpack its formuala. But the double pendulum is sequence modelling problem, so a simple FCNN (fully connected neural net) is a horrible choice of architecture to do this with.

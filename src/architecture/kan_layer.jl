@@ -3,7 +3,7 @@ module dense_kan
 export KAN_Dense, kan_dense, update_lyr_grid, get_subset
 
 using Lux, Tullio, NNlib, Random, Accessors
-# using CUDA, KernelAbstractions
+using CUDA, KernelAbstractions
 
 include("spline.jl")
 include("../utils.jl")
@@ -37,7 +37,7 @@ function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=
 end
 
 function Lux.initialparameters(rng::AbstractRNG, l::kan_dense)
-    ε = ((rand(rng, Float32, l.num_splines + 1, l.in_dim, l.out_dim) .- 0.5f0) .* l.ε_scale ./ l.num_splines)
+    ε = ((rand(rng, Float32, l.num_splines + 1, l.in_dim, l.out_dim) .- 0.5f0) .* l.ε_scale ./ l.num_splines) |> device
     coef = curve2coef(l.grid[:, l.degree+1:end-l.degree] |> permutedims, ε, l.grid; k=l.degree, scale=l.RBF_σ)
     
     w_base = ones(Float32, l.in_dim, l.out_dim) .* l.σ_base

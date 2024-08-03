@@ -3,10 +3,9 @@ module Utils
 # export device
 
 using Lux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random
-using LuxCUDA, KernelAbstractions
+using CUDA, LuxCUDA, KernelAbstractions
 
-const pu = CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "true")) ? gpu_device() : cpu_device()
-
+const pu = CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false")) ? gpu_device() : cpu_device()
 
 function device(x)
     return pu(x)
@@ -14,11 +13,13 @@ end
 
 
 function removeNaN(x)
-    return isnan(x) ? Float32(0.0) : x
+    NaNs = @tullio res[i, j, k] := isnan(x[i, j, k])
+    x = ifelse.(NaNs, Float32(0), x)
+    return device(x)
 end
 
 function removeZero(x; ε=1e-3)
-    return iszero(x) ? Float32(ε) : x
+    return ifelse.(abs.(x) .< ε, Float32(ε), x)
 end
 
 # Rounds string formula to a certain number of digits.

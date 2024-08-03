@@ -9,7 +9,7 @@ using Zygote: @nograd
 include("kan_layer.jl")
 include("symbolic_layer.jl")
 include("../utils.jl")
-using .Utils: removeNaN, removeZero
+using .Utils: removeZero
 using .dense_kan
 using .symbolic_layer
 
@@ -134,7 +134,7 @@ function (m::KAN)(x, ps, st)
         # Scales for l1 regularisation
         in_range = std(spline_st.pre_acts, dims=1)
         out_range = std(post_acts, dims=1)
-        in_range = removeZero.(in_range; ε=1e-1)
+        in_range = removeZero(in_range; ε=1e-1)
         scales = PadToShape(out_range ./ in_range, (1, maximum(m.widths), maximum(m.widths)))
         act_scale_arr = vcat(act_scale_arr, scales)
         

@@ -2,11 +2,11 @@ module Spline
 
 export extend_grid, B_batch, coef2curve, curve2coef
 
-using Tullio, LinearAlgebra
 using CUDA, KernelAbstractions
+using Tullio, LinearAlgebra
 
 include("../utils.jl")
-using .Utils: removeNaN, removeZero
+using .Utils: removeNaN, device
 
 method = get(ENV, "METHOD", "spline") # "spline" or "RBF"; RBF not properly implemented yet
 
@@ -75,8 +75,7 @@ function B_batch(x, grid; degree::Int64, σ=nothing)
         B = @tullio out[d, n, m] := (numer1[d, n, m] / denom1[1, n, m] * B_i1[d, n, m]) + (numer2[d, n, m] / denom2[1, n, m] * B_i2[d, n, m])
     end
     
-    B = removeNaN.(B)
-    return B 
+    return removeNaN(B)
 end
 
 # function B_batch_RBF(x, grid; degree=nothing, σ=1.0)
@@ -149,7 +148,7 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0, ε=1e-4)
     
     BtB = @tullio out[i, j, p, p] := Bt[i, j, p, n] * B[i, j, n, p]
     n1, n2, n, _ = size(BtB)
-    eye = Matrix{Float32}(I, n, n) .* ε
+    eye = Matrix{Float32}(I, n, n) .* ε |> device
     eye = reshape(eye, 1, 1, n, n)
     eye = repeat(eye, n1, n2, 1, 1)
     BtB = BtB + eye #@tullio out[i, j, p, n] := BtB[i, j, p, n] + eye[i, j, p, n]

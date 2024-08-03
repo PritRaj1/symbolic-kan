@@ -5,7 +5,12 @@ export SYMBOLIC_LIB
 using Flux, LinearAlgebra, SymPy
 
 # Helper functions
-nan_to_num(x) = replace(x, NaN => 0.0, Inf => 0.0, -Inf => 0.0)
+nan_to_num = function(x)
+    x = ifelse.(isnan.(x), 0.0, x)
+    x = ifelse.(isinf.(x), 0.0, x)
+    return x
+end
+
 sign(x) = x < 0 ? -1 : (x > 0 ? 1 : 0)
 safe_log(x) = x > 0 ? log(x) : (x < 0 ? complex(log(-x), π) : -Inf)
 

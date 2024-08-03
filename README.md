@@ -40,9 +40,10 @@ julia --sysimage precompile.so main.jl
 
 ## TODO
 
-1. Feynmann Dataset
-2. CUDA?
+1. CUDA?
+2. Feynmann Dataset
+
 
 ## Note from author.
 
-I chose to apply the KAN towards predicting the double pendulum because it looks cool as a GIF, and I'm interested to see whether or not the symbolic KAN can unpack its formuala. But the double pendulum is a sequence modelling problem, so a simple FCNN (fully connected neural net) is a horrible choice of architecture to do this with.
+As a first task, I chose to apply the KAN towards predicting the double pendulum because it's quick to implement, and looks cool as a GIF. Besides, I'm interested to see whether or not the symbolic KAN can unpack its formuala, (probably not). But the double pendulum is a sequence modelling problem, so a simple FCNN (fully connected neural net) is a horrible choice of architecture to do this with.

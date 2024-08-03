@@ -17,7 +17,7 @@ Thank you to KindXiaoming and the rest of the KAN community for putting this awe
 1. Precompile packages:
 
 ```bash
-bash setup.sh
+bash setup/setup.sh
 ```
 
 2. Unit tests:
@@ -29,7 +29,7 @@ bash src/unit_tests/run_tests.sh
 3. Generate double pendulum data, (and also plot)
 
 ```bash
-julia --sysimage precompile.so double_pendulum.jl
+julia --sysimage precompile.so data/double_pendulum/double_pendulum.jl
 ```
 
 4. Try predicting
@@ -45,4 +45,4 @@ julia --sysimage precompile.so main.jl
 
 ## Note from author.
 
-I chose to apply the KAN towards predicting the double pendulum because it looks cool as a GIF, and I'm interested to see whether or not the symbolic KAN can unpack its formuala. But the double pendulum is sequence modelling problem, so a simple FCNN (fully connected neural net) is a horrible choice of architecture to do this with.
+I chose to apply the KAN towards predicting the double pendulum because it looks cool as a GIF, and I'm interested to see whether or not the symbolic KAN can unpack its formuala. But the double pendulum is a sequence modelling problem, so a simple FCNN (fully connected neural net) is a horrible choice of architecture to do this with.

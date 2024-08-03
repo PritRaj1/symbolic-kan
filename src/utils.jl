@@ -2,14 +2,15 @@ module Utils
 
 # export device
 
-using Flux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random
-# using CUDA, KernelAbstractions
+using Lux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random
+using LuxCUDA, KernelAbstractions
 
-# const USE_GPU = CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false"))
+const pu = CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "true")) ? gpu_device() : cpu_device()
 
-# function device(x)
-#     return USE_GPU ? gpu(x) : x
-# end
+
+function device(x)
+    return pu(x)
+end
 
 
 function removeNaN(x)

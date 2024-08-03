@@ -2,14 +2,15 @@ module KolmogorovArnoldNets
 
 export KAN, KAN_model, prune, update_grid
 
+using CUDA, KernelAbstractions
 using Lux, Tullio, NNlib, Random, Statistics, SymPy, Accessors
 using Zygote: @nograd
-# using CUDA, KernelAbstractions
+
 
 include("kan_layer.jl")
 include("symbolic_layer.jl")
 include("../utils.jl")
-using .Utils: removeZero
+using .Utils: removeZero, device
 using .dense_kan
 using .symbolic_layer
 
@@ -95,9 +96,9 @@ end
 
 function PadToShape(arr, shape)
     pad = shape .- size(arr)
-    zeros_1 = zeros(Float32, 0, pad[2], size(arr, 3))
+    zeros_1 = zeros(Float32, 0, pad[2], size(arr, 3)) |> device
     array = cat(arr, zeros_1, dims=(1, 2))
-    zeros_2 = zeros(Float32, 0, size(array, 2), pad[3])
+    zeros_2 = zeros(Float32, 0, size(array, 2), pad[3]) |> device
     return cat(array, zeros_2, dims=(1, 3))
 end
 
@@ -107,7 +108,7 @@ function (m::KAN)(x, ps, st)
     pre_acts_arr = []
     post_acts_arr = []
     post_splines_arr = []
-    act_scale_arr = zeros(Float32, 0, maximum(m.widths), maximum(m.widths))
+    act_scale_arr = zeros(Float32, 0, maximum(m.widths), maximum(m.widths)) |> device
 
     for i in 1:m.depth
         # spline(x)
@@ -144,7 +145,7 @@ function (m::KAN)(x, ps, st)
 
         # Add bias b(x)
         b = repeat(ps[Symbol("bias_$i")], size(x_eval, 1), 1)
-        x_eval = @tullio res[m, n] := x_eval[m, n] + b[m, n]
+        x_eval = x_eval + b
 
         add_to_array!(acts_arr, copy(x_eval))
     end

@@ -2,8 +2,8 @@ module dense_kan
 
 export KAN_Dense, kan_dense, update_lyr_grid, get_subset
 
-using Lux, Tullio, NNlib, Random, Accessors
 using CUDA, KernelAbstractions
+using Lux, Tullio, NNlib, Random, Accessors
 
 include("spline.jl")
 include("../utils.jl")
@@ -94,13 +94,13 @@ function update_lyr_grid(l, ps, st, x; margin=0.01)
     b_size = size(x, 1)
     
     # Compute the B-spline basis functions of degree k
-    x_sort = sortslices(x, dims=1)
+    CUDA.@allowscalar x_sort = sortslices(x, dims=1)
     current_splines = coef2curve(x_sort, l.grid, ps.coef; k=l.degree, scale=l.RBF_σ)
 
     # Adaptive grid - concentrate grid points around regions of higher density
     num_interval = size(l.grid, 2) - 2*l.degree - 1
     ids = [div(b_size * i, num_interval) + 1 for i in 0:num_interval-1]
-    grid_adaptive = zeros(Float32, 0, size(x, 2)) 
+    grid_adaptive = zeros(Float32, 0, size(x, 2)) |> device
     for idx in ids
         grid_adaptive = vcat(grid_adaptive, x_sort[idx:idx, :])
     end
@@ -109,11 +109,11 @@ function update_lyr_grid(l, ps, st, x; margin=0.01)
 
     # Uniform grid
     h = (grid_adaptive[:, end:end] .- grid_adaptive[:, 1:1]) ./ num_interval # step size
-    range = collect(0:num_interval)[:, :] |> permutedims 
+    range = collect(0:num_interval)[:, :] |> permutedims |> device
     grid_uniform = h .* range .+ grid_adaptive[:, 1:1] 
 
     # Grid is a convex combination of the uniform and adaptive grid
-    grid = @tullio out[i, j] := l.grid_eps * grid_uniform[i, j] + (1 - l.grid_eps) * grid_adaptive[i, j]
+    grid = l.grid_eps .* grid_uniform + (1 - l.grid_eps) .* grid_adaptive
     new_grid = extend_grid(grid, l.degree)
     new_coef = curve2coef(x_sort, current_splines, new_grid; k=l.degree, scale=l.RBF_σ)
     

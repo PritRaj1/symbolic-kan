@@ -31,4 +31,5 @@ function test_symb_lyr()
     @test !isnothing(l)
 end
 
-test_spline_lyr()
+# test_spline_lyr()
+test_symb_lyr()

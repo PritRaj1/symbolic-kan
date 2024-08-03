@@ -21,39 +21,39 @@ x_test, y_test = [0.1, 0.2], [0.1, 0.2]
 
 # Test symbolic library
 @test SYMBOLIC_LIB["x"][1](x_test) ≈ x_test
-@test SYMBOLIC_LIB["x"][2](x_test) ≈ x_test
+@test SYMBOLIC_LIB["x"][2](x_test)[1] ≈ x_test
 @test SYMBOLIC_LIB["x^2"][1](x_test) ≈ x_test.^2
-@test SYMBOLIC_LIB["x^2"][2](x_test) ≈ x_test.^2
+@test SYMBOLIC_LIB["x^2"][2](x_test)[1] ≈ x_test.^2
 @test SYMBOLIC_LIB["x^3"][1](x_test) ≈ x_test.^3
-@test SYMBOLIC_LIB["x^3"][2](x_test) ≈ x_test.^3
+@test SYMBOLIC_LIB["x^3"][2](x_test)[1] ≈ x_test.^3
 @test SYMBOLIC_LIB["x^4"][1](x_test) ≈ x_test.^4
-@test SYMBOLIC_LIB["x^4"][2](x_test) ≈ x_test.^4
+@test SYMBOLIC_LIB["x^4"][2](x_test)[1] ≈ x_test.^4
 @test SYMBOLIC_LIB["x^5"][1](x_test) ≈ x_test.^5
-@test SYMBOLIC_LIB["x^5"][2](x_test) ≈ x_test.^5
+@test SYMBOLIC_LIB["x^5"][2](x_test)[1] ≈ x_test.^5
 @test SYMBOLIC_LIB["1/x"][1](x_test) ≈ 1 ./ x_test
-@test SYMBOLIC_LIB["1/x"][2](x_test) ≈ 1 ./ x_test
+@test SYMBOLIC_LIB["1/x"][2](x_test)[1] ≈ 1 ./ x_test
 @test SYMBOLIC_LIB["1/x^2"][1](x_test) ≈ 1 ./ x_test.^2
-@test SYMBOLIC_LIB["1/x^2"][2](x_test) ≈ 1 ./ x_test.^2
+@test SYMBOLIC_LIB["1/x^2"][2](x_test)[1] ≈ 1 ./ x_test.^2
 @test SYMBOLIC_LIB["1/x^3"][1](x_test) ≈ 1 ./ x_test.^3
-@test SYMBOLIC_LIB["1/x^3"][2](x_test) ≈ 1 ./ x_test.^3
+@test SYMBOLIC_LIB["1/x^3"][2](x_test)[1] ≈ 1 ./ x_test.^3
 @test SYMBOLIC_LIB["1/x^4"][1](x_test) ≈ 1 ./ x_test.^4
-@test SYMBOLIC_LIB["1/x^4"][2](x_test) ≈ 1 ./ x_test.^4
+@test SYMBOLIC_LIB["1/x^4"][2](x_test)[1] ≈ 1 ./ x_test.^4
 @test SYMBOLIC_LIB["1/x^5"][1](x_test) ≈ 1 ./ x_test.^5
-@test SYMBOLIC_LIB["1/x^5"][2](x_test) ≈ 1 ./ x_test.^5
+@test SYMBOLIC_LIB["1/x^5"][2](x_test)[1] ≈ 1 ./ x_test.^5
 @test SYMBOLIC_LIB["sqrt"][1](x_test) ≈ sqrt.(x_test)
-@test SYMBOLIC_LIB["sqrt"][2](x_test) ≈ sqrt.(x_test)
+@test SYMBOLIC_LIB["sqrt"][2](x_test)[1] ≈ sqrt.(x_test)
 @test SYMBOLIC_LIB["x^0.5"][1](x_test) ≈ sqrt.(x_test)
-@test SYMBOLIC_LIB["x^0.5"][2](x_test) ≈ sqrt.(x_test)
+@test SYMBOLIC_LIB["x^0.5"][2](x_test)[1] ≈ sqrt.(x_test)
 @test SYMBOLIC_LIB["x^1.5"][1](x_test) ≈ sqrt.(x_test).^3
-@test SYMBOLIC_LIB["x^1.5"][2](x_test) ≈ sqrt.(x_test).^3
+@test SYMBOLIC_LIB["x^1.5"][2](x_test)[1] ≈ sqrt.(x_test).^3
 @test SYMBOLIC_LIB["1/sqrt(x)"][1](x_test) ≈ 1 ./ sqrt.(x_test)
-@test SYMBOLIC_LIB["1/sqrt(x)"][2](x_test) ≈ 1 ./ sqrt.(x_test)
+@test SYMBOLIC_LIB["1/sqrt(x)"][2](x_test)[1] ≈ 1 ./ sqrt.(x_test)
 @test SYMBOLIC_LIB["1/x^0.5"][1](x_test) ≈ 1 ./ sqrt.(x_test)
-@test SYMBOLIC_LIB["1/x^0.5"][2](x_test) ≈ 1 ./ sqrt.(x_test)
+@test SYMBOLIC_LIB["1/x^0.5"][2](x_test)[1] ≈ 1 ./ sqrt.(x_test)
 @test SYMBOLIC_LIB["exp"][1](x_test) ≈ exp.(x_test)
-@test SYMBOLIC_LIB["exp"][2](x_test) ≈ exp.(x_test)
+@test SYMBOLIC_LIB["exp"][2](x_test)[1] ≈ exp.(x_test)
 @test SYMBOLIC_LIB["log"][1](x_test) ≈ log.(x_test)
-@test SYMBOLIC_LIB["log"][2](x_test) ≈ log.(x_test)
+@test SYMBOLIC_LIB["log"][2](x_test)[1] ≈ log.(x_test)
 @test SYMBOLIC_LIB["abs"][1](x_test) ≈ abs.(x_test)
 
 

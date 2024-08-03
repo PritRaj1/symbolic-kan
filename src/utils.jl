@@ -11,7 +11,6 @@ function device(x)
     return pu(x)
 end
 
-
 function removeNaN(x)
     NaNs = @tullio res[i, j, k] := isnan(x[i, j, k])
     x = ifelse.(NaNs, Float32(0), x)

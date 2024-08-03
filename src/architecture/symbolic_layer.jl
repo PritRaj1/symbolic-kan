@@ -2,11 +2,13 @@ module symbolic_layer
 
 export SymbolicDense, symbolic_dense, get_symb_subset
 
+using CUDA, KernelAbstractions
 using Lux, Tullio, Random, SymPy, Accessors
-# using CUDA, KernelAbstractions
 
 include("../symbolic_lib.jl")
+include("../utils.jl")
 using .SymbolicLib: SYMBOLIC_LIB
+using .Utils: device
 
 struct symbolic_dense <: Lux.AbstractExplicitLayer
     in_dim::Int
@@ -50,24 +52,35 @@ function apply_fcn(x, y; fcn)
     end
 end
 
+### c * f(a*x + b) + d ###  
 function (l::symbolic_dense)(x, ps, st; avoid_singular=true, y_th=10.0f0)
     b_size = size(x, 1)
-    y_th = avoid_singular ? repeat([y_th], b_size, 1) : nothing
+    y_th = avoid_singular ? device(repeat([y_th], b_size,)) : nothing
     fcns = avoid_singular ? l.fcns_avoid_singular : l.fcns
 
-    post_acts = zeros(Float32, b_size, l.out_dim, 0) 
+    # ps = affine weights, (a, b, c, d)
+    A = selectdim(ps, 3, 1)
+    B = selectdim(ps, 3, 2)
+    C = selectdim(ps, 3, 3)
+    D = selectdim(ps, 3, 4)
 
+    inner_term = @tullio out[b, j, i] := A[j, i]* x[b, i] + B[j, i]
+
+    # Major GPU bottleneck - univariate function application
+    ŷ = zeros(Float32, b_size, l.out_dim, 0) |> device
     for i in 1:l.in_dim
-        post_acts_ = zeros(Float32, b_size, 0) 
+        ŷ_inner = zeros(Float32, b_size, 0) |> device
         for j in 1:l.out_dim
-            term1 = ps[j, i, 1] .* x[:, i:i] .+ ps[j, i, 2]
-            f_x = apply_fcn.(term1, y_th; fcn=fcns[j][i])
-            xij = ps[j, i, 3] .* f_x .+ ps[j, i, 4]
-            post_acts_ = hcat(post_acts_, st.mask[j, i] .* xij)
+            x_eval = selectdim(selectdim(inner_term, 2, j), 2, i)
+            f_x = apply_fcn(x_eval, y_th; fcn=fcns[j][i])
+            f_x = reshape(f_x, b_size, 1)
+            ŷ_inner = cat(ŷ_inner, f_x, dims=2)
         end
-        post_acts_ = reshape(post_acts_, b_size, l.out_dim, 1)
-        post_acts = cat(post_acts, post_acts_, dims=3)
+        ŷ = cat(ŷ, ŷ_inner, dims=3)
     end
+
+    post_acts = @tullio out[b, j, i] := C[j, i] * ŷ[b, j, i] + D[j, i]
+    post_acts = @tullio out[b, j, i] := st.mask[j, i] * post_acts[b, j, i]
 
     z = sum(post_acts, dims=3)[:, :, 1]
     new_st = (mask=st.mask, post_acts=post_acts)

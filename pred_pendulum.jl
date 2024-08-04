@@ -3,8 +3,9 @@ As a first task, I chose to apply the KAN towards predicting the double pendulum
 because it's quick to implement, and looks cool as a GIF. 
 
 Besides, I'm interested to see whether or not the symbolic KAN can unpack its formuala, 
-(probably not). But the double pendulum is a sequence modelling problem, so a simple 
-FCNN (fully connected neural net) is a horrible choice of architecture to do this with :P
+(probably not). But I only generated data comprising a single swing, and 
+the double pendulum is a sequence modelling problem, so a simple FCNN (fully connected neural net)
+is not a suitable choice of architecture to do this with :P
 """
 
 using CSV
@@ -73,7 +74,7 @@ model, ps, st = auto_symbolic(model, ps, st; lib=["sin", "cos", "exp", "x^2", "x
 
 formula, x0, st = symbolic_formula(model, ps, st)
 formula = round_formula(string(formula[1]); digits=1)
-plot_kan(model, st; mask=true, in_vars=["t", "θ1", "ω1", "ω2"], out_vars=["θ1", "θ2"], title="Pruned Double Pendulum KAN", model_name="double_pendulum_kan")
+plot_kan(model, st; mask=true, in_vars=["t", "θ1", "ω1", "ω2"], out_vars=["θ1", "θ2"], title="Pruned Double Pendulum KAN", file_name="double_pendulum_kan")
 
 function predict_angular_velocities(model, time, θ1, θ2; ps, st)
     input = [time, θ1, θ2]
@@ -89,7 +90,9 @@ function pendulum_positions(ŷ; L1=1.0, L2=1.0)
     return x1, y1, x2, y2
 end
 
-ŷ, scales, st = model(X_sorted, ps, st)
+steps_to_plot = parse(Int, retrieve(conf, "DOUBLE_PENDULUM", "num_plot"))
+X_gif = X_sorted[1:steps_to_plot, :]
+ŷ, scales, st = model(X_gif, ps, st)
 x1, y1, x2, y2 = pendulum_positions(ŷ; L1=1.0, L2=1.0)
 
 plot_size = (800, 800)

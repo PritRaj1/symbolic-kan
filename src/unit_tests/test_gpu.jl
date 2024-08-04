@@ -86,7 +86,7 @@ function test_training()
     println("Loss: ", loss)
 
     @test sum(state.act_scale) > 0.0
-    plot_kan(model, state; mask=true, in_vars=["x1", "x2"], out_vars=["x1 * x2"], title="KAN", model_name="gpu_test")
+    plot_kan(model, state; mask=true, in_vars=["x1", "x2"], out_vars=["x1 * x2"], title="KAN", file_name="gpu_test")
     return model, params, state, train_data[1]
 end
 
@@ -120,7 +120,7 @@ function test_formula(model, ps, st)
 end
 
 function plot_symb(model, st, form)
-    plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[form], title="Pruned Symbolic KAN", model_name="gpu_symbolic_test")
+    plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[form], title="Pruned Symbolic KAN", file_name="gpu_symbolic_test")
 end
 
 

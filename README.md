@@ -28,15 +28,18 @@ bash src/unit_tests/run_tests.sh
 
 3. [Edit setup.](config/config.ini)
 
-4. Generate double pendulum data, (and also plot)
+
+4. Run some files
+
+- Symbolic regression on formula
 
 ```bash
-julia --sysimage precompile.so data/double_pendulum/double_pendulum.jl
+julia --sysimage precompile.so predict_formula.jl
 ```
 
-5. Try predicting
-
+- (Try to) infer double pendulum formula:
 ```bash
+julia --sysimage precompile.so data/double_pendulum/double_pendulum.jl
 julia --sysimage precompile.so pred_pendulum.jl
 ```
 

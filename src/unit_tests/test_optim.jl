@@ -25,7 +25,7 @@ function test_trainer()
     println("Loss: ", loss)
 
     @test sum(state.act_scale) > 0.0
-    plot_kan(model, state; mask=true, in_vars=["x1", "x2"], out_vars=["x1 * x2"], title="KAN", model_name="kan")
+    plot_kan(model, state; mask=true, in_vars=["x1", "x2"], out_vars=["x1 * x2"], title="KAN", file_name="kan")
     return model, params, state, train_data[1]
 end
 
@@ -46,7 +46,7 @@ function test_prune(model, ps, st, x)
 end
 
 function test_plot(model, st)
-    plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=["x1 * x2"], title="Pruned KAN", model_name="kan_pruned")
+    plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=["x1 * x2"], title="Pruned KAN", file_name="kan_pruned")
 end
 
 m, p, s, x = test_trainer()

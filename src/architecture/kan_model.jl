@@ -190,7 +190,7 @@ function remove_node(st, l, j; verbose=true)
     return st
 end
 
-function prune(rng::AbstractRNG, m, ps, st; threshold=0.3, mode="auto", active_neurons_id=nothing, verbose=true)
+function prune(rng::AbstractRNG, m, ps, st; threshold=0.1, mode="auto", active_neurons_id=nothing, verbose=true)
     """
     Prune the activation of neuron (l, i, j) based on the threshold.
     If the neuron has a small range of activation, shave off the neuron.

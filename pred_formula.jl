@@ -19,7 +19,7 @@ using .SymbolicRegression
 using .PipelineUtils
 using .OptimTrainer
 using .Optimisation
-using .Utils: round_formula
+using .Utils: round_formula, device
 using .Plotting
 
 FUNCTION = x -> x[1] * x[2]
@@ -59,7 +59,7 @@ opt = create_optim_opt(model, type, linesearch)
 trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true)
 model, ps, st = train!(trainer; λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, grid_update_num=num_grid_updates, stop_grid_update_step=final_grid_epoch)
 model, ps, st = prune(seed, model, ps, st)
-y, scales, st = model(train_data[1], ps, st)
+y, scales, st = model(device(train_data[1]), ps, st)
 
 plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[STRING_VERSION], title="KAN", file_name=FILE_NAME)
 model, ps, st = auto_symbolic(model, ps, st; lib=["x", "x^2", "sqrt"])

@@ -64,9 +64,11 @@ julia --sysimage precompile.so pred_formula.jl
 - **N_train**: Number of training samples. Specifies the size of the training dataset.
 - **N_test**: Number of testing samples. Specifies the size of the testing dataset.
 
-## Links/References
+## References
 
-- [Original Implementation and Paper](https://arxiv.org/abs/2404.19756)
+- [Liu, Z., Wang, Y., Vaidya, S., Ruehle, F., Halverson, J., Soljačić, M., Hou, T. Y., & Tegmark, M. (2024). KAN: Kolmogorov-Arnold Networks.](https://arxiv.org/abs/2404.19756)
+- [Dixit, V. K., & Rackauckas, C. (2023). Optimization.jl: A Unified Optimization Package (v3.12.1).](https://doi.org/10.5281/zenodo.7738525)
+
 
 ## TODO
 

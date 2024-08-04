@@ -180,7 +180,7 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=5, stop_grid_
 
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
-    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, abstol=1e-32, reltol=1e-32)
+    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, abstol=1e-32, reltol=1e-32, local_abstol=1e-32, local_reltol=1e-32)
     t.params = re(res.minimizer)
     return t.model, re(res.minimizer), t.state
 end

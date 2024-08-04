@@ -40,7 +40,7 @@ X_sorted = copy(X)
 
 println("Data shape: ", size(X), ", ", size(y))
 
-split = parse(Float64, retrieve(conf, "DATA", "split"))
+split = parse(Float64, retrieve(conf, "DOUBLE_PENDULUM", "data_split"))
 split_idx = floor(Int, split * size(X, 1))
 X_train, X_test = X[1:split_idx, :], X[split_idx+1:end, :]
 y_train, y_test = y[1:split_idx, :], y[split_idx+1:end, :]
@@ -52,7 +52,7 @@ model = KAN_model([4,6,2]; k=4, grid_interval=5)
 ps, st = Lux.setup(seed, model)
 
 opt = create_optim_opt(model, "bfgs", "backtrack")
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=100, verbose=true)
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=500, verbose=true)
 model, ps, st = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1, grid_update_num=5, stop_grid_update_step=10)
 model, ps, st = prune(seed, model, ps, st; threshold=0.05)
 model, ps, st = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1, grid_update_num=5, stop_grid_update_step=10)
@@ -107,3 +107,7 @@ end
 gif(anim, "figures/pred_double_pendulum.gif", fps=30)
 
 println("Formula: ", formula)
+
+open("formula.txt", "w") do file
+    write(file, formula)
+end

@@ -26,13 +26,15 @@ bash setup/setup.sh
 bash src/unit_tests/run_tests.sh
 ```
 
-3. Generate double pendulum data, (and also plot)
+3. [Edit setup.](config/config.ini)
+
+4. Generate double pendulum data, (and also plot)
 
 ```bash
 julia --sysimage precompile.so data/double_pendulum/double_pendulum.jl
 ```
 
-4. Try predicting
+5. Try predicting
 
 ```bash
 julia --sysimage precompile.so main.jl

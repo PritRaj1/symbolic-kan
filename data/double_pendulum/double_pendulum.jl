@@ -27,6 +27,7 @@ L1, L2 = 1.0, 1.0
 θ1, ω1, θ2, ω2 = π/2, 0.0, π/2, 0.0
 p = (g, m1, m2, L1, L2)
 u0 = [θ1, ω1, θ2, ω2]
+max_time = parse(Float64, retrieve(conf, "DOUBLE_PENDULUM", "runtime"))
 tspan = (0.0, 20.0)
 
 prob = ODEProblem(double_pendulum!, u0, tspan, p)

@@ -9,6 +9,7 @@ linesearch_map = Dict(
     "backtrack" => LineSearches.BackTracking(),
     "hagerzhang" => LineSearches.HagerZhang(),
     "morethuente" => LineSearches.MoreThuente(),
+    "static" => LineSearches.Static(),
 )
 
 struct optim_opt
@@ -43,6 +44,14 @@ function create_optim_opt(type="l-bfgs", line_search="strongwolfe"; m=10, c_1=1e
     return optim_opt(type, line_search, m)
 end
 
+optimiser_map = Dict(
+    "bfgs" => Optim.BFGS,
+    "cg" => Optim.ConjugateGradient,
+    "gd" => Optim.GradientDescent,
+    "newton" => Optim.Newton,
+    "interiorpoint" => Optim.IPNewton,
+)
+
 function opt_get(o)
     """
     Get optimiser.
@@ -56,14 +65,10 @@ function opt_get(o)
 
     if o.type == "l-bfgs" 
         return Optim.LBFGS(m=o.m, linesearch=o.line_search)
-    elseif o.type == "bfgs"
-        return Optim.BFGS(linesearch=o.line_search)
-    elseif o.type == "cg"
-        return Optim.ConjugateGradient(linesearch=o.line_search)
-    elseif o.type == "gd"
-        return Optim.GradientDescent(linesearch=o.line_search)
-    else
+    elseif o.type == "neldermead"
         return Optim.NelderMead()
+    else
+        return optimiser_map[o.type](linesearch=o.line_search)
     end
 
 end

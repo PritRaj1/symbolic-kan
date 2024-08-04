@@ -99,13 +99,14 @@ function test_auto()
 
     train_data, test_data = create_data(x -> x[1] + x[2], N_var=2, x_range=(-1,1), N_train=100, N_test=100, normalise_input=false, init_seed=1234)
     opt = create_optim_opt("bfgs", "backtrack")
-    trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=100, verbose=true)
+    trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=20, verbose=true)
     model, ps, st = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1, grid_update_num=5, stop_grid_update_step=10)
     y, scales, st = model(train_data[1], ps, st)
     plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=["x1 + x1"], title="KAN", file_name="symbolic_test")
     model, ps, st = prune(Random.default_rng(), model, ps, st)
     y, scales, st = model(train_data[1], ps, st)
     model, ps, st = auto_symbolic(model, ps, st; lib=["sin", "exp", "x^2"])
+    trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=20, verbose=true) # Don't fprget to reinit after pruning!
     model, ps, st = train!(trainer; ps=ps, st=st, λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1, grid_update_num=5, stop_grid_update_step=10)
     return model, ps, st
 end

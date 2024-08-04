@@ -68,6 +68,8 @@ model, ps, st = prune(seed, model, ps, st; threshold=0.01)
 y, scales, st = model(X_test, ps, st)
 st = cpu_device()(st)
 model, ps, st = auto_symbolic(model, ps, st; lib=["sin", "cos", "exp", "x^2", "x", "exp", "log"])
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=20, verbose=true)
+model, ps, st = train!(trainer; ps=ps, st=st, λ=1.0, λ_l1=1., λ_entropy=1.0, λ_coef=0.1, λ_coefdiff=0.1, grid_update_num=5, stop_grid_update_step=10)
 
 formula, x0, st = symbolic_formula(model, ps, st)
 formula = round_formula(string(formula[1]); digits=1)

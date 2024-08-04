@@ -49,7 +49,7 @@ optimiser_map = Dict(
     "cg" => Optim.ConjugateGradient,
     "gd" => Optim.GradientDescent,
     "newton" => Optim.Newton,
-    "interiorpoint" => Optim.IPNewton,
+    "interior-point" => Optim.IPNewton,
 )
 
 function opt_get(o)

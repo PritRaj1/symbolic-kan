@@ -4,9 +4,10 @@ export extend_grid, B_batch, coef2curve, curve2coef
 
 using CUDA, KernelAbstractions
 using Tullio, LinearAlgebra
+using Zygote: @nograd
 
 include("../utils.jl")
-using .Utils: removeNaN, device
+using .Utils: removeNaN, device, removeZero
 
 method = get(ENV, "METHOD", "spline") # "spline" or "RBF"; RBF not properly implemented yet
 
@@ -151,12 +152,12 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0, ε=1e-4)
     eye = Matrix{Float32}(I, n, n) .* ε |> device
     eye = reshape(eye, 1, 1, n, n)
     eye = repeat(eye, n1, n2, 1, 1)
-    BtB = BtB + eye #@tullio out[i, j, p, n] := BtB[i, j, p, n] + eye[i, j, p, n]
+    BtB = BtB + eye 
     
     Bty = @tullio out[i, j, p] := Bt[i, j, p, n] * y_eval[i, j, n]
     
     # x = (BtB)^-1 * Bty
-    coef = @tullio out[i, j, p] := inv(BtB[i, j, p, p]) * Bty[i, j, p]
+    coef = @tullio out[i, j, p] := pinv(BtB[i, j, p, p]) * Bty[i, j, p]
 
     return coef
 

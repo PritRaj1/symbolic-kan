@@ -2,7 +2,7 @@ module OptimTrainer
 
 export init_optim_trainer, train!
 
-using Lux, LuxCUDA, ProgressBars, Dates, Tullio, CSV, Statistics, Zygote, Random, ComponentArrays, Optimization, OptimizationOptimJL, Accessors
+using Lux, LuxCUDA, ProgressBars, Dates, Tullio, CSV, Statistics, Zygote, Random, ComponentArrays, Optimization, OptimizationOptimJL, Accessors, ComponentArrays
 using Optimisers: destructure
 
 include("utils.jl")
@@ -102,9 +102,6 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
         t.state = st
     end
 
-    # Array setup: pars = flattened parameters, re = restructure function
-    pars, re = destructure(t.params)
-
     # Regularisation
     function reg(ps, acts_scale)
         
@@ -117,7 +114,11 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
 
         reg_ = Float32(0.0)
         for i in eachindex(acts_scale[:, 1, 1])
-            vec = reshape(acts_scale[i, :, :], :)
+            
+            # For differentiability need to exclusively pick scales that we're added through padding
+            # scales are layers x next_layer_width x current_layer_width
+            vec = selectdim(selectdim(selectdim(acts_scale, 1, i), 2, 1:t.model.widths[i]), 1, 1:t.model.widths[i+1])
+            
             p = vec ./ sum(vec)
             l1 = sum(non_linear(vec))
             entropy = -1 * sum(p .* log.(p .+ Float32(1e-3)))
@@ -136,9 +137,8 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
 
     # l1 regularisation loss
     function reg_loss(ps, s)
-        ps = re(ps)
         ŷ, scales, t.state = t.model(t.x, ps, t.state)
-        l2 = mean(sum((ŷ .- t.y).^2, dims=1))
+        l2 = mean(sum((ŷ - t.y).^2, dims=2))
         reg_ = reg(ps, scales)
         reg_ = λ * reg_
         return l2 .+ reg_
@@ -151,7 +151,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     start_time = time()
 
     function log_callback!(state::Optimization.OptimizationState, obj)
-        t.params = re(state.u)
+        t.params = state.u
 
         t.x, t.y = x_test, y_test
         test_loss = t.loss_fn(state.u, nothing)
@@ -163,7 +163,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
         new_p = nothing
         if (t.epoch % grid_update_freq == 0) && (t.epoch < stop_grid_update_step) && t.update_grid_bool
             t.model, new_p, t.state = update_grid(t.model, x_train, t.params, t.state)
-            @reset state.u = destructure(new_p)[1]
+            @reset state.u = new_p
             t.params = new_p
         end
         
@@ -185,11 +185,12 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     end
     println("Created log at $file_name")
 
+    pars = ComponentVector(t.params)
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
-    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, x_tol=1e-32, f_tol=1e-9, g_tol=1e-12, allow_f_increases=true, allow_outer_f_increases=true)
-    t.params = re(res.minimizer)
-    return t.model, cpu_device()(re(res.minimizer)), cpu_device()(t.state)
+    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, x_tol=1e-32, f_tol=1e-9, g_tol=1e-12, allow_f_increases=true, allow_outer_f_increases=true, abstol=1e-32, reltol=1e-32, show_trace=true)
+    t.params = res.minimizer
+    return t.model, res.minimizer, cpu_device()(t.state)
 end
 
 end

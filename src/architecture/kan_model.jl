@@ -58,13 +58,15 @@ function Lux.initialparameters(rng::AbstractRNG, m::KAN)
         # Parameters for the spline layer
         layer_ps = Lux.initialparameters(rng, m.act_fcns[i])
         ε, coef, w_base, w_sp = layer_ps[:ε], layer_ps[:coef], layer_ps[:w_base], layer_ps[:w_sp]
-        kan_tuple = NamedTuple{(Symbol("ε_$i"), Symbol("coef_$i"), Symbol("w_base_$i"), Symbol("w_sp_$i"))}((ε, coef, w_base, w_sp))
-        ps = merge(ps, kan_tuple)
+        @reset ps[Symbol("ε_$i")] = ε
+        @reset ps[Symbol("coef_$i")] = coef
+        @reset ps[Symbol("w_base_$i")] = w_base
+        @reset ps[Symbol("w_sp_$i")] = w_sp
 
         # Parameters for the symbolic layer
         symb_ps = Lux.initialparameters(rng, m.symbolic_fcns[i])
-        symb_tuple = NamedTuple{(Symbol("affine_$i"),)}((symb_ps,))
-        ps = merge(ps, symb_tuple)
+        @reset ps[Symbol("affine_$i")] = symb_ps
+
     end
 
     return ps
@@ -93,6 +95,7 @@ end
     return push!(arr, x)
 end
 
+# Zygote does not support adding to array in-place, so treat actscales as a mutable array
 function PadToShape(arr, shape)
     pad = shape .- size(arr)
     zeros_1 = zeros(Float32, 0, pad[2], size(arr, 3)) |> device
@@ -134,9 +137,8 @@ function (m::KAN)(x, ps, st)
         post_acts = spline_st.post_acts .+ symbolic_st.post_acts
 
         # Scales for l1 regularisation
-        in_range = std(spline_st.pre_acts, dims=1)
+        in_range = std(spline_st.pre_acts, dims=1) .+ 0.1
         out_range = std(post_acts, dims=1)
-        in_range = removeZero(in_range; ε=1e-1)
         scales = PadToShape(out_range ./ in_range, (1, maximum(m.widths), maximum(m.widths)))
         act_scale_arr = vcat(act_scale_arr, scales)
         
@@ -259,8 +261,7 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
 
     for i in 1:size(st.act_scale, 1)
         if i < size(st.act_scale, 1)
-            bias_tuple = NamedTuple{(Symbol("bias_$i"),)}([ps[Symbol("bias_$i")][:, active_neurons_id[i+1]]])
-            ps_pruned = merge(ps_pruned, bias_tuple)
+            @reset ps_pruned[Symbol("bias_$i")] = ps[Symbol("bias_$i")][:, active_neurons_id[i+1]]
         end
 
         kan_ps = (
@@ -277,14 +278,15 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
         new_fcn, ps_new, st_new = get_subset(model_pruned.act_fcns[i], kan_ps, st_pruned.act_fcns_st[i], active_neurons_id[i], active_neurons_id[i+1])
         @reset model_pruned.act_fcns[i] = new_fcn
         ε, coef, w_base, w_sp = ps_new[:ε], ps_new[:coef], ps_new[:w_base], ps_new[:w_sp]
-        kan_tuple = NamedTuple{(Symbol("ε_$i"), Symbol("coef_$i"), Symbol("w_base_$i"), Symbol("w_sp_$i"))}((ε, coef, w_base, w_sp))
-        ps_pruned = merge(ps_pruned, kan_tuple)
+        @reset ps_pruned[Symbol("ε_$i")] = ε
+        @reset ps_pruned[Symbol("coef_$i")] = coef
+        @reset ps_pruned[Symbol("w_base_$i")] = w_base
+        @reset ps_pruned[Symbol("w_sp_$i")] = w_sp
         @reset st_pruned.act_fcns_st[i] = st_new
 
         new_fcn, ps_new, st_new = get_symb_subset(m.symbolic_fcns[i], symb_ps, st_pruned.symbolic_fcns_st[i], active_neurons_id[i], active_neurons_id[i+1])
         @reset model_pruned.symbolic_fcns[i] = new_fcn
-        symb_tuple = NamedTuple{(Symbol("affine_$i"),)}((ps_new,))
-        ps_pruned = merge(ps_pruned, symb_tuple)
+        @reset ps_pruned[Symbol("affine_$i")] = ps_new
         @reset st_pruned.symbolic_fcns_st[i] = st_new
 
         @reset model_pruned.widths[i] = length(active_neurons_id[i])
@@ -316,8 +318,10 @@ end
 
         new_l, new_ps, new_st = update_lyr_grid(model.act_fcns[i], kan_ps, st.act_fcns_st[i], st.acts[i])
         @reset model.act_fcns[i] = new_l
-        new_tuple = NamedTuple{(Symbol("ε_$i"), Symbol("coef_$i"), Symbol("w_base_$i"), Symbol("w_sp_$i"))}((new_ps.ε, new_ps.coef, new_ps.w_base, new_ps.w_sp))
-        ps = merge(ps, new_tuple)
+        @reset ps[Symbol("ε_$i")] = new_ps.ε
+        @reset ps[Symbol("coef_$i")] = new_ps.coef
+        @reset ps[Symbol("w_base_$i")] = new_ps.w_base
+        @reset ps[Symbol("w_sp_$i")] = new_ps.w_sp
         push!(acts_fcns_st, new_st)
     end
 

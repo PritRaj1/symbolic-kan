@@ -2,7 +2,7 @@ module OptimTrainer
 
 export init_optim_trainer, train!
 
-using Lux, ProgressBars, Dates, Tullio, CSV, Statistics, Zygote, Random, ComponentArrays, Optimization, OptimizationOptimJL, Accessors
+using Lux, LuxCUDA, ProgressBars, Dates, Tullio, CSV, Statistics, Zygote, Random, ComponentArrays, Optimization, OptimizationOptimJL, Accessors
 using Optimisers: destructure
 
 include("utils.jl")
@@ -59,7 +59,7 @@ function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, opti
     return optim_trainer(model, params, state, train_data, test_data, optim_optimiser, loss_fn, 0, max_iters, update_grid_bool, verbose, log_time, x, y)
 end
 
-function train!(t::optim_trainer; log_loc="logs/", grid_update_num=5, stop_grid_update_step=10, reg_factor=1.0, mag_threshold=1e-16, 
+function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_update_num=5, stop_grid_update_step=10, reg_factor=1.0, mag_threshold=1e-16, 
     λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0)
     """
     Train symbolic model.
@@ -94,6 +94,13 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=5, stop_grid_
     y_train = device(y_train)
     x_test = device(x_test)
     y_test = device(y_test)
+
+    if !isnothing(ps)
+        t.params = ps
+    end
+    if !isnothing(st)
+        t.state = st
+    end
 
     # Array setup: pars = flattened parameters, re = restructure function
     pars, re = destructure(t.params)
@@ -182,7 +189,7 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=5, stop_grid_
     optprob = Optimization.OptimizationProblem(optf, pars)
     res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, x_tol=1e-32, f_tol=1e-9, g_tol=1e-12, allow_f_increases=true, allow_outer_f_increases=true)
     t.params = re(res.minimizer)
-    return t.model, re(res.minimizer), t.state
+    return t.model, cpu_device()(re(res.minimizer)), cpu_device()(t.state)
 end
 
 end

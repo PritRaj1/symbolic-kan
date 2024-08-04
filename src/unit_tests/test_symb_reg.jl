@@ -106,6 +106,7 @@ function test_auto()
     model, ps, st = prune(Random.default_rng(), model, ps, st)
     y, scales, st = model(train_data[1], ps, st)
     model, ps, st = auto_symbolic(model, ps, st; lib=["sin", "exp", "x^2"])
+    model, ps, st = train!(trainer; ps=ps, st=st, λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1, grid_update_num=5, stop_grid_update_step=10)
     return model, ps, st
 end
 

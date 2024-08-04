@@ -6,7 +6,6 @@ using CUDA, KernelAbstractions, Lux, LuxCUDA
 using Lux, Tullio, NNlib, Random, Statistics, SymPy, Accessors
 using Zygote: @nograd
 
-
 include("kan_layer.jl")
 include("symbolic_layer.jl")
 include("../utils.jl")
@@ -103,6 +102,8 @@ function PadToShape(arr, shape)
 end
 
 function (m::KAN)(x, ps, st)
+    x, ps, st = device(x), device(ps), device(st)
+
     x_eval = copy(x)
     acts_arr = [x,]
     pre_acts_arr = []
@@ -190,7 +191,7 @@ function remove_node(st, l, j; verbose=true)
     return st
 end
 
-function prune(rng::AbstractRNG, m, ps, st; threshold=0.1, mode="auto", active_neurons_id=nothing, verbose=true)
+function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_neurons_id=nothing, verbose=true)
     """
     Prune the activation of neuron (l, i, j) based on the threshold.
     If the neuron has a small range of activation, shave off the neuron.
@@ -210,7 +211,7 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.1, mode="auto", active_n
         ps_pruned: Pruned parameters.
         st_pruned: Pruned state.
     """
-    ps, st = cpu_device()(ps), cpu_device()(st)
+
 
     mask = []
     add_to_array!(mask, ones(m.widths[1], ))

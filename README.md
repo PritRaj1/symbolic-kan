@@ -33,7 +33,7 @@ bash src/unit_tests/run_tests.sh
 - Symbolic regression on user-defined formula:
 
 ```bash
-julia --sysimage precompile.so pred_formula.jl
+julia --sysimage precompile.so pred_multiply.jl
 ```
 ## [Configuration File](config/config.ini) 
 

@@ -72,8 +72,6 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
 
     depth = length(model.widths) - 1
 
-    st = cpu_device()(st)
-
     for l in 1:depth
         w_large = 2.0
         for i in 1:model.widths[l]

@@ -1,6 +1,6 @@
 module SymbolicRegression
 
-export fit_params, set_affine, lock_symbolic, set_mode, fix_symbolic, unfix_symbolic, unfix_symb_all, suggest_symbolic, auto_symbolic, symbolic_formula
+export fit_params, set_affine, lock_symbolic, set_mode, fix_symbolic, unfix_symbolic, unfix_symb_all, suggest_symbolic, auto_symbolic, symbolic_formula, remove_edge
 
 using  Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy, Accessors, Lux, LuxCUDA
 
@@ -110,6 +110,15 @@ function set_affine(ps, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)
     @reset ps[j, i, 4] = a4
 
     return ps
+end
+
+function remove_edge(st, l, i, j)
+    """
+    Remove φ(l, i, j) from the symbolic layer.
+    """
+    @reset st.act_fcns_st[l].mask[i, j] = 0.0
+
+    return st
 end
 
 function lock_symbolic(l, ps, i, j, fun_name; x=nothing, y=nothing, random=false, seed=nothing, α_range=(-10, 10), β_range=(-10, 10), μ=1.0, verbose=true)
@@ -268,7 +277,6 @@ function fix_symbolic(model, ps, st, l, i, j, fcn_name; fit_params=true, α_rang
     Returns:
         R2 (or nothing): Coefficient of determination.
     """
-    ps, st = cpu_device()(ps), cpu_device()(st)
 
     st = set_mode(st, l, i, j, "s")
     
@@ -308,7 +316,6 @@ function suggest_symbolic(model, ps, st, l, i, j; α_range=(-10, 10), β_range=(
         - best_fcn: Best symbolic function.
         - best_R2: Coefficient of determination.
     """
-    ps, st = cpu_device()(ps), cpu_device()(st)
 
     R2s = []
     if isnothing(lib)
@@ -354,7 +361,6 @@ function auto_symbolic(model, ps, st; α_range=(-10, 10), β_range=(-10, 10), li
         lib: Symbolic library.
         verbose: Print updates.
     """
-    ps, st = cpu_device()(ps), cpu_device()(st)
 
     for l in eachindex(model.widths[1:end-1])
         for i in 1:model.widths[l]
@@ -390,7 +396,6 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
     - symbolic_acts: List of symbolic activations.
     - x0: List of symbolic variables.
     """
-    ps, st = cpu_device()(ps), cpu_device()(st)
 
     symbolic_acts = []
     x = []

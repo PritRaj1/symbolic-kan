@@ -17,7 +17,7 @@ struct optim_opt
     m::Int
 end
 
-function create_optim_opt(model, type="l-bfgs", line_search="strongwolfe"; m=10, c_1=1e-4, c_2=0.9, ρ=0.5, ϵ=1e-8)
+function create_optim_opt(type="l-bfgs", line_search="strongwolfe"; m=10, c_1=1e-4, c_2=0.9, ρ=0.5)
     """
     Create optimiser.
 
@@ -60,6 +60,8 @@ function opt_get(o)
         return Optim.BFGS(linesearch=o.line_search)
     elseif o.type == "cg"
         return Optim.ConjugateGradient(linesearch=o.line_search)
+    elseif o.type == "gd"
+        return Optim.GradientDescent(linesearch=o.line_search)
     else
         return Optim.NelderMead()
     end

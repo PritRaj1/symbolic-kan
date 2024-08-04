@@ -49,13 +49,17 @@ G = parse(Int, retrieve(conf, "ARCHITECTURE", "G"))
 ### Optimisation hyperparams ###
 type = retrieve(conf, "OPTIMIZER", "type")
 linesearch = retrieve(conf, "OPTIMIZER", "linesearch")
+m = parse(Int, retrieve(conf, "OPTIMIZER", "m"))
+c_1 = parse(Float64, retrieve(conf, "OPTIMIZER", "c_1"))
+c_2 = parse(Float64, retrieve(conf, "OPTIMIZER", "c_2"))
+ρ = parse(Float64, retrieve(conf, "OPTIMIZER", "ρ"))
 
 seed = Random.seed!(123)
 model = KAN_model([2,5,1]; k=k, grid_interval=G)
 ps, st = Lux.setup(seed, model)
 
 train_data, test_data = create_data(FUNCTION, N_var=2, x_range=lims, N_train=N_train, N_test=N_test, normalise_input=normalise, init_seed=seed)
-opt = create_optim_opt(model, type, linesearch)
+opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ)
 trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true)
 model, ps, st = train!(trainer; λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, grid_update_num=num_grid_updates, stop_grid_update_step=final_grid_epoch)
 model, ps, st = prune(seed, model, ps, st)

@@ -31,21 +31,19 @@ bash src/unit_tests/run_tests.sh
 
 4. Run some files
 
-- Symbolic regression on formula
+- Symbolic regression on user-defined formula:
 
 ```bash
-julia --sysimage precompile.so predict_formula.jl
+julia --sysimage precompile.so pred_formula.jl
 ```
 
-- (Try to) infer double pendulum formula:
-```bash
-julia --sysimage precompile.so data/double_pendulum/double_pendulum.jl
-julia --sysimage precompile.so pred_pendulum.jl
-```
+## Links/References
+
+- [Original Implementation and Paper](https://arxiv.org/abs/2404.19756)
 
 ## TODO
 
-1. Feynmann Dataset
+1. Feynmann Dataset?
 
 
 

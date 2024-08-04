@@ -2,6 +2,7 @@ using NNlib
 using OptimizationOptimJL
 using LineSearches
 using CUDA
+using LuxCUDA
 using cuDNN
 using LinearAlgebra
 using KernelAbstractions

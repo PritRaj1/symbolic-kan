@@ -1,4 +1,4 @@
-using ConfParser, Random, Lux, CUDA, KernelAbstractions
+using ConfParser, Random, Lux
 
 conf = ConfParse("config/config.ini")
 parse_conf!(conf)

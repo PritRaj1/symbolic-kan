@@ -35,7 +35,7 @@ using .SymbolicRegression
 using .PipelineUtils
 using .OptimTrainer
 using .Optimisation
-using .Utils: round_formula
+using .Utils: round_formula, device
 using .Plotting
 
 data = CSV.read("data/double_pendulum/double_pendulum_data.csv", DataFrame)

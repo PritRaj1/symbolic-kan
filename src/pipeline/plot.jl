@@ -2,7 +2,7 @@ module Plotting
 
 export plot_kan
 
-using Statistics, Makie, GLMakie, FileIO, Printf, IntervalSets
+using Statistics, Makie, GLMakie, FileIO, Printf, IntervalSets, Lux, LuxCUDA
 
 function get_range(st, l, i, j; verbose=true)
     """
@@ -71,6 +71,8 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
     !isdir(folder * "splines/") && mkdir(folder * "splines/")
 
     depth = length(model.widths) - 1
+
+    st = cpu_device()(st)
 
     for l in 1:depth
         w_large = 2.0

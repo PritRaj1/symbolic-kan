@@ -131,7 +131,7 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=5, stop_grid_
     function reg_loss(ps, s)
         ps = re(ps)
         ŷ, scales, t.state = t.model(t.x, ps, t.state)
-        l2 = mean(sum((ŷ .- t.y).^2))
+        l2 = mean(sum((ŷ .- t.y).^2, dims=1))
         reg_ = reg(ps, scales)
         reg_ = λ * reg_
         return l2 .+ reg_

@@ -2,7 +2,7 @@ module KolmogorovArnoldNets
 
 export KAN, KAN_model, prune, update_grid
 
-using CUDA, KernelAbstractions
+using CUDA, KernelAbstractions, Lux, LuxCUDA
 using Lux, Tullio, NNlib, Random, Statistics, SymPy, Accessors
 using Zygote: @nograd
 
@@ -210,6 +210,8 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.3, mode="auto", active_n
         ps_pruned: Pruned parameters.
         st_pruned: Pruned state.
     """
+    ps, st = cpu_device()(ps), cpu_device()(st)
+
     mask = []
     add_to_array!(mask, ones(m.widths[1], ))
     active_neurons_id = []
@@ -290,7 +292,7 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.3, mode="auto", active_n
     @reset st_pruned.mask = mask
     @reset model_pruned.depth = length(model_pruned.widths) - 1
 
-    return model_pruned, ps_pruned, st_pruned
+    return model_pruned, device(ps_pruned), device(st_pruned)
 end
 
 @nograd function update_grid(model, x, ps, st)

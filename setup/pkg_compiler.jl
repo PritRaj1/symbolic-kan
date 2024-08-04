@@ -8,6 +8,6 @@ create_sysimage(
         "LineSearches", "FluxOptTools", "Plots", "DifferentialEquations", "Accessors", "Optimisers", 
         "ComponentArrays", "ConfParser", "LuxCUDA"
     ],
-    sysimage_path="../precompile.so",
-    precompile_execution_file="precompile.jl"
+    sysimage_path="precompile.so",
+    precompile_execution_file="setup/precompile.jl"
 )

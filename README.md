@@ -26,7 +26,7 @@ bash setup/setup.sh
 bash src/unit_tests/run_tests.sh
 ```
 
-3. [Edit setup.](config/config.ini) 
+3. [Setup config file.](config/config.ini) 
 
 4. Run some files
 
@@ -35,7 +35,7 @@ bash src/unit_tests/run_tests.sh
 ```bash
 julia --sysimage precompile.so pred_formula.jl
 ```
-## Configuration File
+## [Configuration File](config/config.ini) 
 
 ### Architecture
 - **k**: Degree of spline basis functions. Determines the smoothness of the spline functions used.

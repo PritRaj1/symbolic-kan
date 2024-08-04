@@ -1,3 +1,12 @@
+"""
+As a first task, I chose to apply the KAN towards predicting the double pendulum 
+because it's quick to implement, and looks cool as a GIF. 
+
+Besides, I'm interested to see whether or not the symbolic KAN can unpack its formuala, 
+(probably not). But the double pendulum is a sequence modelling problem, so a simple 
+FCNN (fully connected neural net) is a horrible choice of architecture to do this with :P
+"""
+
 using CSV
 using DataFrames
 using Random

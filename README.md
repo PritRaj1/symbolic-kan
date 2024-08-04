@@ -37,7 +37,7 @@ julia --sysimage precompile.so data/double_pendulum/double_pendulum.jl
 5. Try predicting
 
 ```bash
-julia --sysimage precompile.so main.jl
+julia --sysimage precompile.so pred_pendulum.jl
 ```
 
 ## TODO
@@ -45,6 +45,4 @@ julia --sysimage precompile.so main.jl
 1. Feynmann Dataset
 
 
-## Note from author.
 
-As a first task, I chose to apply the KAN towards predicting the double pendulum because it's quick to implement, and looks cool as a GIF. Besides, I'm interested to see whether or not the symbolic KAN can unpack its formuala, (probably not). But the double pendulum is a sequence modelling problem, so a simple FCNN (fully connected neural net) is a horrible choice of architecture to do this with.

@@ -5,20 +5,21 @@ using Lux, LuxCUDA, CUDA, KernelAbstractions, Tullio, Test, Random, Zygote
 include("../architecture/kan_layer.jl")
 include("../architecture/symbolic_layer.jl")
 include("../architecture/kan_model.jl")
+include("../pipeline/symbolic_regression.jl")
 include("../pipeline/optim_trainer.jl")
 include("../pipeline/utils.jl")
 include("../pipeline/plot.jl")
-include("../architecture/kan_model.jl")
 include("../pipeline/optimisation.jl")
 include("../utils.jl")
 using .dense_kan
 using .symbolic_layer
 using .KolmogorovArnoldNets
+using .SymbolicRegression
 using .OptimTrainer
 using .PipelineUtils
 using .Plotting
 using .Optimisation
-using .Utils: device
+using .Utils: device, round_formula
 
 # Test b_spline_layer
 function test_spline_lyr()
@@ -89,10 +90,47 @@ function test_training()
     return model, params, state, train_data[1]
 end
 
+function test_prune(model, ps, st, x)
+    mask_before = st.mask[1]
+    model, ps, st = prune(Random.default_rng(), model, ps, st)
+    mask_after = st.mask
+    y, scales, st = model(x, ps, st)
+
+    sum_mask_after = 0.0
+    for i in eachindex(mask_after)
+        sum_mask_after += sum(mask_after[i])
+    end
+
+    println("Number of neurons after pruning: ", sum_mask_after)
+    @test sum_mask_after != sum(mask_before)
+    return model, ps, st
+end
+
+function test_auto_symbolic(model, ps, st)
+    model, ps, st = auto_symbolic(model, ps, st; lib=["sin", "exp", "x^2"])
+    return model, ps, st
+end
+
+function test_formula(model, ps, st)
+    formula, x0, st = symbolic_formula(model, ps, st)
+    formula = string(formula[1])
+    formula = round_formula(formula)
+    println("Formula: ", formula)
+    return formula, st
+end
+
+function plot_symb(model, st, form)
+    plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[form], title="Pruned Symbolic KAN", model_name="gpu_symbolic_test")
+end
+
 
 
 # test_spline_lyr()
 # test_symb_lyr()
 # test_model()
 # test_grid()
-test_training()
+model, ps, st, x = test_training()
+model, ps, st = test_prune(model, ps, st, x)
+model, ps, st = test_auto_symbolic(model, ps, st)
+formula, st = test_formula(model, ps, st)
+plot_symb(model, st, formula)

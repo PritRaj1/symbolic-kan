@@ -40,8 +40,7 @@ julia --sysimage precompile.so main.jl
 
 ## TODO
 
-1. CUDA? - not currently supported
-2. Feynmann Dataset
+1. Feynmann Dataset
 
 
 ## Note from author.

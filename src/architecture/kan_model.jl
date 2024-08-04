@@ -218,8 +218,10 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.3, mode="auto", active_n
 
     for i in 1:m.depth-1
         if mode == "auto"
-            in_important = ifelse.(maximum(st.act_scale[i, :, :], dims=2)[1, :, :] .> threshold, Float32(1.0),  Float32(0.0))
-            out_important = ifelse.(maximum(st.act_scale[i+1, :, :], dims=1)[1, :, :] .> threshold,  Float32(1.0),  Float32(0.0))
+            scale1 = selectdim(st.act_scale, 1, i)
+            scale2 = selectdim(st.act_scale, 1, i+1)
+            in_important = ifelse.(maximum(scale1, dims=2)[1, :, :] .> threshold, Float32(1),  Float32(0))
+            out_important = ifelse.(maximum(scale2, dims=1)[1, :, :] .> threshold,  Float32(1),  Float32(0))
             overall_important = in_important .* out_important
         elseif mode == "manual"
             overall_important = zeros(Float32, m.widths[i+1])

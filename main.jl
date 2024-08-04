@@ -6,6 +6,13 @@ using ConfParser
 using Lux
 using Plots
 
+conf = ConfParse("config/config.ini")
+parse_conf!(conf)
+
+use_gpu = parse(Bool, retrieve(conf, "CUDA", "use_gpu"))
+
+ENV["GPU"] = use_gpu ? "true" : "false"
+
 include("src/pipeline/symbolic_regression.jl")
 include("src/architecture/kan_model.jl")
 include("src/pipeline/utils.jl")
@@ -20,9 +27,6 @@ using .OptimTrainer
 using .Optimisation
 using .Utils: round_formula
 using .Plotting
-
-conf = ConfParse("config/data_generation_config.ini")
-parse_conf!(conf)
 
 data = CSV.read("data/double_pendulum/double_pendulum_data.csv", DataFrame)
 sort!(data, :time)

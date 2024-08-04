@@ -2,7 +2,7 @@ module SymbolicLib
 
 export SYMBOLIC_LIB
 
-using Flux, LinearAlgebra, SymPy
+using LinearAlgebra, SymPy
 
 # Helper functions
 nan_to_num = function(x)

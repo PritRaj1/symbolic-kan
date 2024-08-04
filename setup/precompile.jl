@@ -1,8 +1,6 @@
-using Flux
 using NNlib
 using OptimizationOptimJL
 using LineSearches
-using FluxOptTools
 using CUDA
 using cuDNN
 using LinearAlgebra

@@ -8,9 +8,11 @@ using Optimisers: destructure
 include("utils.jl")
 include("../pipeline/optimisation.jl")
 include("../architecture/kan_model.jl")
-using .PipelineUtils: log_csv, diff3
+include("../utils.jl")
+using .PipelineUtils: log_csv
 using .KolmogorovArnoldNets
 using .Optimisation: opt_get
+using .Utils: device
 
 mutable struct optim_trainer
     model
@@ -49,7 +51,12 @@ function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, opti
     - t: trainer object.
     """
     params, state = Lux.setup(rng, model)
-    return optim_trainer(model, params, state, train_data, test_data, optim_optimiser, loss_fn, 0, max_iters, update_grid_bool, verbose, log_time, train_data...)
+    params = device(params)
+    state = device(state)
+    x, y = train_data
+    x = device(x)
+    y = device(y)
+    return optim_trainer(model, params, state, train_data, test_data, optim_optimiser, loss_fn, 0, max_iters, update_grid_bool, verbose, log_time, x, y)
 end
 
 function train!(t::optim_trainer; log_loc="logs/", grid_update_num=5, stop_grid_update_step=10, reg_factor=1.0, mag_threshold=1e-16, 
@@ -82,6 +89,11 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=5, stop_grid_
     grid_update_freq = fld(stop_grid_update_step, grid_update_num)
     x_train, y_train = t.train_data
     x_test, y_test = t.test_data
+    
+    x_train = device(x_train)
+    y_train = device(y_train)
+    x_test = device(x_test)
+    y_test = device(y_test)
 
     # Array setup: pars = flattened parameters, re = restructure function
     pars, re = destructure(t.params)
@@ -107,7 +119,7 @@ function train!(t::optim_trainer; log_loc="logs/", grid_update_num=5, stop_grid_
 
         for i in eachindex(t.model.act_fcns)
             coeff_l1 = sum(mean(abs.(ps[Symbol("coef_$i")]), dims=2))
-            coeff_diff_l1 = sum(mean(abs.(diff3(ps[Symbol("coef_$i")])), dims=2))
+            coeff_diff_l1 = sum(mean(abs.(diff(ps[Symbol("coef_$i")]; dims=3)), dims=2))
             reg_ += (λ_coef * coeff_l1) + (λ_coefdiff * coeff_diff_l1)
         end
 

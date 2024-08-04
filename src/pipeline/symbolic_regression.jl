@@ -2,7 +2,7 @@ module SymbolicRegression
 
 export fit_params, set_affine, lock_symbolic, set_mode, fix_symbolic, unfix_symbolic, unfix_symb_all, suggest_symbolic, auto_symbolic, symbolic_formula
 
-using Flux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy, Accessors
+using  Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy, Accessors
 
 include("../symbolic_lib.jl")
 include("../architecture/symbolic_layer.jl")

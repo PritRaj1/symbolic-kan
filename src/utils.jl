@@ -5,8 +5,9 @@ module Utils
 using Lux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random
 using CUDA, LuxCUDA, KernelAbstractions
 
+const pu = CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false")) ? gpu_device() : cpu_device()
+
 function device(x)
-    pu = CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false")) ? gpu_device() : cpu_device()
     return pu(x)
 end
 

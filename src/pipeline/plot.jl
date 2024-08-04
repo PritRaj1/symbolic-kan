@@ -2,7 +2,7 @@ module Plotting
 
 export plot_kan
 
-using Flux, Statistics, Makie, GLMakie, FileIO, Printf, IntervalSets
+using Statistics, Makie, GLMakie, FileIO, Printf, IntervalSets
 
 function get_range(st, l, i, j; verbose=true)
     """

@@ -3,12 +3,7 @@ module PipelineUtils
 export create_data, log_csv
 
 using Statistics, Random
-# using CUDA, KernelAbstractions
-
-function diff3(A)
-    s1, s2, s3 = size(A)
-    return [A[i,j,k+1] - A[i,j,k] for i=1:s1, j=1:s2, k=1:s3-1]
-end
+using CUDA, KernelAbstractions
 
 # Log the loss to CSV
 function log_csv(epoch, time, train_loss, test_loss, reg, file_name; log_time=true)

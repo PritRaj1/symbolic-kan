@@ -1,4 +1,4 @@
-using ConfParser, Random, Lux
+using ConfParser, Random, Lux, CUDA, KernelAbstractions
 
 conf = ConfParse("config/config.ini")
 parse_conf!(conf)
@@ -6,7 +6,6 @@ parse_conf!(conf)
 use_gpu = parse(Bool, retrieve(conf, "CUDA", "use_gpu"))
 
 ENV["GPU"] = use_gpu ? "true" : "false"
-println("GPU: ", ENV["GPU"])
 
 include("src/pipeline/symbolic_regression.jl")
 include("src/architecture/kan_model.jl")

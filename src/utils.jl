@@ -6,6 +6,7 @@ using Lux, Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random
 using CUDA, LuxCUDA, KernelAbstractions
 
 const pu = CUDA.has_cuda() && parse(Bool, get(ENV, "GPU", "false")) ? gpu_device() : cpu_device()
+println("Using GPU device: ", pu)
 
 function device(x)
     return pu(x)

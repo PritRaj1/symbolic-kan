@@ -119,7 +119,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
             vec = reshape(st[Symbol("act_scale_$i")], :)
             p = vec ./ sum(vec)
             l1 = sum(non_linear(vec))
-            entropy = -1 * sum(p .* log.(p .+ Float32(1e-3)))
+            entropy = -1 * sum(p .* log.(p .+ Float32(1e-2)))
             reg_ += (l1 * λ_l1) + (entropy * λ_entropy)
         end
 

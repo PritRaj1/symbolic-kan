@@ -35,11 +35,11 @@ end
 
 function test_sin_fitting()
     num = 500
-    x = range(-5, 5, length=num) |> collect
+    x = range(-0.5, 0.5, length=num) |> collect
     Random.seed!(123)
     noises = randn(num) .* 0.02
-    y = 5 .* exp.(3 .* x .+ 2) .+ 0.7 .+ noises
-    fcn(x) = exp(x)
+    y = 5 .* tan.(3 .* x .+ 2) .+ 0.7 .+ noises
+    fcn(x) = tan(x)
     params, R2 = fit_params(x, y, fcn)
 
     @test abs(params[1] - 3) < 0.1

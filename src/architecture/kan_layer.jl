@@ -3,12 +3,17 @@ module dense_kan
 export KAN_Dense, kan_dense, update_lyr_grid, get_subset
 
 using CUDA, KernelAbstractions
-using Lux, Tullio, NNlib, Random, Accessors
+using Lux, Tullio, NNlib, Random, Accessors, ConfParser
 
 include("spline.jl")
 include("../utils.jl")
 using .Spline: extend_grid, coef2curve, curve2coef
 using .Utils: sparse_mask, device
+
+conf = ConfParse("config/config.ini")
+parse_conf!(conf)
+
+sparse_init = parse(Bool, retrieve(conf, "ARCHITECTURE", "sparse_init"))
 
 struct kan_dense <: Lux.AbstractExplicitLayer
     in_dim::Int
@@ -25,35 +30,34 @@ struct kan_dense <: Lux.AbstractExplicitLayer
     σ_sp::Float32
 end
 
-function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=0.1, σ_base=nothing, σ_sp=1.0, base_act=NNlib.selu, grid_eps=0.02, grid_range=(-1, 1))
+function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=0.1, σ_base=1.0, σ_sp=1.0, base_act=NNlib.selu, grid_eps=0.02, grid_range=(-1, 1))
     grid = range(grid_range[1], grid_range[2], length=num_splines + 1) |> collect |> x -> reshape(x, 1, length(x))
     grid = repeat(grid, in_dim, 1) 
     grid = extend_grid(grid, degree) |> device
-    init_σ = 1.0
-
-    σ_base = isnothing(σ_base) ? ones(Float32, in_dim, out_dim) : σ_base
+    RBF_σ = 1.0
     
-    return kan_dense(in_dim, out_dim, num_splines, degree, grid, init_σ, base_act, grid_eps, grid_range, ε_scale, σ_base, σ_sp)
+    return kan_dense(in_dim, out_dim, num_splines, degree, grid, RBF_σ, base_act, grid_eps, grid_range, ε_scale, σ_base, σ_sp)
 end
 
 function Lux.initialparameters(rng::AbstractRNG, l::kan_dense)
     ε = ((rand(rng, Float32, l.num_splines + 1, l.in_dim, l.out_dim) .- 0.5f0) .* l.ε_scale ./ l.num_splines) |> device
     coef = curve2coef(l.grid[:, l.degree+1:end-l.degree] |> permutedims, ε, l.grid; k=l.degree, scale=l.RBF_σ)
+
+    if sparse_init
+        mask = sparse_mask(l.in_dim, l.out_dim)
+    else
+        mask = 1.0f0
+    end
     
-    w_base = ones(Float32, l.in_dim, l.out_dim) .* l.σ_base
-    w_sp = ones(Float32, l.in_dim, l.out_dim) .* l.σ_sp
+    w_base = ones(Float32, l.in_dim, l.out_dim) .* l.σ_base .* mask
+    w_sp = ones(Float32, l.in_dim, l.out_dim) .* l.σ_sp .* mask
 
     return (ε=ε, coef=coef, w_base=w_base, w_sp=w_sp)
 end
 
 function Lux.initialstates(rng::AbstractRNG, l::kan_dense)
-    sparse_init = parse(Bool, get(ENV, "SPARSE_INIT", "false"))
-
-    if sparse_init
-        mask = sparse_mask(l.in_dim, l.out_dim)
-    else
-        mask = ones(Float32, l.in_dim, l.out_dim)
-    end
+    
+    mask = ones(Float32, l.in_dim, l.out_dim)
 
     return (mask=mask, pre_acts=nothing, post_acts=nothing, post_spline=nothing)
 end

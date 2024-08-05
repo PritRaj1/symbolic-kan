@@ -66,6 +66,8 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
     - title: title of plot.
     """
 
+    st = cpu_device()(st)
+
     # Create folder if it does not exist
     !isdir(folder) && mkdir(folder)    
     !isdir(folder * "splines/") && mkdir(folder * "splines/")
@@ -78,8 +80,8 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
             for j in 1:model.widths[l+1]
                 rank = sortperm(view(st.acts[l][:, i], :), rev=true)
 
-                symbol_mask = st.symbolic_fcns_st[l].mask[j, i]
-                numerical_mask = st.act_fcns_st[l].mask[i, j]
+                symbol_mask = st[Symbol("symb_fcn_mask_$l")][j, i]
+                numerical_mask = st[Symbol("act_fcn_mask_$l")][i, j]
 
                 fig = Figure(
                     size = (w_large * μ, w_large * μ),
@@ -185,8 +187,8 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
 
                 if l < neuron_depth - 1
                     
-                    symbol_mask = st.symbolic_fcns_st[l].mask[j, i]
-                    numerical_mask = st.act_fcns_st[l].mask[i, j]
+                    symbol_mask = st[Symbol("symb_fcn_mask_$l")][j, i]
+                    numerical_mask = st[Symbol("act_fcn_mask_$l")][i, j]
                     
                     if symbol_mask > 0 && numerical_mask > 0
                         color = :purple
@@ -209,8 +211,9 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
                     alpha_plot = mask ? alpha[l][j, i] * st.mask[l][i] * st.mask[l + 1][j] : alpha[l][j, i] * alpha_mask
 
                 else
-                    symbol_mask = st.symbolic_fcns_st[end].mask[j, i]
-                    numerical_mask = st.act_fcns_st[end].mask[i, j]
+                    last = neuron_depth-1
+                    symbol_mask = st[Symbol("symb_fcn_mask_$last")][j, i]
+                    numerical_mask = st[Symbol("act_fcn_mask_$last")][i, j]
 
                     if symbol_mask > 0 && numerical_mask > 0
                         color = :purple

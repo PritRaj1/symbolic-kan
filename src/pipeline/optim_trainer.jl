@@ -2,7 +2,7 @@ module OptimTrainer
 
 export init_optim_trainer, train!
 
-using Lux, LuxCUDA, ProgressBars, Dates, Tullio, CSV, Statistics, Zygote, Random, ComponentArrays, Optimization, OptimizationOptimJL, Accessors, ComponentArrays
+using Lux, LuxCUDA, ProgressBars, Dates, Tullio, CSV, Statistics, Zygote, Random, ComponentArrays, Optimization, OptimizationOptimJL, Accessors
 using Optimisers: destructure
 
 include("utils.jl")
@@ -96,11 +96,13 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     y_test = device(y_test)
 
     if !isnothing(ps)
-        t.params = ps
+        t.params = device(ps)
     end
     if !isnothing(st)
-        t.state = st
+        t.state = device(st)
     end
+
+    pars, re = destructure(t.params)
 
     # Regularisation
     function reg(ps, st)
@@ -133,8 +135,9 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
 
     # l1 regularisation loss
     function reg_loss(ps, s)
+        ps = re(ps)
         ŷ, t.state = t.model(t.x, ps, t.state)
-        l2 = mean(sum((ŷ - t.y).^2, dims=2))
+        l2 = mean(sum((ŷ .- t.y).^2, dims=2)) # L2 loss
         reg_ = reg(ps, t.state)
         reg_ = λ * reg_
         return l2 .+ reg_
@@ -147,7 +150,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     start_time = time()
 
     function log_callback!(state::Optimization.OptimizationState, obj)
-        t.params = state.u
+        t.params = re(state.u)
 
         t.x, t.y = x_test, y_test
         test_loss = t.loss_fn(state.u, nothing)
@@ -158,8 +161,8 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
         # Update grid once per epoch if it's time
         new_p = nothing
         if (t.epoch % grid_update_freq == 0) && (t.epoch < stop_grid_update_step) && t.update_grid_bool
-            t.model, new_p, t.state = update_grid(t.model, x_train, t.params, t.state)
-            @reset state.u = new_p
+            t.model, new_p = update_grid(t.model, x_train, t.params, t.state)
+            @reset state.u = destructure(new_p)[1]
             t.params = new_p
         end
         
@@ -181,12 +184,11 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     end
     println("Created log at $file_name")
 
-    pars = ComponentVector(t.params)
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
     res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, x_tol=1e-32, f_tol=1e-9, g_tol=1e-12, allow_f_increases=true, allow_outer_f_increases=true, abstol=1e-32, reltol=1e-32, show_trace=true)
-    t.params = res.minimizer
-    return t.model, cpu_device()(res.minimizer), cpu_device()(t.state)
+    t.params = re(res.minimizer)
+    return t.model, cpu_device()(t.params), cpu_device()(t.state)
 end
 
 end

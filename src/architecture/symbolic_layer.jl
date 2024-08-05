@@ -53,7 +53,21 @@ function apply_fcn(x, y; fcn)
 end
 
 ### c * f(a*x + b) + d ###  
-function (l::symbolic_dense)(x, ps, st; avoid_singular=true, y_th=10.0f0)
+function (l::symbolic_dense)(x, ps, mask; avoid_singular=true, y_th=10.0f0)
+    """
+    Forward pass of the symbolic dense layer evaluated for input x.
+
+    Args:
+        x: A matrix of size (b, in_dim) containing the input data.
+        ps: A tuple containing the parameters of the layer.
+        mask: A matrix of size (out_dim, in_dim) containing the mask of the layer.
+        avoid_singular: A boolean indicating whether to avoid singularities.
+        y_th: Secondary argument for singular avoiding functions.
+
+    Returns:
+        z: A matrix of size (b, out_dim) containing the output data.
+        new_st: A tuple containing the new state of the layer.
+    """
     b_size = size(x, 1)
     y_th = avoid_singular ? device(repeat([y_th], b_size,)) : nothing
     fcns = avoid_singular ? l.fcns_avoid_singular : l.fcns
@@ -80,14 +94,29 @@ function (l::symbolic_dense)(x, ps, st; avoid_singular=true, y_th=10.0f0)
     end
 
     post_acts = @tullio out[b, j, i] := C[j, i] * ŷ[b, j, i] + D[j, i]
-    post_acts = @tullio out[b, j, i] := st.mask[j, i] * post_acts[b, j, i]
+    post_acts = @tullio out[b, j, i] := mask[j, i] * post_acts[b, j, i]
 
     z = sum(post_acts, dims=3)[:, :, 1]
-    new_st = (mask=st.mask, post_acts=post_acts)
+    new_st = (mask=mask, post_acts=post_acts)
     return z, new_st
 end
 
-function get_symb_subset(l::symbolic_dense, ps, st, in_indices, out_indices)
+function get_symb_subset(l::symbolic_dense, ps, old_mask, in_indices, out_indices)
+    """
+    Extract a subset of the symbolic dense layer.
+
+    Args:
+        l: The symbolic dense layer.
+        ps: The parameters of the layer.
+        old_mask: The mask of the layer.
+        in_indices: The indices of the input dimensions to extract.
+        out_indices: The indices of the output dimensions to extract.
+
+    Returns:
+        l_sub: The subset of the symbolic dense layer.
+        ps_sub: The subset of the parameters of the layer.
+        mask_sub: The subset of the mask of the layer.
+    """
     l_sub = SymbolicDense(l.in_dim, l.out_dim)
     @reset l_sub.in_dim = length(in_indices)
     @reset l_sub.out_dim = length(out_indices)
@@ -96,17 +125,12 @@ function get_symb_subset(l::symbolic_dense, ps, st, in_indices, out_indices)
         affine = ps[out_indices, in_indices, :]
     )
 
-    st_sub = (
-        mask = st.mask[out_indices, in_indices],
-        post_acts = nothing
-    )
-
     @reset l_sub.fcns = [[l.fcns[j][i] for i in in_indices] for j in out_indices]
     @reset l_sub.fcns_avoid_singular = [[l.fcns_avoid_singular[j][i] for i in in_indices] for j in out_indices]
     @reset l_sub.fcn_names = [[l.fcn_names[j][i] for i in in_indices] for j in out_indices]
     @reset l_sub.fcn_sympys = [[l.fcn_sympys[j][i] for i in in_indices] for j in out_indices]
 
-    return l_sub, ps_sub, st_sub
+    return l_sub, ps_sub, old_mask[out_indices, in_indices]
 end
 
 end

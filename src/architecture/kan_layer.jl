@@ -58,29 +58,42 @@ function Lux.initialstates(rng::AbstractRNG, l::kan_dense)
     return (mask=mask, pre_acts=nothing, post_acts=nothing, post_spline=nothing)
 end
 
-function (l::kan_dense)(x, ps, st)
+function (l::kan_dense)(x, ps, mask)
+    """
+    Forward pass of the KAN layer.
+
+    Args:
+        l: The kan_dense layer.
+        ps: The parameters of the layer.
+        mask: The mask of the layer.
+        x: A matrix of size (b, d) containing the input data.
+
+    Returns:
+        y: A matrix of size (b, o) containing the post_activation output data.
+        new_st: The updated state of the layer.
+    """
     b_size = size(x, 1)
 
-    # Base activation.
     pre_acts = repeat(reshape(copy(x), b_size, 1, l.in_dim), 1, l.out_dim, 1)
-    base = l.base_act(x)
+    base = l.base_act(x) # b(x)
 
     # B-spline basis functions of degree k
-    y = coef2curve(x, l.grid, ps.coef; k=l.degree, scale=l.RBF_σ)
+    y = coef2curve(x, l.grid, ps.coef; k=l.degree, scale=l.RBF_σ) # spline(x)
     post_spline = permutedims(copy(y), [1, 3, 2])
 
-    # w_b*b(x) + w_s*spline(x).fwd, update_lyr_grid!, get_subset
-    y = @tullio out[b, i, o] := (ps.w_base[i, o] * base[b, i] + ps.w_sp[i, o] * y[b, i, o]) * st.mask[i, o]
+    # w_b*b(x) + w_s*spline(x)
+    y = @tullio out[b, i, o] := (ps.w_base[i, o] * base[b, i] + ps.w_sp[i, o] * y[b, i, o]) * mask[i, o]
     post_acts = permutedims(copy(y), [1, 3, 2])
 
+    # Inner Kolmogorov-Arnold sum
     y = sum(y, dims=2)[:, 1, :]
 
-    new_st = (mask=st.mask, pre_acts=pre_acts, post_acts=post_acts, post_spline=post_spline)
+    new_st = (mask=mask, pre_acts=pre_acts, post_acts=post_acts, post_spline=post_spline)
     return y, new_st
 end
 
 
-function update_lyr_grid(l, ps, st, x; margin=0.01)
+function update_lyr_grid(l, ps, x)
     """
     Adapt the grid to the distribution of the input data
 
@@ -89,7 +102,10 @@ function update_lyr_grid(l, ps, st, x; margin=0.01)
         ps: The parameters of the layer.
         st: The state of the layer.
         x: A matrix of size (b, d) containing the input data.
-        margin: The margin to add to the grid.
+
+    Returns:
+        l: The updated kan_dense layer.
+        ps: The updated parameters.
     """
     b_size = size(x, 1)
     
@@ -121,25 +137,26 @@ function update_lyr_grid(l, ps, st, x; margin=0.01)
     @reset ps.coef = new_coef
     @reset l.grid = new_grid
 
-    return l, ps, st
+    return l, ps
 end
 
-function get_subset(l, ps, st, in_indices, out_indices)
+function get_subset(l, ps, old_mask, in_indices, out_indices)
     """
     Extract smaller subset of the layer for pruning.
 
     Args:
         l: The kan_dense layer.
         ps: The parameters of the layer.
-        st: The state of the layer.
+        old_mask: The mask of the layer.
         in_indices: The indices of the input neurons to keep.
         out_indices: The indices of the output neurons to keep.
 
     Returns:
         l_subset: The subset kan_dense layer.
         ps_subset: The subset parameters.
-        st_subset: The subset state.
+        new_mask: The new mask.
     """
+    
     l_sub = KAN_Dense(l.in_dim, l.out_dim;
         num_splines=l.num_splines,
         degree=l.degree,
@@ -163,15 +180,7 @@ function get_subset(l, ps, st, in_indices, out_indices)
         w_sp = ps.w_sp[in_indices, out_indices]
     )
 
-    # Initialize new state
-    st_sub = (
-        mask = st.mask[in_indices, out_indices],
-        pre_acts = nothing,
-        post_acts = nothing,
-        post_spline = nothing
-    )
-
-    return l_sub, ps_sub, st_sub
+    return l_sub, ps_sub, old_mask[in_indices, out_indices]
 end
 
 end

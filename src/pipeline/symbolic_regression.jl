@@ -116,7 +116,7 @@ function remove_edge(st, l, i, j)
     """
     Remove φ(l, i, j) from the symbolic layer.
     """
-    @reset st.act_fcns_st[l].mask[i, j] = 0.0
+    @reset st[Symbol("act_fcn_mask_$l")][i, j] = 0.0
 
     return st
 end
@@ -224,8 +224,8 @@ function set_mode(st, l, i, j, mode; mask_n=nothing)
         mask_s = 0.0f0
     end
 
-    @reset st.act_fcns_st[l].mask[i, j] = mask_n
-    @reset st.symbolic_fcns_st[l].mask[j, i] = mask_s
+    @reset st[Symbol("act_fcn_mask_$l")][i, j] = mask_n
+    @reset st[Symbol("symb_fcn_mask_$l")][j, i] = mask_s
 
     return st
 end
@@ -363,7 +363,7 @@ function auto_symbolic(model, ps, st; α_range=(-10, 10), β_range=(-10, 10), li
     for l in eachindex(model.widths[1:end-1])
         for i in 1:model.widths[l]
             for j in 1:model.widths[l+1]
-                if st.symbolic_fcns_st[l].mask[j, i] > 0.0
+                if st[Symbol("symb_fcn_mask_$l")][j, i] > 0.0
                     println("Skipping φ(", l, ", ", i, ", ", j, ") as it is already symbolic.")
                 else
                     model, ps, st, best_name, best_fcn, best_R2 = suggest_symbolic(model, ps, st, l, i, j; α_range=α_range, β_range=β_range, lib=lib, top_K=5, verbose=verbose)

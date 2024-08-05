@@ -22,7 +22,7 @@ function test_grid()
     before = model.act_fcns[1].grid[1, :]
     
     x = randn(Float32, 100, 2) .* 5
-    model, ps, st = update_grid(model, x, ps, st)
+    model, ps = update_grid(model, x, ps, st)
     
     after = model.act_fcns[1].grid[1, :]
     @test abs(sum(before) - sum(after)) > 0.1

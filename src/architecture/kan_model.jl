@@ -50,7 +50,7 @@ function KAN_model(widths; k=3, grid_interval=3, ε_scale=0.1f0, μ_scale=0.0f0,
 end
 
 function Lux.initialparameters(rng::AbstractRNG, m::KAN)
-    # Create one long named tuple
+    # Create one long, flattened named tuple (nested tuples aren't nice with Lux)
     ps = NamedTuple(Symbol("bias_$i") => zeros(Float32, 1, m.widths[i+1]) for i in 1:m.depth)
     
     for i in 1:m.depth
@@ -73,12 +73,9 @@ function Lux.initialparameters(rng::AbstractRNG, m::KAN)
 end
 
 function Lux.initialstates(rng::AbstractRNG, m::KAN)
-    acts_fcns_st = [Lux.initialstates(rng, m.act_fcns[i]) for i in 1:m.depth]
-    symbolic_fcns_st = [Lux.initialstates(rng, m.symbolic_fcns[i]) for i in 1:m.depth]
 
+    # State to hold intermediary values
     st = (
-        act_fcns_st=acts_fcns_st,
-        symbolic_fcns_st=symbolic_fcns_st,
         acts = [],
         pre_acts = [],
         post_acts = [],
@@ -87,8 +84,13 @@ function Lux.initialstates(rng::AbstractRNG, m::KAN)
         symbolic_acts = []
     )
 
+    # Long, flattened named tuple for the masks
     for i in 1:m.depth
         @reset st[Symbol("act_scale_$i")] = zeros(Float32, maximum(m.widths[i+1]), maximum(m.widths[i]))
+        act_st = Lux.initialstates(rng, m.act_fcns[i])
+        @reset st[Symbol("act_fcn_mask_$i")] = act_st.mask
+        symb_st = Lux.initialstates(rng, m.symbolic_fcns[i])
+        @reset st[Symbol("symb_fcn_mask_$i")] = symb_st.mask
     end
 
     return st
@@ -99,6 +101,18 @@ end
 end
 
 function (m::KAN)(x, ps, st)
+    """
+    Forward pass of the KAN model.
+
+    Args:
+        x: A matrix of size (b, in_dim) containing the input data.
+        ps: A tuple containing the parameters of the model.
+        st: A tuple containing the state of the model.
+
+    Returns:
+        y: A matrix of size (b, out_dim) containing the output data.
+        new_st: A tuple containing the new state of the model.
+    """
     x, ps, st = device(x), device(ps), device(st)
 
     x_eval = copy(x)
@@ -108,26 +122,23 @@ function (m::KAN)(x, ps, st)
     post_splines_arr = []
 
     for i in 1:m.depth
-        # spline(x)
+
         kan_ps = (
             ε = ps[Symbol("ε_$i")],
             coef = ps[Symbol("coef_$i")],
             w_base = ps[Symbol("w_base_$i")],
             w_sp = ps[Symbol("w_sp_$i")]
         )
-        x_numerical, spline_st = m.act_fcns[i](x_eval, kan_ps, st.act_fcns_st[i])
-        @reset st.act_fcns_st[i] = spline_st
-        
-        # Evaluate symbolic layer at x
+
+        x_numerical, spline_st = m.act_fcns[i](x_eval, kan_ps, st[Symbol("act_fcn_mask_$i")])
+
         x_symbolic, symbolic_st = Float32(0.0), Float32(0.0)
         if m.symbolic_enabled
-            symb_ps = (
-                affine = ps[Symbol("affine_$i")]
-            )
-            x_symbolic, symbolic_st = m.symbolic_fcns[i](x_eval, affine, st.symbolic_fcns_st[i])
-            @reset st.symbolic_fcns_st[i] = symbolic_st
+            affine = ps[Symbol("affine_$i")]
+            x_symbolic, symbolic_st = m.symbolic_fcns[i](x_eval, affine, st[Symbol("symb_fcn_mask_$i")])
         end
 
+        # φ(x) + φs(x)
         x_eval = x_numerical .+ x_symbolic
         post_acts = spline_st.post_acts .+ symbolic_st.post_acts
 
@@ -140,8 +151,10 @@ function (m::KAN)(x, ps, st)
         add_to_array!(post_acts_arr, post_acts)
         add_to_array!(post_splines_arr, spline_st.post_spline)
 
-        # Add bias b(x)
+        # Bias b(x)
         b = repeat(ps[Symbol("bias_$i")], size(x_eval, 1), 1)
+
+        # Accumulate outputs of each layer in accordance with outer sum of Kolmogorov-Arnold theorem
         x_eval = x_eval + b
 
         add_to_array!(acts_arr, copy(x_eval))
@@ -171,12 +184,12 @@ function remove_node(st, l, j; verbose=true)
     verbose && println("Removing neuron $(j) from layer $(l)")
 
     # Remove all incoming connections
-    @reset st.act_fcns_st[l-1].mask[:, j] .= 0.0f0
-    @reset st.symbolic_fcns_st[l-1].mask[j, :] .= 0.0f0
+    @reset st[Symbol("act_fcn_mask_$(l-1)")][:, j] .= 0.0f0
+    @reset st[Symbol("symb_fcn_mask_$(l-1)")][j, :] .= 0.0f0
 
     # Remove all outgoing connections
-    @reset st.act_fcns_st[l].mask[j, :] .= 0.0f0
-    @reset st.symbolic_fcns_st[l].mask[:, j] .= 0.0f0
+    @reset st[Symbol("act_fcn_mask_$(l)")][j, :] .= 0.0f0
+    @reset st[Symbol("symb_fcn_mask_$(l)")][:, j] .= 0.0f0
 
     return st
 end
@@ -209,6 +222,7 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
     add_to_array!(active_neurons_id, [1:m.widths[1]...])
     overall_important = nothing
 
+    # Find all neurons with an input and output above the threshold
     for i in 1:m.depth-1
         if mode == "auto"
             scale1 = st[Symbol("act_scale_$i")]
@@ -234,6 +248,7 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
         println("Active neurons: ", active_neurons_id)
     end
 
+    # Remove neurons with below threshold inputs && outputs
     for i in 1:m.depth
         for j in 1:m.widths[i+1]
             if !(j in active_neurons_id[i+1])
@@ -242,8 +257,8 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
         end
     end
 
+    # Create pruned models from important subsets
     model_pruned = KAN_model(deepcopy(m.widths); k=m.degree, grid_interval=m.grid_interval, ε_scale=m.ε_scale, μ_scale=m.μ_scale, σ_scale=m.σ_scale, base_act=m.base_fcn, symbolic_enabled=m.symbolic_enabled, grid_eps=m.grid_eps, grid_range=m.grid_range)
-
     ps_pruned = Lux.initialparameters(rng, model_pruned)
     st_pruned = Lux.initialstates(rng, model_pruned)
 
@@ -263,19 +278,19 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
             affine = ps_pruned[Symbol("affine_$i")]
         )
 
-        new_fcn, ps_new, st_new = get_subset(model_pruned.act_fcns[i], kan_ps, st_pruned.act_fcns_st[i], active_neurons_id[i], active_neurons_id[i+1])
+        new_fcn, ps_new, new_mask = get_subset(model_pruned.act_fcns[i], kan_ps, st_pruned[Symbol("act_fcn_mask_$i")], active_neurons_id[i], active_neurons_id[i+1])
         @reset model_pruned.act_fcns[i] = new_fcn
-        ε, coef, w_base, w_sp = ps_new[:ε], ps_new[:coef], ps_new[:w_base], ps_new[:w_sp]
-        @reset ps_pruned[Symbol("ε_$i")] = ε
-        @reset ps_pruned[Symbol("coef_$i")] = coef
-        @reset ps_pruned[Symbol("w_base_$i")] = w_base
-        @reset ps_pruned[Symbol("w_sp_$i")] = w_sp
-        @reset st_pruned.act_fcns_st[i] = st_new
 
-        new_fcn, ps_new, st_new = get_symb_subset(m.symbolic_fcns[i], symb_ps, st_pruned.symbolic_fcns_st[i], active_neurons_id[i], active_neurons_id[i+1])
+        @reset ps_pruned[Symbol("ε_$i")] = ps_new[:ε]
+        @reset ps_pruned[Symbol("coef_$i")] = ps_new[:coef]
+        @reset ps_pruned[Symbol("w_base_$i")] = ps_new[:w_base]
+        @reset ps_pruned[Symbol("w_sp_$i")] = ps_new[:w_sp]
+        @reset st_pruned[Symbol("act_fcn_mask_$i")] = new_mask
+
+        new_fcn, ps_new, new_mask = get_symb_subset(m.symbolic_fcns[i], symb_ps, st_pruned[Symbol("symb_fcn_mask_$i")], active_neurons_id[i], active_neurons_id[i+1])
         @reset model_pruned.symbolic_fcns[i] = new_fcn
         @reset ps_pruned[Symbol("affine_$i")] = ps_new
-        @reset st_pruned.symbolic_fcns_st[i] = st_new
+        @reset st_pruned[Symbol("symb_fcn_mask_$i")] = new_mask
 
         @reset model_pruned.widths[i] = length(active_neurons_id[i])
     end
@@ -283,7 +298,7 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
     @reset st_pruned.mask = mask
     @reset model_pruned.depth = length(model_pruned.widths) - 1
 
-    return model_pruned, device(ps_pruned), device(st_pruned)
+    return model_pruned, ps_pruned, st_pruned
 end
 
 @nograd function update_grid(model, x, ps, st)
@@ -292,7 +307,6 @@ end
     """
 
     act_fcns_ps_arr = []
-    acts_fcns_st = []
  
     for i in 1:model.depth
         _, st = model(x, ps, st)
@@ -304,26 +318,15 @@ end
             w_sp = ps[Symbol("w_sp_$i")]
         )
 
-        new_l, new_ps, new_st = update_lyr_grid(model.act_fcns[i], kan_ps, st.act_fcns_st[i], st.acts[i])
+        new_l, new_ps = update_lyr_grid(model.act_fcns[i], kan_ps, st.acts[i])
         @reset model.act_fcns[i] = new_l
         @reset ps[Symbol("ε_$i")] = new_ps.ε
         @reset ps[Symbol("coef_$i")] = new_ps.coef
         @reset ps[Symbol("w_base_$i")] = new_ps.w_base
         @reset ps[Symbol("w_sp_$i")] = new_ps.w_sp
-        push!(acts_fcns_st, new_st)
     end
-
-    updated_st = (
-        act_fcns_st=acts_fcns_st,
-        symbolic_fcns_st=st.symbolic_fcns_st,
-        acts = st.acts,
-        pre_acts = st.pre_acts,
-        post_acts = st.post_acts,
-        post_splines = st.post_splines,
-        mask = st.mask,
-    )
         
-    return model, ps, updated_st
+    return model, ps
 end
     
 end

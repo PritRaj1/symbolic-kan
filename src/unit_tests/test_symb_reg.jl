@@ -19,8 +19,8 @@ using .Utils: round_formula
 
 # Test parameter fitting for symbolic reg
 function test_param_fitting()
-    num = 100
-    x = range(-1, 1, length=num) |> collect
+    num = 500
+    x = range(-5, 5, length=num) |> collect
     noises = randn(num) .* 0.02
     y = 2 .* x .+ 1 .+ noises
     fcn = x -> x
@@ -34,13 +34,18 @@ function test_param_fitting()
 end
 
 function test_sin_fitting()
-    num = 100
-    x = range(-1, 1, length=num) |> collect
+    num = 500
+    x = range(-5, 5, length=num) |> collect
     Random.seed!(123)
     noises = randn(num) .* 0.02
-    y = 5 .* sin.(3 .* x .+ 2) .+ 0.7 .+ noises
-    fcn(x) = sin(x)
+    y = 5 .* exp.(3 .* x .+ 2) .+ 0.7 .+ noises
+    fcn(x) = exp(x)
     params, R2 = fit_params(x, y, fcn)
+
+    @test abs(params[1] - 3) < 0.1
+    @test abs(params[2] - 2) < 0.1 
+    @test abs(params[3] - 5) < 0.1
+    @test abs(params[4] - 0.7) < 0.1
 
     # Plot
     fig = Figure()

@@ -124,12 +124,12 @@ function plot_symb(model, st, form)
     plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[form], title="Pruned Symbolic KAN", file_name="gpu_symbolic_test")
 end
 
-# @testset "KAN Tests" begin
-#     test_spline_lyr()
-#     test_symb_lyr()
-#     test_model()
-#     test_grid()
-# end
+@testset "KAN Tests" begin
+    test_spline_lyr()
+    test_symb_lyr()
+    test_model()
+    test_grid()
+end
 
 model, ps, st, x = test_training()
 model, ps, st = test_prune(model, ps, st, x)

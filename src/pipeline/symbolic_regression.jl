@@ -2,15 +2,22 @@ module SymbolicRegression
 
 export fit_params, set_affine, lock_symbolic, set_mode, fix_symbolic, unfix_symbolic, unfix_symb_all, suggest_symbolic, auto_symbolic, symbolic_formula, remove_edge
 
-using  Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy, Accessors, Lux, LuxCUDA
+using  Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy, Accessors, Lux, LuxCUDA, ConfParser
 
 include("../symbolic_lib.jl")
 include("../architecture/symbolic_layer.jl")
 include("../utils.jl")
 using .SymbolicLib: SYMBOLIC_LIB
-using .Utils: meshgrid, expand_apply
+using .Utils: expand_apply
 
-function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_number=101, iterations=3, μ=1.0, verbose=true)
+conf = ConfParse("config/config.ini")
+parse_conf!(conf)
+
+grid_number = parse(Int, retrieve(conf, "PARAM_FITTING", "NUM_G"))
+μ = parse(Float64, retrieve(conf, "PARAM_FITTING", "STEP_SIZE"))
+iterations = parse(Int, retrieve(conf, "PARAM_FITTING", "ITERS"))
+
+function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), verbose=true)
     """
     Optimises the parameters of a symbolic function to minismise l2-norm error (or maximise R2).
         
@@ -41,21 +48,19 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_numb
     α_best, β_best = nothing, nothing
     R2_best = nothing
 
-    for _ in 1:iterations
+    for iter in 1:iterations
         # Create search grids
         α_ = range(α_range[1], α_range[2], length=grid_number) |> collect
         β_ = range(β_range[1], β_range[2], length=grid_number) |> collect
-        α_grid, β_grid = meshgrid(α_, β_)
 
         # Precompute f(αx + β) for each at all grid points
-        y_approx = expand_apply(fcn, x, α_grid, β_grid; grid_number=grid_number)
+        ŷ, α_grid, β_grid = expand_apply(fcn, x, α_, β_; grid_number=grid_number)
 
         # Compute R2 for all grid points := 1 - (sum((y - f(αx + β)^2) / sum((y - mean(y))^2))
-        RSS = @tullio res[i, j, k] := (y[i] - y_approx[i, j, k]) ^ 2
+        RSS = @tullio res[i, j, k] := (y[i] - ŷ[i, j, k]) ^ 2
         RSS = sum(RSS, dims=1)[1, :, :]
         TSS = sum((y .- mean(y)).^2)
         R2 = @tullio res[j, k] := 1 - (RSS[j, k] / TSS)
-        replace!(R2, NaN => 0.0)
 
         # Choose best α, β by maximising coefficient of determination
         best_id = argmax(R2)
@@ -66,16 +71,15 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), grid_numb
         # Update α, β range for next iteration
         α_range = (α_best - μ*(α_range[2] - α_range[1]) / grid_number, α_best + μ*(α_range[2] - α_range[1]) / grid_number)
         β_range = (β_best - μ*(β_range[2] - β_range[1]) / grid_number, β_best + μ*(β_range[2] - β_range[1]) / grid_number)
-    
     end
 
     # Linear regression to find w, b
-    y_approx = fcn.(α_best .* x .+ β_best)
+    ŷ = fcn.(α_best .* x .+ β_best)
     y = Float64.(y) # GLM needs Vector{Float64}
-    df = DataFrame(X=y_approx, Y=y)
+    df = DataFrame(X=ŷ, Y=y)
     model = lm(@formula(Y ~ X), df)
     b_best, w_best = coef(model)
-    f_approx_best = y_approx .* w_best .+ b_best
+    f_approx_best = ŷ .* w_best .+ b_best
     squared_err = sum((y .- f_approx_best).^2)
 
     if verbose == true
@@ -121,7 +125,7 @@ function remove_edge(st, l, i, j)
     return st
 end
 
-function lock_symbolic(l, ps, i, j, fun_name; x=nothing, y=nothing, random=false, seed=nothing, α_range=(-10, 10), β_range=(-10, 10), μ=1.0, verbose=true)
+function lock_symbolic(l, ps, i, j, fun_name; x=nothing, y=nothing, random=false, seed=nothing, α_range=(-10, 10), β_range=(-10, 10), verbose=true)
     """
     Fix a symbolic function for a particular input-output pair, 
     
@@ -167,7 +171,7 @@ function lock_symbolic(l, ps, i, j, fun_name; x=nothing, y=nothing, random=false
 
         # If x and y are provided, fit the function
         else
-            params, R2 = fit_params(x, y, fcn; α_range=α_range, β_range=β_range, μ=μ, verbose=false)
+            params, R2 = fit_params(x, y, fcn; α_range=α_range, β_range=β_range, verbose=false)
             @reset l.fcns[j][i] = fcn
             @reset l.fcns_avoid_singular[j][i] = fcn_avoid_singular
             ps = set_affine(ps, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
@@ -256,7 +260,7 @@ function unfix_symb_all(model, st)
     return st
 end
 
-function fix_symbolic(model, ps, st, l, i, j, fcn_name; fit_params=true, α_range=(-10, 10), β_range=(-10, 10), grid_number=101, iterations=3, μ=1.0, random=false, seed=nothing, verbose=true)
+function fix_symbolic(model, ps, st, l, i, j, fcn_name; fit_params=true, α_range=(-10, 10), β_range=(-10, 10), random=false, seed=nothing, verbose=true)
     """
     Set the activation for element (l, i, j) to a fixed symbolic function.
 
@@ -288,7 +292,7 @@ function fix_symbolic(model, ps, st, l, i, j, fcn_name; fit_params=true, α_rang
     else
         x = st.acts[l][:, i]
         y = st.post_acts[l][:, j, i]
-        R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[l], ps[Symbol("affine_$l")], i, j, fcn_name; x=x, y=y, α_range=α_range, β_range=β_range, μ=μ, random=random, seed=seed, verbose=verbose)
+        R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[l], ps[Symbol("affine_$l")], i, j, fcn_name; x=x, y=y, α_range=α_range, β_range=β_range, random=random, seed=seed, verbose=verbose)
         @reset model.symbolic_fcns[l] = new_l
         @reset ps[Symbol("affine_$l")] = new_ps
         return R2, model, ps, st
@@ -326,7 +330,7 @@ function suggest_symbolic(model, ps, st, l, i, j; α_range=(-10, 10), β_range=(
     end
     
     for (name, fcn) in symbolic_lib
-        R2, model, ps, st = fix_symbolic(model, ps, st, l, i, j, name; fit_params=true, α_range=α_range, β_range=β_range, grid_number=101, iterations=3, μ=1.0, random=false, seed=nothing, verbose=verbose)
+        R2, model, ps, st = fix_symbolic(model, ps, st, l, i, j, name; fit_params=true, α_range=α_range, β_range=β_range, random=false, seed=nothing, verbose=verbose)
         push!(R2s, R2)
     end
 
@@ -367,7 +371,7 @@ function auto_symbolic(model, ps, st; α_range=(-10, 10), β_range=(-10, 10), li
                     println("Skipping φ(", l, ", ", i, ", ", j, ") as it is already symbolic.")
                 else
                     model, ps, st, best_name, best_fcn, best_R2 = suggest_symbolic(model, ps, st, l, i, j; α_range=α_range, β_range=β_range, lib=lib, top_K=5, verbose=verbose)
-                    _, model, ps, st = fix_symbolic(model, ps, st, l, i, j, best_name; fit_params=true, α_range=α_range, β_range=β_range, grid_number=201, iterations=10, μ=1.0, random=false, seed=nothing, verbose=verbose)
+                    _, model, ps, st = fix_symbolic(model, ps, st, l, i, j, best_name; fit_params=true, α_range=α_range, β_range=β_range, random=false, seed=nothing, verbose=verbose)
                     if verbose
                         println("Suggested: ", best_name, " for φ(", l, ", ", i, ", ", j, ") with R2: ", best_R2)
                     end
@@ -378,7 +382,7 @@ function auto_symbolic(model, ps, st; α_range=(-10, 10), β_range=(-10, 10), li
     return model, ps, st
 end
 
-function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output_normaliser=nothing, simplify=false)
+function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output_normaliser=nothing, simplify=true)
     """
     Convert the activations of a model to symbolic formulas.
 

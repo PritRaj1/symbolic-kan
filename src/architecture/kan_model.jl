@@ -131,11 +131,13 @@ function (m::KAN)(x, ps, st)
         )
 
         x_numerical, spline_st = m.act_fcns[i](x_eval, kan_ps, st[Symbol("act_fcn_mask_$i")])
+        any(isnan.(x_numerical)) && throw(ArgumentError("NaNs in the activations"))
 
-        x_symbolic, symbolic_st = Float32(0.0), Float32(0.0)
+        x_symbolic, symbolic_st = Float32(0.0), (post_acts=Float32(0.0),)
         if m.symbolic_enabled
             affine = ps[Symbol("affine_$i")]
             x_symbolic, symbolic_st = m.symbolic_fcns[i](x_eval, affine, st[Symbol("symb_fcn_mask_$i")])
+            any(isnan.(x_symbolic)) && throw(ArgumentError("NaNs in the symbolic activations"))
         end
 
         # φ(x) + φs(x)
@@ -144,8 +146,10 @@ function (m::KAN)(x, ps, st)
 
         # Scales for l1 regularisation
         in_range = std(spline_st.pre_acts, dims=1) .+ 0.1
+        # in_range = removeZero(in_range; ε=1e-1)
         out_range = std(post_acts, dims=1)
         @reset st[Symbol("act_scale_$i")] = (out_range ./ in_range)[1, :, :]
+        any(isnan.(st[Symbol("act_scale_$i")])) && throw(ArgumentError("NaNs in the activation scales"))
         
         add_to_array!(pre_acts_arr, spline_st.pre_acts)
         add_to_array!(post_acts_arr, post_acts)

@@ -61,7 +61,7 @@ seed = Random.seed!(123)
 model = KAN_model([4,6,2]; k=4, grid_interval=5)
 ps, st = Lux.setup(seed, model)
 
-opt = create_optim_opt("bfgs", "hagerzhang")
+opt = create_optim_opt("bfgs", "strongwolfe")
 trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=1000, verbose=true)
 model, ps, st = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=1.0, λ_coef=0.1, λ_coefdiff=0.1, grid_update_num=5, stop_grid_update_step=10)
 model, ps, st = prune(seed, model, ps, st; threshold=0.01)
@@ -75,12 +75,6 @@ formula, x0, st = symbolic_formula(model, ps, st)
 formula = round_formula(string(formula[1]); digits=1)
 plot_kan(model, st; mask=true, in_vars=["t", "θ1", "ω1", "ω2"], out_vars=["θ1", "θ2"], title="Pruned Double Pendulum KAN", file_name="double_pendulum_kan")
 
-function predict_angular_velocities(model, time, θ1, θ2; ps, st)
-    input = [time, θ1, θ2]
-    y, scales, st = model(input, ps, st)
-    return y
-end
-
 function pendulum_positions(ŷ; L1=1.0, L2=1.0)
     x1 = L1 .* sin.(ŷ[:, 1])
     y1 = -L1 .* cos.(ŷ[:, 1])
@@ -91,7 +85,8 @@ end
 
 steps_to_plot = parse(Int, retrieve(conf, "DOUBLE_PENDULUM", "num_plot"))
 X_gif = X_sorted[1:steps_to_plot, :]
-ŷ, scales, st = model(X_gif, ps, st)
+ŷ, st = model(X_gif, ps, st)
+ŷ = cpu_device()(ŷ)
 x1, y1, x2, y2 = pendulum_positions(ŷ; L1=1.0, L2=1.0)
 
 plot_size = (800, 800)

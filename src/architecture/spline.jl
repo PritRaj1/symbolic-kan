@@ -120,7 +120,7 @@ function coef2curve(x_eval, grid, coef; k::Int64, scale=1.0)
     return y_eval
 end
 
-function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0, ε=1e-4)
+function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0, ε=1e-1)
     """
     Convert B-spline curves to B-spline coefficients using least squares.
 
@@ -158,6 +158,7 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0, ε=1e-4)
     
     # x = (BtB)^-1 * Bty
     coef = @tullio out[i, j, p] := pinv(BtB[i, j, p, p]) * Bty[i, j, p]
+    any(isnan.(coef)) && error("NaN in coef")
 
     return coef
 

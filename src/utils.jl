@@ -61,38 +61,14 @@ function sparse_mask(in_dim, out_dim)
     return mask
 end
 
-function meshgrid(x, y)
-    """
-    Create a meshgrid from two 1D arrays.
-
-    Args:
-        x: 1D array.
-        y: 1D array.
-
-    Returns:
-        x_grid: meshgrid of x.
-        y_grid: meshgrid of y.
-    """
-
-    Nx, Ny = length(x), length(y)
-    x_out, y_out = zeros(Ny, Nx), zeros(Ny, Nx)
-
-    for i in 1:Nx
-        for j in 1:Ny
-            x_out[j, i] = x[i]
-            y_out[j, i] = y[j]
-        end
-    end
-
-    return x_out, y_out
-end
-
 function expand_apply(fcn, x, α, β; grid_number)
-    x = reshape(x, length(x), 1, 1)
-    α = reshape(α, 1, grid_number, grid_number)
-    β = reshape(β, 1, grid_number, grid_number)
-    eval = @tullio res[i, j, k] := fcn(α[1, j, k] * x[i, 1, 1] + β[1, j, k])
-    return fcn.(eval)
+    """
+    Creates meshgrids for α and β and applies the function fcn to the meshgrids.
+    """
+    α = α' .* ones(grid_number) 
+    β = ones(grid_number)' .* β
+    eval = @tullio res[i, j, k] := fcn(α[j, k] * x[i] + β[j, k])
+    return eval, α, β
 end
 
 end

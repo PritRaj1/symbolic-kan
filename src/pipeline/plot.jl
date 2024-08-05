@@ -137,8 +137,9 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
     function score2alpha(score)
         return tanh(γ * score)
     end
-    
-    alpha = score2alpha.(st.act_scale)
+
+    alpha = [score2alpha.(st[Symbol("act_scale_$i")]) for i in 1:depth] 
+
     widths = model.widths
     A = 1.0
     y0 = 0.4
@@ -205,7 +206,7 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
                         hidespines!(ax)
                     end
 
-                    alpha_plot = mask ? alpha[l, j, i] * st.mask[l][i] * st.mask[l + 1][j] : alpha[l, j, i] * alpha_mask
+                    alpha_plot = mask ? alpha[l][j, i] * st.mask[l][i] * st.mask[l + 1][j] : alpha[l][j, i] * alpha_mask
 
                 else
                     symbol_mask = st.symbolic_fcns_st[end].mask[j, i]
@@ -229,7 +230,7 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
                         hidespines!(ax)
                     end
 
-                    alpha_plot = mask ? st.mask[end-1][i] * alpha[end, j, i] * alpha_mask : alpha[end, j, i] * alpha_mask
+                    alpha_plot = mask ? st.mask[end-1][i] * alpha[end][j, i] * alpha_mask : alpha[end][j, i] * alpha_mask
                     alpha_plot = l == neuron_depth ? 0.0 : alpha_plot # Remove last line
                 end
 
@@ -269,7 +270,7 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
                 bottom = DC_to_NFC([0, (l - 1 / 2) * y0 - y1])[2] |> Float32
                 top = DC_to_NFC([0, (l - 1 / 2) * y0 + y1])[2] |> Float32
                 
-                image_alpha = mask ? alpha[l, j, i] * st.mask[l][i] * st.mask[l+1][j] : alpha[l, j, i]                         
+                image_alpha = mask ? alpha[l][j, i] * st.mask[l][i] * st.mask[l+1][j] : alpha[l][j, i]                         
                 image!(ax, left..right, bottom..top, rotr90(im), alpha=image_alpha)
             end
         end

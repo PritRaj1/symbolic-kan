@@ -451,17 +451,7 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
 
         new_symbolic_acts = [[symbolic_acts[l][i] for i in eachindex(symbolic_acts[l])] for l in eachindex(symbolic_acts)]
 
-        st = (
-        act_fcns_st=st.act_fcns_st,
-        symbolic_fcns_st=st.symbolic_fcns_st,
-        acts = st.acts,
-        pre_acts = st.pre_acts,
-        post_acts = st.post_acts,
-        post_splines = st.post_splines,
-        act_scale = st.act_scale,
-        mask = st.mask,
-        symbolic_acts = new_symbolic_acts
-        )
+        @reset st.symbolic_acts = new_symbolic_acts
 
         return [symbolic_acts[end][i] for i in eachindex(symbolic_acts[end])], x0, st
     

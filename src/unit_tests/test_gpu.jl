@@ -50,7 +50,7 @@ function test_model()
     st = Lux.initialstates(Random.default_rng(), model) |> device
 
     x = randn(Float32, 100, 2) |> device
-    y, _, st = model(x, ps, st)
+    y, st = model(x, ps, st)
     l, grads = Zygote.withgradient(p -> sum(model(x, p, st)[1]), ps)
     @test all(size(y) .== (100, 3))
     @test !isnothing(l)
@@ -81,12 +81,12 @@ function test_training()
     x, y = train_data
     x = x |> device
     y = y |> device
-    ŷ, scales, state = model(x, params, state)
+    ŷ, state = model(x, params, state)
     state = cpu_device()(state)
     loss = sum((ŷ .- y).^2)
     println("Loss: ", loss)
 
-    @test sum(state.act_scale) > 0.0
+    @test sum(state[Symbol("act_scale_1")]) > 0.0
     plot_kan(model, state; mask=true, in_vars=["x1", "x2"], out_vars=["x1 * x2"], title="KAN", file_name="gpu_test")
     return model, params, state, x
 end
@@ -95,7 +95,7 @@ function test_prune(model, ps, st, x)
     mask_before = st.mask[1]
     model, ps, st = prune(Random.default_rng(), model, ps, st)
     mask_after = st.mask
-    y, scales, st = model(x, ps, st)
+    y, st = model(x, ps, st)
 
     sum_mask_after = 0.0
     for i in eachindex(mask_after)

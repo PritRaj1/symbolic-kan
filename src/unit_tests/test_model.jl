@@ -10,7 +10,7 @@ function test_fwd()
     st = Lux.initialstates(Random.default_rng(), model)
 
     x = randn(Float32, 100, 2)
-    y, _, st = model(x, ps, st)
+    y, st = model(x, ps, st)
     @test all(size(y) .== (100, 3))
 end
 
@@ -36,7 +36,7 @@ function test_opt()
     x = randn(Float32, 100, 2)
 
     function loss(ps)
-        y, _, _ = model(x, ps, st)
+        y, st = model(x, ps, st)
         return sum((y .- 1).^2)
     end
 
@@ -51,9 +51,9 @@ function test_prune()
     ps, st = Lux.setup(Random.default_rng(), model)
    
     x = randn(Float32, 100, 2)
-    y, scales, st = model(x, ps, st)
+    y, st = model(x, ps, st)
     model, ps, st = prune(Random.default_rng(), model, ps, st)
-    y, scales, st = model(x, ps, st)
+    y, st = model(x, ps, st)
 end
 
 @testset "KAN_model Tests" begin

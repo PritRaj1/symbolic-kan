@@ -61,7 +61,7 @@ opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ)
 
 model = KAN_model([2, 3, 3, 1]; k=k, grid_interval=G)
 ps, st = Lux.setup(seed, model)
-y, scales, st = model(train_data[1], ps, st)
+y, st = model(train_data[1], ps, st)
 st = cpu_device()(st)
 
 R2, model, ps, st = fix_symbolic(model, ps, st, 1, 1, 1, "x")
@@ -87,7 +87,7 @@ plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[STRING_VERSION], 
 
 trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, grid_update_num=num_grid_updates, stop_grid_update_step=final_grid_epoch)
-y, scales, st = model(device(train_data[1]), ps, st)
+y, st = model(device(train_data[1]), ps, st)
 st = cpu_device()(st)
 
 formula, x0, st = symbolic_formula(model, ps, st)

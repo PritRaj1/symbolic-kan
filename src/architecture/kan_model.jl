@@ -83,25 +83,19 @@ function Lux.initialstates(rng::AbstractRNG, m::KAN)
         pre_acts = [],
         post_acts = [],
         post_splines = [],
-        act_scale = zeros(Float32, 0, maximum(m.widths), maximum(m.widths)),
         mask = [ones(Float32, widths) for widths in m.widths[1:end]],
         symbolic_acts = []
     )
+
+    for i in 1:m.depth
+        @reset st[Symbol("act_scale_$i")] = zeros(Float32, maximum(m.widths[i+1]), maximum(m.widths[i]))
+    end
 
     return st
 end
 
 @nograd function add_to_array!(arr, x)
     return push!(arr, x)
-end
-
-# Zygote does not support adding to array in-place, so treat actscales as a mutable array
-function PadToShape(arr, shape)
-    pad = shape .- size(arr)
-    zeros_1 = zeros(Float32, 0, pad[2], size(arr, 3)) |> device
-    array = cat(arr, zeros_1, dims=(1, 2))
-    zeros_2 = zeros(Float32, 0, size(array, 2), pad[3]) |> device
-    return cat(array, zeros_2, dims=(1, 3))
 end
 
 function (m::KAN)(x, ps, st)
@@ -112,7 +106,6 @@ function (m::KAN)(x, ps, st)
     pre_acts_arr = []
     post_acts_arr = []
     post_splines_arr = []
-    act_scale_arr = zeros(Float32, 0, maximum(m.widths), maximum(m.widths)) |> device
 
     for i in 1:m.depth
         # spline(x)
@@ -123,6 +116,7 @@ function (m::KAN)(x, ps, st)
             w_sp = ps[Symbol("w_sp_$i")]
         )
         x_numerical, spline_st = m.act_fcns[i](x_eval, kan_ps, st.act_fcns_st[i])
+        @reset st.act_fcns_st[i] = spline_st
         
         # Evaluate symbolic layer at x
         x_symbolic, symbolic_st = Float32(0.0), Float32(0.0)
@@ -131,6 +125,7 @@ function (m::KAN)(x, ps, st)
                 affine = ps[Symbol("affine_$i")]
             )
             x_symbolic, symbolic_st = m.symbolic_fcns[i](x_eval, affine, st.symbolic_fcns_st[i])
+            @reset st.symbolic_fcns_st[i] = symbolic_st
         end
 
         x_eval = x_numerical .+ x_symbolic
@@ -139,8 +134,7 @@ function (m::KAN)(x, ps, st)
         # Scales for l1 regularisation
         in_range = std(spline_st.pre_acts, dims=1) .+ 0.1
         out_range = std(post_acts, dims=1)
-        scales = PadToShape(out_range ./ in_range, (1, maximum(m.widths), maximum(m.widths)))
-        act_scale_arr = vcat(act_scale_arr, scales)
+        @reset st[Symbol("act_scale_$i")] = (out_range ./ in_range)[1, :, :]
         
         add_to_array!(pre_acts_arr, spline_st.pre_acts)
         add_to_array!(post_acts_arr, post_acts)
@@ -153,18 +147,12 @@ function (m::KAN)(x, ps, st)
         add_to_array!(acts_arr, copy(x_eval))
     end
 
-    new_st = (
-        act_fcns_st=st.act_fcns_st,
-        symbolic_fcns_st=st.symbolic_fcns_st,
-        acts = acts_arr,
-        pre_acts = pre_acts_arr,
-        post_acts = post_acts_arr,
-        post_splines = post_splines_arr,
-        act_scale = act_scale_arr,
-        mask = st.mask,
-    )
+    @reset st.acts = acts_arr
+    @reset st.pre_acts = pre_acts_arr
+    @reset st.post_acts = post_acts_arr
+    @reset st.post_splines = post_splines_arr
 
-    return x_eval, act_scale_arr, new_st
+    return x_eval, st
 end
 
 function remove_node(st, l, j; verbose=true)
@@ -223,8 +211,8 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
 
     for i in 1:m.depth-1
         if mode == "auto"
-            scale1 = selectdim(st.act_scale, 1, i)
-            scale2 = selectdim(st.act_scale, 1, i+1)
+            scale1 = st[Symbol("act_scale_$i")]
+            scale2 = st[Symbol("act_scale_$(i+1)")]
             in_important = ifelse.(maximum(scale1, dims=2)[1, :, :] .> threshold, Float32(1),  Float32(0))
             out_important = ifelse.(maximum(scale2, dims=1)[1, :, :] .> threshold,  Float32(1),  Float32(0))
             overall_important = in_important .* out_important
@@ -259,8 +247,8 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
     ps_pruned = Lux.initialparameters(rng, model_pruned)
     st_pruned = Lux.initialstates(rng, model_pruned)
 
-    for i in 1:size(st.act_scale, 1)
-        if i < size(st.act_scale, 1)
+    for i in 1:m.depth
+        if i < m.depth
             @reset ps_pruned[Symbol("bias_$i")] = ps[Symbol("bias_$i")][:, active_neurons_id[i+1]]
         end
 
@@ -307,7 +295,7 @@ end
     acts_fcns_st = []
  
     for i in 1:model.depth
-        _, _, st = model(x, ps, st)
+        _, st = model(x, ps, st)
 
         kan_ps = (
             ε = ps[Symbol("ε_$i")],
@@ -332,7 +320,6 @@ end
         pre_acts = st.pre_acts,
         post_acts = st.post_acts,
         post_splines = st.post_splines,
-        act_scale = st.act_scale,
         mask = st.mask,
     )
         

@@ -103,7 +103,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     end
 
     # Regularisation
-    function reg(ps, acts_scale)
+    function reg(ps, st)
         
         # L2 regularisation
         function non_linear(x; th=mag_threshold, factor=reg_factor)
@@ -113,12 +113,8 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
         end
 
         reg_ = Float32(0.0)
-        for i in eachindex(acts_scale[:, 1, 1])
-            
-            # For differentiability need to exclusively pick scales that we're added through padding
-            # scales are layers x next_layer_width x current_layer_width
-            vec = selectdim(selectdim(selectdim(acts_scale, 1, i), 2, 1:t.model.widths[i]), 1, 1:t.model.widths[i+1])
-            
+        for i in 1:t.model.depth
+            vec = reshape(st[Symbol("act_scale_$i")], :)
             p = vec ./ sum(vec)
             l1 = sum(non_linear(vec))
             entropy = -1 * sum(p .* log.(p .+ Float32(1e-3)))
@@ -137,9 +133,9 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
 
     # l1 regularisation loss
     function reg_loss(ps, s)
-        ŷ, scales, t.state = t.model(t.x, ps, t.state)
+        ŷ, t.state = t.model(t.x, ps, t.state)
         l2 = mean(sum((ŷ - t.y).^2, dims=2))
-        reg_ = reg(ps, scales)
+        reg_ = reg(ps, t.state)
         reg_ = λ * reg_
         return l2 .+ reg_
     end
@@ -155,8 +151,8 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
 
         t.x, t.y = x_test, y_test
         test_loss = t.loss_fn(state.u, nothing)
-        ŷ, scales, t.state = t.model(t.x, t.params, t.state)
-        reg_ = reg(t.params, scales)
+        ŷ, t.state = t.model(t.x, t.params, t.state)
+        reg_ = reg(t.params, t.state)
         t.x, t.y = x_train, y_train
 
         # Update grid once per epoch if it's time
@@ -190,7 +186,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     optprob = Optimization.OptimizationProblem(optf, pars)
     res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, x_tol=1e-32, f_tol=1e-9, g_tol=1e-12, allow_f_increases=true, allow_outer_f_increases=true, abstol=1e-32, reltol=1e-32, show_trace=true)
     t.params = res.minimizer
-    return t.model, res.minimizer, cpu_device()(t.state)
+    return t.model, cpu_device()(res.minimizer), cpu_device()(t.state)
 end
 
 end

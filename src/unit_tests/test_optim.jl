@@ -20,11 +20,11 @@ function test_trainer()
 
     # check loss
     x, y = train_data
-    ŷ, scales, state = model(x, params, state)
+    ŷ, state = model(x, params, state)
     loss = sum((ŷ .- y).^2)
     println("Loss: ", loss)
 
-    @test sum(state.act_scale) > 0.0
+    @test sum(state[Symbol("act_scale_1")]) > 0.0
     plot_kan(model, state; mask=true, in_vars=["x1", "x2"], out_vars=["x1 * x2"], title="KAN", file_name="kan")
     return model, params, state, train_data[1]
 end
@@ -33,7 +33,7 @@ function test_prune(model, ps, st, x)
     mask_before = st.mask[1]
     model, ps, st = prune(Random.default_rng(), model, ps, st)
     mask_after = st.mask
-    y, scales, st = model(x, ps, st)
+    y, st = model(x, ps, st)
 
     sum_mask_after = 0.0
     for i in eachindex(mask_after)

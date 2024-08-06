@@ -152,6 +152,18 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     function log_callback!(state::Optimization.OptimizationState, obj)
         t.params = re(state.u)
 
+        if any(isnan.(state.grad))
+            println("NaN in gradients")
+            grads = re(state.grad)
+            grads = cpu_device()(grads)
+            for k in keys(grads)
+                if any(isnan.(grads[k]))
+                    println("NaN in $k")
+                end
+            end
+        end
+            
+
         t.x, t.y = x_test, y_test
         test_loss = t.loss_fn(state.u, nothing)
         ŷ, t.state = t.model(t.x, t.params, t.state)
@@ -186,7 +198,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
 
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
-    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, x_tol=1e-32, f_tol=1e-9, g_tol=1e-12, allow_f_increases=true, allow_outer_f_increases=true, abstol=1e-32, reltol=1e-32, show_trace=true)
+    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, x_tol=1e-32, f_tol=1e-9, g_tol=1e-12, allow_f_increases=true, allow_outer_f_increases=true, abstol=1e-32, reltol=1e-32)
     t.params = re(res.minimizer)
     return t.model, cpu_device()(t.params), cpu_device()(t.state)
 end

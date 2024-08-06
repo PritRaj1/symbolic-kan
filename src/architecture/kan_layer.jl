@@ -26,15 +26,17 @@ struct kan_dense <: Lux.AbstractExplicitLayer
     grid_eps::Float32
     grid_range::Tuple{Float32, Float32}
     ε_scale::Float32
-    σ_base::Matrix{Float32}
+    σ_base::AbstractArray{Float32}
     σ_sp::Float32
 end
 
-function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=0.1, σ_base=1.0, σ_sp=1.0, base_act=NNlib.selu, grid_eps=0.02, grid_range=(-1, 1))
+function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=0.1, σ_base=nothing, σ_sp=1.0, base_act=NNlib.selu, grid_eps=0.02, grid_range=(-1, 1))
     grid = range(grid_range[1], grid_range[2], length=num_splines + 1) |> collect |> x -> reshape(x, 1, length(x))
     grid = repeat(grid, in_dim, 1) 
     grid = extend_grid(grid, degree) |> device
     RBF_σ = 1.0
+
+    σ_base = isnothing(σ_base) ? ones(Float32, in_dim, out_dim) : σ_base
     
     return kan_dense(in_dim, out_dim, num_splines, degree, grid, RBF_σ, base_act, grid_eps, grid_range, ε_scale, σ_base, σ_sp)
 end
@@ -46,7 +48,7 @@ function Lux.initialparameters(rng::AbstractRNG, l::kan_dense)
     if sparse_init
         mask = sparse_mask(l.in_dim, l.out_dim)
     else
-        mask = 1.0f0
+        mask = ones(Float32, l.in_dim, l.out_dim)
     end
     
     w_base = ones(Float32, l.in_dim, l.out_dim) .* l.σ_base .* mask

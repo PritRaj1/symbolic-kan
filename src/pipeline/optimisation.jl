@@ -36,7 +36,7 @@ function create_optim_opt(type="l-bfgs", line_search="strongwolfe"; m=10, c_1=1e
     """
     
     if line_search == "strongwolfe"
-        line_search = LineSearches.StrongWolfe(c_1=c_1, c_2=c_2, ρ=ρ)
+        line_search = LineSearches.StrongWolfe(c_1=Float32(c_1), c_2=Float32(c_2), ρ=Float32(ρ))
     else
         line_search = linesearch_map[line_search]
     end

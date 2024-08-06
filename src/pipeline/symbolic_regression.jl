@@ -3,18 +3,46 @@ module SymbolicRegression
 export fit_params, set_affine, lock_symbolic, set_mode, fix_symbolic, unfix_symbolic, unfix_symb_all, suggest_symbolic, auto_symbolic, symbolic_formula, remove_edge
 
 using  Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy, Accessors, Lux, LuxCUDA, ConfParser
+using HypothesisTests
 
 include("../symbolic_lib.jl")
 include("../architecture/symbolic_layer.jl")
 include("../utils.jl")
 using .SymbolicLib: SYMBOLIC_LIB
-using .Utils: expand_apply
+using .Utils: expand_apply, removeZero
 
 conf = ConfParse("config/config.ini")
 parse_conf!(conf)
 
-grid_number = parse(Int, retrieve(conf, "PARAM_FITTING", "NUM_G"))
-iterations = parse(Int, retrieve(conf, "PARAM_FITTING", "ITERS"))
+grid_number = parse(Int, retrieve(conf, "PARAM_FITTING", "num_g"))
+iterations = parse(Int, retrieve(conf, "PARAM_FITTING", "iters"))
+coeff_type = retrieve(conf, "PARAM_FITTING", "coeff_type")
+
+function coeff_determintation(y, ŷ)
+    """
+    Compute the coefficient of determination.
+    """
+    RSS = @tullio res[i, j, k] := (y[i] - ŷ[i, j, k])
+    RSS = sum(RSS.^2, dims=1)[1, :, :]
+    TSS = sum((y .- mean(y)).^2)
+    R2 = @tullio res[j, k] := 1 - (RSS[j, k] / TSS)
+    return R2
+end
+
+function coeff_pearson(y, ŷ)
+    """
+    Compute the Pearson correlation coefficient.
+    """
+    ŷ_std = @tullio res[i, j, k] := ŷ[i, j, k] - mean(ŷ; dims=1)[1, j, k]
+    y_std = y .- mean(y)
+    numer = @tullio out[i, j, k] := (y_std[i] * ŷ_std[i, j, k])
+    numer = sum(numer.^2; dims=1)[1, :, :]
+    denom = sum(ŷ_std.^2; dims=1)[1, :, :]
+    denom = denom .* sum(y_std.^2)
+    return numer ./ denom
+end
+
+get_coeff = coeff_type == "R2" ? coeff_determintation : coeff_pearson
 
 function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), verbose=true)
     """
@@ -45,7 +73,7 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), verbose=t
     """
 
     α_best, β_best = α_range[1], β_range[1]
-    R2_best = 0.0
+    ρ_best = 0.0
 
     for iter in 1:iterations
         # Create search grids
@@ -55,15 +83,12 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), verbose=t
         # Precompute f(αx + β) for each at all grid points
         ŷ, α_grid, β_grid = expand_apply(fcn, x, α_, β_; grid_number=grid_number)
 
-        # Compute R2 for all grid points := 1 - (sum((y - f(αx + β)^2) / sum((y - mean(y))^2))
-        RSS = @tullio res[i, j, k] := (y[i] - ŷ[i, j, k])
-        RSS = sum(RSS.^2, dims=1)[1, :, :]
-        TSS = sum((y .- mean(y)).^2)
-        R2 = @tullio res[j, k] := 1 - (RSS[j, k] / TSS)
+        # Compute ρ for all grid points := 1 - (sum((y - f(αx + β)^2) / sum((y - mean(y))^2))
+        ρ = get_coeff(y, ŷ)
 
         # Choose best α, β by maximising coefficient of determination
-        best_id = argmax(R2)
-        R2_best = R2[best_id]
+        best_id = argmax(ρ)
+        ρ_best = ρ[best_id]
         α_best = α_grid[best_id]
         β_best = β_grid[best_id]
 
@@ -106,12 +131,12 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), verbose=t
         println("Best β: ", β_best)
         println("Best w: ", w_best)
         println("Best b: ", b_best)
-        println("Best R2: ", R2_best)
+        println("Best correlation coeff, ρ: ", ρ_best)
         println("Squared Error: ", squared_err)
         squared_err <= 1.0 ? println("Good fit!") : println("Poor fit! Check symbolic function.")
     end
 
-    return [α_best, β_best, w_best, b_best], R2_best
+    return [α_best, β_best, w_best, b_best], ρ_best
 end
 
 function set_affine(ps, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)

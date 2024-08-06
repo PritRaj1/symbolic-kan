@@ -44,15 +44,8 @@ function create_data(fcn; N_var=2, x_range=(-1.0,1.0), N_train=1000, N_test=1000
         X_test = (X_test .- mean(X_test, dims=1)) ./ std(X_test, dims=1)
     end
 
-    y_train = zeros(Float32, 0, 1)
-    y_test = zeros(Float32, 0, 1)
-
-    for i in 1:N_train
-        y_train = vcat(y_train, fcn(X_train[i, :]))
-    end
-    for i in 1:N_test
-        y_test = vcat(y_test, fcn(X_test[i, :]))
-    end
+    y_train = fcn(X_train)
+    y_test = fcn(X_test)
 
     return (X_train, y_train), (X_test, y_test)
 end

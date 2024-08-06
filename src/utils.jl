@@ -58,15 +58,16 @@ function sparse_mask(in_dim, out_dim)
         mask[all_connection[i, 1], all_connection[i, 2]] = 1.0
     end
 
-    return mask
+    return Float32.(mask)
 end
 
 function expand_apply(fcn, x, α, β; grid_number)
     """
     Creates meshgrids for α and β and applies the function fcn to the meshgrids.
     """
-    α = α' .* ones(grid_number) 
-    β = ones(grid_number)' .* β
+    α = ones(grid_number)' .* α
+    β = β' .* ones(grid_number)
+
     eval = @tullio res[i, j, k] := fcn(α[j, k] * x[i] + β[j, k])
     return eval, α, β
 end

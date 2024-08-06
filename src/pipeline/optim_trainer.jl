@@ -85,6 +85,8 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     λ_entropy = Float32(λ_entropy)
     λ_coef = Float32(λ_coef)
     λ_coefdiff = Float32(λ_coefdiff)
+    reg_factor = Float32(reg_factor)
+    mag_threshold = Float32(mag_threshold)
 
     grid_update_freq = fld(stop_grid_update_step, grid_update_num)
     x_train, y_train = t.train_data
@@ -107,18 +109,15 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
         
         # L2 regularisation
         function non_linear(x; th=mag_threshold, factor=reg_factor)
-            # term1 = ifelse.(x .< th, Float32(1), Float32(0))
-            # term2 = ifelse.(x .>= th, Float32(1), Float32(0))
-            term1 = sigmoid(x .- th)
-            term2 = sigmoid(th .- x)
-            return term1 .* x .* factor .+ term2 .* (x .+ (factor - 1) .* th)
+            s = sigmoid(x - th)
+            return x + s * ((factor - 1) * (x - th))
         end
 
         reg_ = Float32(0.0)
         for i in 1:t.model.depth
             vec = reshape(st[Symbol("act_scale_$i")], :)
             p = vec ./ sum(vec)
-            l1 = sum(non_linear(vec))
+            l1 = sum(non_linear.(vec))
             entropy = -1 * sum(p .* log.(p .+ Float32(1e-2)))
             reg_ += (l1 * λ_l1) + (entropy * λ_entropy)
         end
@@ -150,6 +149,8 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
 
     function log_callback!(state::Optimization.OptimizationState, obj)
         t.params = state.u 
+
+        println(typeof(state.grad), " ", typeof(state.u))
 
         if any(isnan.(state.grad))
             println("NaN in gradients")
@@ -197,7 +198,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     pars = t.params |> ComponentArray
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
-    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, x_tol=1e-32, f_tol=1e-9, g_tol=1e-12, allow_f_increases=true, allow_outer_f_increases=true, abstol=1e-32, reltol=1e-32)
+    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, x_tol=Float32(1e-32), f_tol=Float32(1e-9), g_tol=Float32(1e-12), allow_f_increases=true, allow_outer_f_increases=true, abstol=Float32(1e-32), reltol=Float32(1e-32))
     t.params = res.minimizer
     return t.model, cpu_device()(t.params), cpu_device()(t.state)
 end

@@ -145,8 +145,8 @@ function (m::KAN)(x, ps, st)
         post_acts = spline_st.post_acts + symbolic_st.post_acts
 
         # Scales for l1 regularisation
-        in_range = std(spline_st.pre_acts, dims=1) .+ 0.1f0
-        # in_range = removeZero(in_range; ε=0.1)
+        in_range = std(spline_st.pre_acts, dims=1)
+        in_range = removeZero(in_range; ε=0.1)
         out_range = std(post_acts, dims=1) 
         @reset st[Symbol("act_scale_$i")] = (out_range ./ in_range)[1, :, :]
         any(isnan.(st[Symbol("act_scale_$i")])) && throw(ArgumentError("NaNs in the activation scales"))

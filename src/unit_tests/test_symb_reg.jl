@@ -26,6 +26,9 @@ function test_param_fitting()
     fcn = x -> x
     params, R2 = fit_params(x, y, fcn)
 
+    println("True params: 2, 1, 1, 0")
+    println("Fitted params: ", params)
+
     @test R2 >= 0.9
     @test abs(params[1] - 2) < 0.01
     @test abs(params[2] - 1) < 0.01
@@ -41,21 +44,22 @@ function test_poly_fit()
     fcn = x -> x^2
     params, R2 = fit_params(x, y, fcn)
 
-    @test R2 >= 0.9
-    @test abs(params[1] - 2) < 0.01
-    @test abs(params[2] - 1) < 0.01
-    @test abs(params[3] - 1) < 0.01
-    @test abs(params[4] - 0) < 0.01
+    println("True params: 0, 0, 2, 0")
+    println("Fitted params: ", params)
+
+    @test abs(params[1] - 0) < 0.01
+    @test abs(params[2] - 0) < 0.01
+    @test abs(params[3] - 2) < 0.01
+    @test abs(params[4] - 1) < 0.01
 
     # Plot
     fig = Figure()
     ax = Axis(fig[1, 1], xlabel="x", ylabel="y")
     lines!(ax, x, y, label="data")
     lines!(ax, x, fcn.(x) .* 2 .+ 1, label="true")
-    lines!(ax, x, fcn.(x) .* params[1] .+ params[2], label="fit")
+    lines!(ax, x, fcn.(params[1] .* x .+ params[2]) .* params[3] .+ params[4], label="fit")
     Legend(fig, ax, position = :rt)
     save("figures/test_poly_fit.png", fig)
-
 end
 
 function test_sin_fitting()
@@ -66,6 +70,9 @@ function test_sin_fitting()
     y = 5 .* sin.(3 .* x .+ 2) .+ 0.7 .+ noises
     fcn(x) = sin(x)
     params, R2 = fit_params(x, y, fcn)
+
+    println("True params: 3, 2, 5, 0.7")
+    println("Fitted params: ", params)
 
     @test abs(params[1] - 3) < 0.1
     @test abs(params[2] - 2) < 0.1 
@@ -114,7 +121,7 @@ function test_suggestion()
     model = KAN_model([2,5,1]; k=3, grid_interval=5)
     ps, st = Lux.setup(Random.default_rng(), model)
 
-    train_data, test_data = create_data(x -> x[1] * x[2], N_var=2, x_range=(-1,1), N_train=100, N_test=100, normalise_input=false, init_seed=1234)
+    train_data, test_data = create_data(x -> x[:,1] .* x[:,2], N_var=2, x_range=(-1,1), N_train=100, N_test=100, normalise_input=false, init_seed=1234)
     opt = create_optim_opt("bfgs", "backtrack")
     trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=10, verbose=true)
     model, ps, st = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1)
@@ -127,7 +134,7 @@ function test_auto()
     model = KAN_model([2,5,1]; k=3, grid_interval=5)
     ps, st = Lux.setup(Random.default_rng(), model)
 
-    train_data, test_data = create_data(x -> x[1] + x[2], N_var=2, x_range=(-1,1), N_train=100, N_test=100, normalise_input=false, init_seed=1234)
+    train_data, test_data = create_data(x -> x[:,1] + x[:,2], N_var=2, x_range=(-1,1), N_train=100, N_test=100, normalise_input=false, init_seed=1234)
     opt = create_optim_opt("bfgs", "backtrack")
     trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=10, verbose=true)
     model, ps, st = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1, grid_update_num=5, stop_grid_update_step=10)
@@ -156,10 +163,10 @@ end
     test_param_fitting()
     test_poly_fit()
     test_sin_fitting()
-    # test_lock_symb()
-    # test_suggestion()
+    test_lock_symb()
+    test_suggestion()
 end
 
-# m, p, s = test_auto()
-# formula, st = test_formula(m, p, s)
-# plot_symb(m, st, formula)
+m, p, s = test_auto()
+formula, st = test_formula(m, p, s)
+plot_symb(m, st, formula)

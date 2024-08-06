@@ -22,7 +22,7 @@ using .Optimisation
 using .Utils: round_formula, device
 using .Plotting
 
-FUNCTION = x -> x[1] * x[2]
+FUNCTION = x -> x[:,1] .* x[:,2]
 STRING_VERSION = "x1 * x2"
 FILE_NAME = "multiply"
 
@@ -33,8 +33,8 @@ N_test = parse(Int, retrieve(conf, "PIPELINE", "N_test"))
 num_grid_updates = parse(Int, retrieve(conf, "PIPELINE", "num_grid_updates"))
 final_grid_epoch = parse(Int, retrieve(conf, "PIPELINE", "final_grid_epoch"))
 normalise = parse(Bool, retrieve(conf, "PIPELINE", "normalise_data"))
-lower_lim = parse(Float64, retrieve(conf, "PIPELINE", "input_lower_lim"))
-upper_lim = parse(Float64, retrieve(conf, "PIPELINE", "input_upper_lim"))
+lower_lim = parse(Float32, retrieve(conf, "PIPELINE", "input_lower_lim"))
+upper_lim = parse(Float32, retrieve(conf, "PIPELINE", "input_upper_lim"))
 lims = (lower_lim, upper_lim)
 
 ### Architecture hyperparams ###

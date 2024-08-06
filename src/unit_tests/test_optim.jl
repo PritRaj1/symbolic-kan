@@ -12,7 +12,7 @@ using .Plotting
 using .Optimisation
 
 function test_trainer()
-    train_data, test_data = create_data(x -> x[1] * x[2], N_var=2, x_range=(-1,1), N_train=100, N_test=100, normalise_input=false, init_seed=1234)
+    train_data, test_data = create_data(x -> x[:,1] .* x[:,2], N_var=2, x_range=(-1,1), N_train=100, N_test=100, normalise_input=false, init_seed=1234)
     model = KAN_model([2,5,1]; k=3, grid_interval=5)
     opt = create_optim_opt("bfgs", "backtrack")
     trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=10, verbose=true)

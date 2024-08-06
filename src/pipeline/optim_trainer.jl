@@ -4,6 +4,7 @@ export init_optim_trainer, train!
 
 using Lux, LuxCUDA, ProgressBars, Dates, Tullio, CSV, Statistics, Zygote, Random, ComponentArrays, Optimization, OptimizationOptimJL, Accessors
 using Optimisers: destructure
+using NNlib: sigmoid
 
 include("utils.jl")
 include("../pipeline/optimisation.jl")
@@ -109,8 +110,10 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
         
         # L2 regularisation
         function non_linear(x; th=mag_threshold, factor=reg_factor)
-            term1 = ifelse.(x .< th, Float32(1), Float32(0))
-            term2 = ifelse.(x .>= th, Float32(1), Float32(0))
+            # term1 = ifelse.(x .< th, Float32(1), Float32(0))
+            # term2 = ifelse.(x .>= th, Float32(1), Float32(0))
+            term1 = sigmoid(x .- th)
+            term2 = sigmoid(th .- x)
             return term1 .* x .* factor .+ term2 .* (x .+ (factor - 1) .* th)
         end
 
@@ -121,12 +124,18 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
             l1 = sum(non_linear(vec))
             entropy = -1 * sum(p .* log.(p .+ Float32(1e-2)))
             reg_ += (l1 * λ_l1) + (entropy * λ_entropy)
+
+            println("L1: ", l1)
+            println("Entropy: ", entropy)
         end
 
         for i in eachindex(t.model.act_fcns)
             coeff_l1 = sum(mean(abs.(ps[Symbol("coef_$i")]), dims=2))
             coeff_diff_l1 = sum(mean(abs.(diff(ps[Symbol("coef_$i")]; dims=3)), dims=2))
             reg_ += (λ_coef * coeff_l1) + (λ_coefdiff * coeff_diff_l1)
+
+            println("Coeff L1: ", coeff_l1)
+            println("Coeff Diff L1: ", coeff_diff_l1)
         end
 
         return reg_
@@ -162,7 +171,6 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
                 end
             end
         end
-            
 
         t.x, t.y = x_test, y_test
         test_loss = t.loss_fn(state.u, nothing)

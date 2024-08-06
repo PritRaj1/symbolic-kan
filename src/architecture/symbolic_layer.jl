@@ -53,7 +53,7 @@ function apply_fcn(x, y; fcn)
 end
 
 ### c * f(a*x + b) + d ###  
-function (l::symbolic_dense)(x, ps, mask; avoid_singular=true, y_th=10.0f0)
+function (l::symbolic_dense)(x, ps, mask; avoid_singular=false, y_th=10.0f0)
     """
     Forward pass of the symbolic dense layer evaluated for input x.
 
@@ -78,7 +78,7 @@ function (l::symbolic_dense)(x, ps, mask; avoid_singular=true, y_th=10.0f0)
     C = selectdim(ps, 3, 3)
     D = selectdim(ps, 3, 4)
 
-    inner_term = @tullio out[b, j, i] := A[j, i]* x[b, i] + B[j, i]
+    inner_term = @tullio out[b, j, i] := A[j, i] * x[b, i] + B[j, i]
 
     # Major GPU bottleneck - univariate function application
     ŷ = zeros(Float32, b_size, l.out_dim, 0) |> device

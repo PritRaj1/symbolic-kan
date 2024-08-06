@@ -23,11 +23,11 @@ function extend_grid(grid, k_extend=0)
     Returns:
         A matrix of size (d, m + 2 * k_extend) containing the extended grid of knots.
     """
-    h = (grid[ :, end] .- grid[:, 1]) ./ (size(grid, 2) - 1)
+    h = (grid[ :, end] - grid[:, 1]) / (size(grid, 2) - 1)
 
     for i in 1:k_extend
-        grid = hcat(grid[:, 1:1] .- h, grid)
-        grid = hcat(grid, grid[:, end:end] .+ h)
+        grid = hcat(grid[:, 1:1] - h, grid)
+        grid = hcat(grid, grid[:, end:end] + h)
     end
     
     return grid
@@ -60,8 +60,8 @@ function B_batch(x, grid; degree::Int64, σ=nothing)
         # term2 = ifelse.(x_eval .< grid_2, Float32(1), Float32(0))
 
         # Smooth approximation of thresholding
-        term1 = sigmoid(x_eval .- grid_1)
-        term2 = sigmoid(grid_2 .- x_eval)
+        term1 = sigmoid(x_eval - grid_1)
+        term2 = sigmoid(grid_2 - x_eval)
 
         B = @tullio res[d, p, n] := term1[d, p, n] * term2[d, p, n]
     

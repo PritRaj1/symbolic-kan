@@ -85,7 +85,7 @@ R2, model, ps, st = fix_symbolic(model, ps, st, 3, 2, 1, "x")
 R2, model, ps, st = fix_symbolic(model, ps, st, 3, 3, 1, "x")
 plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[STRING_VERSION], title="KAN", file_name=FILE_NAME*"_fixed")
 
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true)
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true, update_grid_bool=false)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, grid_update_num=num_grid_updates, stop_grid_update_step=final_grid_epoch)
 y, st = model(device(train_data[1]), ps, st)
 st = cpu_device()(st)

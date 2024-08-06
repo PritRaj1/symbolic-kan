@@ -141,8 +141,8 @@ function (m::KAN)(x, ps, st)
         end
 
         # φ(x) + φs(x)
-        x_eval = x_numerical .+ x_symbolic
-        post_acts = spline_st.post_acts .+ symbolic_st.post_acts
+        x_eval = x_numerical + x_symbolic
+        post_acts = spline_st.post_acts + symbolic_st.post_acts
 
         # Scales for l1 regularisation
         in_range = std(spline_st.pre_acts, dims=1) .+ 0.1f0

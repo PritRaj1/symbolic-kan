@@ -2,8 +2,7 @@ module OptimTrainer
 
 export init_optim_trainer, train!
 
-using Lux, LuxCUDA, ProgressBars, Dates, Tullio, CSV, Statistics, Zygote, Random, ComponentArrays, Optimization, OptimizationOptimJL, Accessors
-using Optimisers: destructure
+using Lux, LuxCUDA, ProgressBars, Dates, Tullio, CSV, Statistics, Zygote, Random, ComponentArrays, Optimization, OptimizationOptimJL, Accessors, ComponentArrays
 using NNlib: sigmoid
 
 include("utils.jl")
@@ -103,8 +102,6 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
         t.state = device(st)
     end
 
-    pars, re = destructure(t.params)
-
     # Regularisation
     function reg(ps, st)
         
@@ -124,18 +121,12 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
             l1 = sum(non_linear(vec))
             entropy = -1 * sum(p .* log.(p .+ Float32(1e-2)))
             reg_ += (l1 * λ_l1) + (entropy * λ_entropy)
-
-            println("L1: ", l1)
-            println("Entropy: ", entropy)
         end
 
         for i in eachindex(t.model.act_fcns)
             coeff_l1 = sum(mean(abs.(ps[Symbol("coef_$i")]), dims=2))
             coeff_diff_l1 = sum(mean(abs.(diff(ps[Symbol("coef_$i")]; dims=3)), dims=2))
             reg_ += (λ_coef * coeff_l1) + (λ_coefdiff * coeff_diff_l1)
-
-            println("Coeff L1: ", coeff_l1)
-            println("Coeff Diff L1: ", coeff_diff_l1)
         end
 
         return reg_
@@ -144,12 +135,11 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
 
     # l1 regularisation loss
     function reg_loss(ps, s)
-        ps = re(ps)
         ŷ, t.state = t.model(t.x, ps, t.state)
-        l2 = mean((ŷ .- t.y).^2) 
+        l2 = mean((ŷ - t.y).^2) 
         reg_ = reg(ps, t.state)
         reg_ = λ * reg_
-        return l2 .+ reg_
+        return l2 + reg_
     end
 
     if isnothing(t.loss_fn)
@@ -159,11 +149,11 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     start_time = time()
 
     function log_callback!(state::Optimization.OptimizationState, obj)
-        t.params = re(state.u)
+        t.params = state.u 
 
         if any(isnan.(state.grad))
             println("NaN in gradients")
-            grads = re(state.grad)
+            grads = state.grad 
             grads = cpu_device()(grads)
             for k in keys(grads)
                 if any(isnan.(grads[k]))
@@ -182,7 +172,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
         new_p = nothing
         if (t.epoch % grid_update_freq == 0) && (t.epoch < stop_grid_update_step) && t.update_grid_bool
             t.model, new_p = update_grid(t.model, x_train, t.params, t.state)
-            @reset state.u = destructure(new_p)[1]
+            @reset state.u = new_p 
             t.params = new_p
         end
         
@@ -204,10 +194,11 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     end
     println("Created log at $file_name")
 
+    pars = t.params |> ComponentArray
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
     res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, x_tol=1e-32, f_tol=1e-9, g_tol=1e-12, allow_f_increases=true, allow_outer_f_increases=true, abstol=1e-32, reltol=1e-32)
-    t.params = re(res.minimizer)
+    t.params = res.minimizer
     return t.model, cpu_device()(t.params), cpu_device()(t.state)
 end
 

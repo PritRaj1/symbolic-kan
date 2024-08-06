@@ -31,3 +31,4 @@ using Accessors
 using Optimisers
 using ComponentArrays
 using ConfParser
+using SpecialFunctions

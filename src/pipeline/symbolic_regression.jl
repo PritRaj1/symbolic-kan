@@ -14,7 +14,6 @@ conf = ConfParse("config/config.ini")
 parse_conf!(conf)
 
 grid_number = parse(Int, retrieve(conf, "PARAM_FITTING", "NUM_G"))
-μ = parse(Float64, retrieve(conf, "PARAM_FITTING", "STEP_SIZE"))
 iterations = parse(Int, retrieve(conf, "PARAM_FITTING", "ITERS"))
 
 function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), verbose=true)
@@ -45,8 +44,8 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), verbose=t
     - R2: coefficient of determination.
     """
 
-    α_best, β_best = nothing, nothing
-    R2_best = nothing
+    α_best, β_best = α_range[1], β_range[1]
+    R2_best = 0.0
 
     for iter in 1:iterations
         # Create search grids
@@ -57,20 +56,40 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), verbose=t
         ŷ, α_grid, β_grid = expand_apply(fcn, x, α_, β_; grid_number=grid_number)
 
         # Compute R2 for all grid points := 1 - (sum((y - f(αx + β)^2) / sum((y - mean(y))^2))
-        RSS = @tullio res[i, j, k] := (y[i] - ŷ[i, j, k]) ^ 2
-        RSS = sum(RSS, dims=1)[1, :, :]
+        RSS = @tullio res[i, j, k] := (y[i] - ŷ[i, j, k])
+        RSS = sum(RSS.^2, dims=1)[1, :, :]
         TSS = sum((y .- mean(y)).^2)
         R2 = @tullio res[j, k] := 1 - (RSS[j, k] / TSS)
 
         # Choose best α, β by maximising coefficient of determination
         best_id = argmax(R2)
+        R2_best = R2[best_id]
         α_best = α_grid[best_id]
         β_best = β_grid[best_id]
-        R2_best = R2[best_id]
 
-        # Update α, β range for next iteration
-        α_range = (α_best - μ*(α_range[2] - α_range[1]) / grid_number, α_best + μ*(α_range[2] - α_range[1]) / grid_number)
-        β_range = (β_best - μ*(β_range[2] - β_range[1]) / grid_number, β_best + μ*(β_range[2] - β_range[1]) / grid_number)
+        # Update α, β ranges
+        if first(α_range) == α_best || last(α_range) == α_best || first(β_range) == β_best || last(β_range) == β_best
+            if verbose == true && iter == 1
+                println("Best value at boundary.")
+            end
+            if first(α_range) == α_best
+                α_range = [α_[1], α_[2]]
+            end
+            if last(α_range) == α_best
+                α_range = [α_[end-1], α_[end]]
+            end
+            if first(β_range) == β_best
+                β_range = [β_[1], β_[2]]
+            end
+            if last(β_range) == β_best
+                β_range = [β_[end-1], β_[end]]
+            end
+        else
+            α_best_idx = findfirst(x -> x == α_best, α_)
+            β_best_idx = findfirst(x -> x == β_best, β_)
+            α_range = [α_[α_best_idx-1], α_[α_best_idx+1]]
+            β_range = [β_[β_best_idx-1], β_[β_best_idx+1]]
+        end
     end
 
     # Linear regression to find w, b

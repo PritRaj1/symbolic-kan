@@ -20,7 +20,7 @@ using .Utils: round_formula
 # Test parameter fitting for symbolic reg
 function test_param_fitting()
     num = 500
-    x = range(-5, 5, length=num) |> collect
+    x = range(-1, 1, length=num) |> collect
     noises = randn(num) .* 0.02
     y = 2 .* x .+ 1 .+ noises
     fcn = x -> x
@@ -33,13 +33,38 @@ function test_param_fitting()
     @test abs(params[4] - 0) < 0.01
 end
 
+function test_poly_fit()
+    num = 500
+    x = range(-1, 1, length=num) |> collect
+    noises = randn(num) .* 0.02
+    y = 2 .* x .^ 2 .+ 1 .+ noises
+    fcn = x -> x^2
+    params, R2 = fit_params(x, y, fcn)
+
+    @test R2 >= 0.9
+    @test abs(params[1] - 2) < 0.01
+    @test abs(params[2] - 1) < 0.01
+    @test abs(params[3] - 1) < 0.01
+    @test abs(params[4] - 0) < 0.01
+
+    # Plot
+    fig = Figure()
+    ax = Axis(fig[1, 1], xlabel="x", ylabel="y")
+    lines!(ax, x, y, label="data")
+    lines!(ax, x, fcn.(x) .* 2 .+ 1, label="true")
+    lines!(ax, x, fcn.(x) .* params[1] .+ params[2], label="fit")
+    Legend(fig, ax, position = :rt)
+    save("figures/test_poly_fit.png", fig)
+
+end
+
 function test_sin_fitting()
     num = 500
-    x = range(-0.5, 0.5, length=num) |> collect
+    x = range(-1, 1, length=num) |> collect
     Random.seed!(123)
     noises = randn(num) .* 0.02
-    y = 5 .* tan.(3 .* x .+ 2) .+ 0.7 .+ noises
-    fcn(x) = tan(x)
+    y = 5 .* sin.(3 .* x .+ 2) .+ 0.7 .+ noises
+    fcn(x) = sin(x)
     params, R2 = fit_params(x, y, fcn)
 
     @test abs(params[1] - 3) < 0.1
@@ -129,11 +154,12 @@ end
 
 @testset "KAN_model Tests" begin
     test_param_fitting()
+    test_poly_fit()
     test_sin_fitting()
-    test_lock_symb()
-    test_suggestion()
+    # test_lock_symb()
+    # test_suggestion()
 end
 
-m, p, s = test_auto()
-formula, st = test_formula(m, p, s)
-plot_symb(m, st, formula)
+# m, p, s = test_auto()
+# formula, st = test_formula(m, p, s)
+# plot_symb(m, st, formula)

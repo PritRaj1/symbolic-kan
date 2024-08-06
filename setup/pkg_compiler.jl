@@ -6,7 +6,7 @@ create_sysimage(
         "Tullio", "SymPy", "Test", "Random", "Statistics", "GLM", "DataFrames", "Optimisers", "PyCall",
         "Zygote", "ProgressBars", "CSV", "Dates", "Printf", "Makie", "GLMakie", "FileIO","IntervalSets", 
         "LineSearches", "FluxOptTools", "Plots", "DifferentialEquations", "Accessors", "Optimisers", 
-        "ComponentArrays", "ConfParser", "LuxCUDA"
+        "ComponentArrays", "ConfParser", "LuxCUDA", "SpecialFunctions"
     ],
     sysimage_path="precompile.so",
     precompile_execution_file="setup/precompile.jl"

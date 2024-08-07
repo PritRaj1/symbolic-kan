@@ -38,27 +38,26 @@ function sparse_mask(in_dim, out_dim)
         A sparse mask of size (in_dim, out_dim) with 1s at the nearest connections.
     """
 
-    in_coord = range(1, in_dim, step=1) |> collect
-    out_coord = range(1, out_dim, step=1) |> collect
+    in_coord = 1:in_dim |> collect
+    out_coord = 1:out_dim |> collect
     in_coord = in_coord .* (1 / (2 * in_dim^2))
     out_coord = out_coord .* (1 / (2 * out_dim^2))
     
-    dist_mat = abs.(out_coord' .- in_coord)
-    in_nearest = argmin(dist_mat, dims=1)
-    in_connection = hcat(collect(1:in_dim), in_nearest')
+    dist_mat = @tullio res[j, i] := (out_coord[i] - in_coord[j])^2
+    in_nearest = [argmin(mat)[1] for mat in eachrow(dist_mat)] |> collect
+    in_connection = hcat(collect(1:in_dim), in_nearest)
 
-    out_nearest = argmin(dist_mat, dims=2)
+    out_nearest = [argmin(mat)[1] for mat in eachcol(dist_mat)] |> collect
     out_connection = hcat(out_nearest, collect(1:out_dim))
 
-
     all_connection = vcat(in_connection, out_connection)
-    mask = zeros(in_dim, out_dim)
+    mask = zeros(Float32, in_dim, out_dim)
 
     for i in eachindex(all_connection[:, 1])
-        mask[all_connection[i, 1], all_connection[i, 2]] = 1.0
+        mask[all_connection[i, 1], all_connection[i, 2]] = Float32(1)
     end
 
-    return Float32.(mask)
+    return mask
 end
 
 function expand_apply(fcn, x, α, β; grid_number)

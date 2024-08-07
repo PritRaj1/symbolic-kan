@@ -18,8 +18,8 @@ mutable struct optim_trainer
     model
     params
     state
-    train_data::Tuple{AbstractArray, AbstractArray}
-    test_data::Tuple{AbstractArray, AbstractArray}
+    train_data::Tuple{AbstractArray{Float32}, AbstractArray{Float32}}
+    test_data::Tuple{AbstractArray{Float32}, AbstractArray{Float32}}
     opt
     loss_fn
     epoch::Int
@@ -27,8 +27,8 @@ mutable struct optim_trainer
     update_grid_bool::Bool
     verbose::Bool
     log_time::Bool
-    x::AbstractArray
-    y::AbstractArray
+    x::AbstractArray{Float32}
+    y::AbstractArray{Float32}
 end
 
 function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, optim_optimiser; loss_fn=nothing, max_iters=1e5, update_grid_bool=true, verbose=true, log_time=true)
@@ -135,7 +135,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     # l1 regularisation loss
     function reg_loss(ps, s)
         ŷ, t.state = t.model(t.x, ps, t.state)
-        l2 = mean((ŷ - t.y).^2) 
+        l2 = sum((ŷ - t.y).^2) 
         reg_ = reg(ps, t.state)
         reg_ = λ * reg_
         return l2 + reg_
@@ -149,8 +149,6 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
 
     function log_callback!(state::Optimization.OptimizationState, obj)
         t.params = state.u 
-
-        println(typeof(state.grad), " ", typeof(state.u))
 
         if any(isnan.(state.grad))
             println("NaN in gradients")
@@ -198,7 +196,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     pars = t.params |> ComponentArray
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
-    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, x_tol=Float32(1e-32), f_tol=Float32(1e-9), g_tol=Float32(1e-12), allow_f_increases=true, allow_outer_f_increases=true, abstol=Float32(1e-32), reltol=Float32(1e-32))
+    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, abstol=Float32(1e-32), reltol=Float32(1e-32))
     t.params = res.minimizer
     return t.model, cpu_device()(t.params), cpu_device()(t.state)
 end

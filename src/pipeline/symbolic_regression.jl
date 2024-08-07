@@ -152,10 +152,10 @@ function set_affine(ps, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)
     - a3: param3.
     - a4: param4.
     """
-    @reset ps[j, i, 1] = a1
-    @reset ps[j, i, 2] = a2
-    @reset ps[j, i, 3] = a3
-    @reset ps[j, i, 4] = a4
+    @reset ps[j, i, 1] = Float32(a1)
+    @reset ps[j, i, 2] = Float32(a2)
+    @reset ps[j, i, 3] = Float32(a3)
+    @reset ps[j, i, 4] = Float32(a4)
 
     return ps
 end
@@ -164,7 +164,7 @@ function remove_edge(st, l, i, j)
     """
     Remove φ(l, i, j) from the symbolic layer.
     """
-    @reset st[Symbol("act_fcn_mask_$l")][i, j] = 0.0
+    @reset st[Symbol("act_fcn_mask_$l")][i, j] = Float32(0.0)
 
     return st
 end
@@ -255,21 +255,21 @@ function set_mode(st, l, i, j, mode; mask_n=nothing)
     """
 
     if mode == "s"
-        mask_n = 0.0f0
-        mask_s = 1.0f0
+        mask_n = Float32(0)
+        mask_s = Float32(1)
     elseif mode == "n"
-        mask_n = 1.0f0
-        mask_s = 0.0f0
+        mask_n = Float32(1)
+        mask_s = Float32(0)
     elseif mode == "sn" || mode == "ns"
         if isnothing(mask_n)
-            mask_n = 1.0f0
+            mask_n = Float32(1)
         else
             mask_n = mask_n
         end
-        mask_s = 1.0f0
+        mask_s = Float32(1)
     else
-        mask_n = 0.0f0
-        mask_s = 0.0f0
+        mask_n = Float32(0)
+        mask_s = Float32(0)
     end
 
     @reset st[Symbol("act_fcn_mask_$l")][i, j] = mask_n

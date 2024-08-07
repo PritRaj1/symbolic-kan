@@ -5,20 +5,14 @@ export create_optim_opt, opt_get
 using Lux, OptimizationOptimJL, LineSearches, Optimisers
 
 ## Optim optimiser ##
-linesearch_map = Dict(
-    "backtrack" => LineSearches.BackTracking(),
-    "hagerzhang" => LineSearches.HagerZhang(),
-    "morethuente" => LineSearches.MoreThuente(),
-    "static" => LineSearches.Static(),
-)
-
 struct optim_opt
     type
     line_search
     m::Int
+    init_α::Float32
 end
 
-function create_optim_opt(type="l-bfgs", line_search="strongwolfe"; m=10, c_1=1e-4, c_2=0.9, ρ=0.5)
+function create_optim_opt(type="l-bfgs", line_search="strongwolfe"; m=10, c_1=1e-4, c_2=0.9, ρ=0.5, init_α=0.1)
     """
     Create optimiser.
 
@@ -35,22 +29,18 @@ function create_optim_opt(type="l-bfgs", line_search="strongwolfe"; m=10, c_1=1e
     - optimiser: optimiser.
     """
     
-    if line_search == "strongwolfe"
-        line_search = LineSearches.StrongWolfe(c_1=Float32(c_1), c_2=Float32(c_2), ρ=Float32(ρ))
-    else
-        line_search = linesearch_map[line_search]
-    end
+    linesearch_map = Dict(
+        "strongwolfe" => LineSearches.StrongWolfe(c_1=Float32(c_1), c_2=Float32(c_2), ρ=Float32(ρ)),
+        "backtrack" => LineSearches.BackTracking(c_1=Float32(c_1), ρ_hi=Float32(ρ), ρ_lo=Float32(0.1), maxstep=Inf32),
+        "hagerzhang" => LineSearches.HagerZhang(),
+        "morethuente" => LineSearches.MoreThuente(),
+        "static" => LineSearches.Static(),
+    )
+    
+    line_search = linesearch_map[line_search]
 
-    return optim_opt(type, line_search, m)
+    return optim_opt(type, line_search, m, init_α)
 end
-
-optimiser_map = Dict(
-    "bfgs" => Optim.BFGS,
-    "cg" => Optim.ConjugateGradient,
-    "gd" => Optim.GradientDescent,
-    "newton" => Optim.Newton,
-    "interior-point" => Optim.IPNewton,
-)
 
 function opt_get(o)
     """
@@ -64,11 +54,18 @@ function opt_get(o)
     """
 
     if o.type == "l-bfgs" 
-        return Optim.LBFGS(m=o.m, linesearch=o.line_search)
+        return Optim.LBFGS(m=o.m, linesearch=o.line_search, alphaguess=Float32(1))
     elseif o.type == "neldermead"
         return Optim.NelderMead()
     else
-        return optimiser_map[o.type](linesearch=o.line_search)
+        optimiser_map = Dict(
+            "bfgs" => Optim.BFGS(linesearch=o.line_search, alphaguess=InitialHagerZhang(α0=init_α)),
+            "cg" => Optim.ConjugateGradient(linesearch=o.line_search, alphaguess=InitialHagerZhang(α0=init_α)),
+            "gd" => Optim.GradientDescent(linesearch=o.line_search, alphaguess=InitialHagerZhang(α0=init_α)),
+            "newton" => Optim.Newton(linesearch=o.line_search, alphaguess=InitialHagerZhang(α0=init_α)),
+            "interior-point" => Optim.IPNewton(linesearch=o.line_search),
+        )
+        return optimiser_map[o.type]
     end
 
 end

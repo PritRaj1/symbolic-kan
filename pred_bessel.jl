@@ -22,8 +22,8 @@ using .Optimisation
 using .Utils: round_formula, device
 using .Plotting
 
-FUNCTION = x -> exp.((20 .* x[:,1]) + x[:,2].^2)
-STRING_VERSION = "exp((20 * x1) + x2^2)"
+FUNCTION = x -> sin.((20 .* x[:,1]) + x[:,2].^2)
+STRING_VERSION = "sin((20 * x1) + x2^2)"
 FILE_NAME = "bessel"
 
 ### Pipeline hyperparams ###
@@ -53,13 +53,14 @@ m = parse(Int, retrieve(conf, "OPTIMIZER", "m"))
 c_1 = parse(Float64, retrieve(conf, "OPTIMIZER", "c_1"))
 c_2 = parse(Float64, retrieve(conf, "OPTIMIZER", "c_2"))
 ρ = parse(Float64, retrieve(conf, "OPTIMIZER", "ρ"))
+α0 = parse(Float64, retrieve(conf, "OPTIMIZER", "α0"))
 
 seed = Random.seed!(123)
 
 train_data, test_data = create_data(FUNCTION, N_var=2, x_range=lims, N_train=N_train, N_test=N_test, normalise_input=normalise, init_seed=seed)
-opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ)
+opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=α0)
 
-model = KAN_model([2, 3, 1]; k=k, grid_interval=G)
+model = KAN_model([2, 5, 1]; k=k, grid_interval=G)
 ps, st = Lux.setup(seed, model)
 y, st = model(train_data[1], ps, st) # warmup for plotting
 st = cpu_device()(st)

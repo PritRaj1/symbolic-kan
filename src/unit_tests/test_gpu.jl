@@ -93,7 +93,7 @@ end
 function test_prune(model, ps, st, x)
     mask_before = st[Symbol("mask_1")]
     model, ps, st = prune(Random.default_rng(), model, ps, st)
-    mask_after = st.mask
+    mask_after =  st[Symbol("mask_1")]
     y, st = model(x, ps, st)
     st = cpu_device()(st)
 

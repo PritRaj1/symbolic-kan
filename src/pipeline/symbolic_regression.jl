@@ -334,8 +334,8 @@ function fix_symbolic(model, ps, st, l, i, j, fcn_name; fit_params=true, α_rang
         @reset ps[Symbol("affine_$l")] = new_ps
         return nothing, model, ps, st
     else
-        x = st.acts[l][:, i]
-        y = st.post_acts[l][:, j, i]
+        x = st[Symbol("acts_$l")][:, i]
+        y = st[Symbol("post_acts_$l")][:, j, i]
         R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[l], ps[Symbol("affine_$l")], i, j, fcn_name; x=x, y=y, α_range=α_range, β_range=β_range, random=random, seed=seed, verbose=verbose)
         @reset model.symbolic_fcns[l] = new_l
         @reset ps[Symbol("affine_$l")] = new_ps

@@ -19,7 +19,7 @@ function get_range(st, l, i, j; verbose=true)
         y_min: Minimum value of the postactivation.
         y_max: Maximum value of the postactivation.
     """
-    x, y = st.pre_acts[l][:, i, j], st.post_acts[l][:, i, j]
+    x, y = st[Symbol("pre_acts_$l")][:, i, j], st[Symbol("post_acts_$l")][:, i, j]
     x_min, x_max = minimum(x), maximum(x)
     y_min, y_max = minimum(y), maximum(y)
     
@@ -78,7 +78,7 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
         w_large = 2.0
         for i in 1:model.widths[l]
             for j in 1:model.widths[l+1]
-                rank = sortperm(view(st.acts[l][:, i], :), rev=true)
+                rank = sortperm(view(st[Symbol("acts_$l")][:, i], :), rev=true)
 
                 symbol_mask = st[Symbol("symb_fcn_mask_$l")][j, i]
                 numerical_mask = st[Symbol("act_fcn_mask_$l")][i, j]
@@ -122,8 +122,8 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
 
                 alpha_mask == 0 && hidespines!(ax)
 
-                acts_data = st.acts[l][:, i][rank]
-                spline_data = st.post_acts[l][:, j, i][rank]
+                acts_data = st[Symbol("acts_$l")][:, i][rank]
+                spline_data = st[Symbol("post_acts_$l")][:, j, i][rank]
 
                 lines!(ax, acts_data, spline_data, color=color, linewidth=5)
 
@@ -208,7 +208,7 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
                         hidespines!(ax)
                     end
 
-                    alpha_plot = mask ? alpha[l][j, i] * st.mask[l][i] * st.mask[l + 1][j] : alpha[l][j, i] * alpha_mask
+                    alpha_plot = mask ? alpha[l][j, i] * st[Symbol("mask_$l")][i] * st[Symbol("mask_$(l+1)")][j] : alpha[l][j, i] * alpha_mask
 
                 else
                     last = neuron_depth-1
@@ -233,7 +233,7 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
                         hidespines!(ax)
                     end
 
-                    alpha_plot = mask ? st.mask[end-1][i] * alpha[end][j, i] * alpha_mask : alpha[end][j, i] * alpha_mask
+                    alpha_plot = mask ? st[Symbol("mask_$(model.depth)")][i] * alpha[end][j, i] * alpha_mask : alpha[end][j, i] * alpha_mask
                     alpha_plot = l == neuron_depth ? 0.0 : alpha_plot # Remove last line
                 end
 
@@ -273,7 +273,7 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
                 bottom = DC_to_NFC([0, (l - 1 / 2) * y0 - y1])[2] |> Float32
                 top = DC_to_NFC([0, (l - 1 / 2) * y0 + y1])[2] |> Float32
                 
-                image_alpha = mask ? alpha[l][j, i] * st.mask[l][i] * st.mask[l+1][j] : alpha[l][j, i]                         
+                image_alpha = mask ? alpha[l][j, i] * st[Symbol("mask_$l")][i] * st[Symbol("mask_$(l+1)")][j] : alpha[l][j, i]                         
                 image!(ax, left..right, bottom..top, rotr90(im), alpha=image_alpha)
             end
         end

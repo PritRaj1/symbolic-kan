@@ -74,30 +74,25 @@ end
 
 function Lux.initialstates(rng::AbstractRNG, m::KAN)
 
-    # State to hold intermediary values
-    st = (
-        acts = [],
-        pre_acts = [],
-        post_acts = [],
-        post_splines = [],
-        mask = [ones(Float32, widths) for widths in m.widths[1:end]],
-        symbolic_acts = []
-    )
+    st = NamedTuple(Symbol("mask_$i") => ones(Float32, width) for (i, width) in enumerate(m.widths))
+    @reset st[Symbol("acts_1")] = nothing
 
-    # Long, flattened named tuple for the masks
     for i in 1:m.depth
         @reset st[Symbol("act_scale_$i")] = zeros(Float32, maximum(m.widths[i+1]), maximum(m.widths[i]))
         act_st = Lux.initialstates(rng, m.act_fcns[i])
         @reset st[Symbol("act_fcn_mask_$i")] = act_st.mask
         symb_st = Lux.initialstates(rng, m.symbolic_fcns[i])
         @reset st[Symbol("symb_fcn_mask_$i")] = symb_st.mask
+
+        @reset st[Symbol("acts_$(i+1)")] = nothing
+        @reset st[Symbol("pre_acts_$i")] = nothing
+        @reset st[Symbol("post_acts_$i")] = nothing
+        @reset st[Symbol("post_splines_$i")] = nothing
+
+        @reset st[Symbol("symbolic_acts_$i")] = nothing
     end
 
     return st
-end
-
-@nograd function add_to_array!(arr, x)
-    return push!(arr, x)
 end
 
 function (m::KAN)(x, ps, st)
@@ -116,10 +111,7 @@ function (m::KAN)(x, ps, st)
     x, ps, st = device(x), device(ps), device(st)
 
     x_eval = copy(x)
-    acts_arr = [x,]
-    pre_acts_arr = []
-    post_acts_arr = []
-    post_splines_arr = []
+    @reset st[Symbol("acts_1")] = copy(x_eval)
 
     for i in 1:m.depth
 
@@ -151,9 +143,9 @@ function (m::KAN)(x, ps, st)
         @reset st[Symbol("act_scale_$i")] = (out_range ./ in_range)[1, :, :]
         any(isnan.(st[Symbol("act_scale_$i")])) && throw(ArgumentError("NaNs in the activation scales"))
         
-        add_to_array!(pre_acts_arr, spline_st.pre_acts)
-        add_to_array!(post_acts_arr, post_acts)
-        add_to_array!(post_splines_arr, spline_st.post_spline)
+        @reset st[Symbol("pre_acts_$i")] = spline_st.pre_acts
+        @reset st[Symbol("post_acts_$i")] = post_acts
+        @reset st[Symbol("post_splines_$i")] = spline_st.post_spline
 
         # Bias b(x)
         b = repeat(ps[Symbol("bias_$i")], size(x_eval, 1), 1)
@@ -161,13 +153,8 @@ function (m::KAN)(x, ps, st)
         # Accumulate outputs of each layer in accordance with outer sum of Kolmogorov-Arnold theorem
         x_eval = x_eval + b
 
-        add_to_array!(acts_arr, copy(x_eval))
+        @reset st[Symbol("acts_$(i+1)")] = copy(x_eval)
     end
-
-    @reset st.acts = acts_arr
-    @reset st.pre_acts = pre_acts_arr
-    @reset st.post_acts = post_acts_arr
-    @reset st.post_splines = post_splines_arr
 
     return x_eval, st
 end
@@ -219,11 +206,9 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
         st_pruned: Pruned state.
     """
 
-
-    mask = []
-    add_to_array!(mask, ones(m.widths[1], ))
+    @reset st[Symbol("mask_1")] = ones(Float32, m.widths[1],)
     active_neurons_id = []
-    add_to_array!(active_neurons_id, [1:m.widths[1]...])
+    push!(active_neurons_id, [1:m.widths[1]...])
     overall_important = nothing
 
     # Find all neurons with an input and output above the threshold
@@ -239,14 +224,13 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
             overall_important[active_neurons_id[i+1]] .= 1.0
         end
 
-        add_to_array!(mask, overall_important)
+        @reset st[Symbol("mask_$(i+1)")] = overall_important
         cart_ind = findall(x -> x > 0.0, overall_important)
-        add_to_array!(active_neurons_id, [i[1] for i in cart_ind])
+        push!(active_neurons_id, [i[1] for i in cart_ind])
     end
     
-    add_to_array!(active_neurons_id, [1:m.widths[end]...])
-    add_to_array!(mask, ones(Float32, m.widths[end], ))
-    @reset st.mask = mask
+    push!(active_neurons_id, [1:m.widths[end]...])
+    @reset st[Symbol("mask_$(m.depth+1)")] = ones(Float32, m.widths[end])
 
     if verbose
         println("Active neurons: ", active_neurons_id)
@@ -297,9 +281,10 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
         @reset st_pruned[Symbol("symb_fcn_mask_$i")] = new_mask
 
         @reset model_pruned.widths[i] = length(active_neurons_id[i])
+        @reset st_pruned[Symbol("mask_$i")] = st[Symbol("mask_$i")]
     end
 
-    @reset st_pruned.mask = mask
+    @reset st_pruned[Symbol("mask_$(m.depth+1)")] = st[Symbol("mask_$(m.depth+1)")]
     @reset model_pruned.depth = length(model_pruned.widths) - 1
 
     return model_pruned, ps_pruned, st_pruned
@@ -309,8 +294,6 @@ end
     """
     Update the grid for each b-spline layer in the model.
     """
-
-    act_fcns_ps_arr = []
  
     for i in 1:model.depth
         _, st = model(x, ps, st)

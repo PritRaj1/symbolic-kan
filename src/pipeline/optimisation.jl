@@ -59,10 +59,10 @@ function opt_get(o)
         return Optim.NelderMead()
     else
         optimiser_map = Dict(
-            "bfgs" => Optim.BFGS(linesearch=o.line_search, alphaguess=InitialHagerZhang(α0=init_α)),
-            "cg" => Optim.ConjugateGradient(linesearch=o.line_search, alphaguess=InitialHagerZhang(α0=init_α)),
-            "gd" => Optim.GradientDescent(linesearch=o.line_search, alphaguess=InitialHagerZhang(α0=init_α)),
-            "newton" => Optim.Newton(linesearch=o.line_search, alphaguess=InitialHagerZhang(α0=init_α)),
+            "bfgs" => Optim.BFGS(linesearch=o.line_search, alphaguess=InitialHagerZhang(α0=o.init_α)),
+            "cg" => Optim.ConjugateGradient(linesearch=o.line_search, alphaguess=InitialHagerZhang(α0=o.init_α)),
+            "gd" => Optim.GradientDescent(linesearch=o.line_search, alphaguess=InitialHagerZhang(α0=o.init_α)),
+            "newton" => Optim.Newton(linesearch=o.line_search, alphaguess=InitialHagerZhang(α0=o.init_α)),
             "interior-point" => Optim.IPNewton(linesearch=o.line_search),
         )
         return optimiser_map[o.type]

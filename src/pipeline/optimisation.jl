@@ -2,7 +2,7 @@ module Optimisation
 
 export create_optim_opt, opt_get
 
-using Lux, OptimizationOptimJL, LineSearches, Optimisers
+using Lux, OptimizationOptimJL, LineSearches
 
 ## Optim optimiser ##
 struct optim_opt
@@ -30,16 +30,17 @@ function create_optim_opt(type="l-bfgs", line_search="strongwolfe"; m=10, c_1=1e
     """
     
     linesearch_map = Dict(
-        "strongwolfe" => LineSearches.StrongWolfe(c_1=Float32(c_1), c_2=Float32(c_2), ρ=Float32(ρ)),
-        "backtrack" => LineSearches.BackTracking(c_1=Float32(c_1), ρ_hi=Float32(ρ), ρ_lo=Float32(0.1), maxstep=Inf32),
-        "hagerzhang" => LineSearches.HagerZhang(),
-        "morethuente" => LineSearches.MoreThuente(),
-        "static" => LineSearches.Static(),
+        "strongwolfe" => LineSearches.StrongWolfe{Float32}(c_1=Float32(c_1), c_2=Float32(c_2), ρ=Float32(ρ)),
+        "backtrack" => LineSearches.BackTracking{Float32}(c_1=Float32(c_1), ρ_hi=Float32(ρ), ρ_lo=Float32(0.1), maxstep=Inf32),
+        "hagerzhang" => LineSearches.HagerZhang{Float32}(),
+        "morethuente" => LineSearches.MoreThuente{Float32}(),
+        # "static" => LineSearches.Static{Float32}(),
     )
-    
-    line_search = linesearch_map[line_search]
 
-    return optim_opt(type, line_search, m, init_α)
+    fcn = linesearch_map[line_search]
+    line_fcn = (a, b, c, d, e, f) -> fcn(a, b, c, d, e, f) # Needed or else: ERROR: LoadError: TypeError: in keyword argument linesearch, expected Function, got a value of type LineSearches.StrongWolfe{Float32}
+    
+    return optim_opt(type, line_fcn, m, init_α)
 end
 
 function opt_get(o)
@@ -54,13 +55,13 @@ function opt_get(o)
     """
     
     optimiser_map = Dict(
-        "bfgs" => Optim.BFGS(linesearch=o.line_search, alphaguess=InitialHagerZhang{Float32}(α0=o.init_α)),
-        "l-bfgs" => Optim.LBFGS(m=o.m, linesearch=o.line_search, alphaguess=InitialHagerZhang{Float32}(α0=o.init_α)),
-        "cg" => Optim.ConjugateGradient(linesearch=o.line_search, alphaguess=InitialHagerZhang{Float32}(α0=o.init_α)),
-        "gd" => Optim.GradientDescent(linesearch=o.line_search, alphaguess=InitialHagerZhang{Float32}(α0=o.init_α)),
-        "newton" => Optim.Newton(linesearch=o.line_search, alphaguess=InitialHagerZhang{Float32}(α0=o.init_α)),
-        "interior-point" => Optim.IPNewton(linesearch=o.line_search),
-        "neldermead" => Optim.NelderMead(),
+        "bfgs" => BFGS(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=o.init_α), linesearch=o.line_search),
+        "l-bfgs" => LBFGS(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=o.init_α), m=o.m, linesearch=o.line_search),
+        "cg" => ConjugateGradient(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=o.init_α), linesearch=o.line_search),
+        "gd" => GradientDescent(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=o.init_α), linesearch=o.line_search),
+        "newton" => Newton(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=o.init_α), linesearch=o.line_search),
+        "interior-point" => IPNewton(linesearch=o.line_search),
+        "neldermead" => NelderMead(),
     )
 
     return optimiser_map[o.type]

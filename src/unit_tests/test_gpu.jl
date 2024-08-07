@@ -75,7 +75,7 @@ function test_training()
     model = KAN_model([2,5,1]; k=3, grid_interval=5)
     opt = create_optim_opt("bfgs", "backtrack")
     trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=3, verbose=true)
-    model, params, state = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1, grid_update_num=5, stop_grid_update_step=15)
+    model, params, state = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=2.0, λ_coef=0.1, λ_coefdiff=0.1, grid_update_num=5, stop_grid_update_step=15)
 
     # check loss
     x, y = train_data
@@ -91,9 +91,9 @@ function test_training()
 end
 
 function test_prune(model, ps, st, x)
-    mask_before = st[Symbol("mask_1")]
+    mask_before = st[Symbol("mask_2")]
     model, ps, st = prune(Random.default_rng(), model, ps, st)
-    mask_after =  st[Symbol("mask_1")]
+    mask_after =  st[Symbol("mask_2")]
     y, st = model(x, ps, st)
     st = cpu_device()(st)
 

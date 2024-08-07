@@ -30,18 +30,13 @@ function test_trainer()
 end
 
 function test_prune(model, ps, st, x)
-    mask_before = st.mask[1]
+    mask_before = st[Symbol("mask_2")]
     model, ps, st = prune(Random.default_rng(), model, ps, st)
-    mask_after = st.mask
+    mask_after = st[Symbol("mask_2")]
     y, st = model(x, ps, st)
 
-    sum_mask_after = 0.0
-    for i in eachindex(mask_after)
-        sum_mask_after += sum(mask_after[i])
-    end
-
     println("Number of neurons after pruning: ", sum_mask_after)
-    @test sum_mask_after != sum(mask_before)
+    @test sum(mask_after) != sum(mask_before)
     return model, st
 end
 

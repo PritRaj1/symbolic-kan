@@ -150,6 +150,10 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     function log_callback!(state::Optimization.OptimizationState, obj)
         t.params = state.u 
 
+        if t.verbose
+            println("Grad sum: ", sum(state.grad))
+        end
+
         if any(isnan.(state.grad))
             println("NaN in gradients")
             grads = state.grad 

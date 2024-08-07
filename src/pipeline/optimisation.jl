@@ -38,8 +38,7 @@ function create_optim_opt(type="l-bfgs", line_search="strongwolfe"; m=10, c_1=1e
     )
 
     fcn = linesearch_map[line_search]
-    line_fcn = (a, b, c, d, e, f) -> fcn(a, b, c, d, e, f) # Needed or else: ERROR: LoadError: TypeError: in keyword argument linesearch, expected Function, got a value of type LineSearches.StrongWolfe{Float32}
-    
+    line_fcn = (a...) -> fcn(a...) # Needed or else: ERROR: LoadError: TypeError: in keyword argument linesearch, expected Function, got a value of type LineSearches.StrongWolfe{Float32}
     return optim_opt(type, line_fcn, m, init_α)
 end
 

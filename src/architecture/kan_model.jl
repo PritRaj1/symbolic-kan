@@ -305,12 +305,12 @@ end
             w_sp = ps[Symbol("w_sp_$i")]
         )
 
-        new_l, new_ps = update_lyr_grid(model.act_fcns[i], kan_ps, st.acts[i])
-        @reset model.act_fcns[i] = new_l
+        new_l, new_ps = update_lyr_grid(model.act_fcns[i], kan_ps, st[Symbol("acts_$i")])
         @reset ps[Symbol("ε_$i")] = new_ps.ε
         @reset ps[Symbol("coef_$i")] = new_ps.coef
         @reset ps[Symbol("w_base_$i")] = new_ps.w_base
         @reset ps[Symbol("w_sp_$i")] = new_ps.w_sp
+        @reset model.act_fcns[i] = new_l
     end
         
     return model, ps

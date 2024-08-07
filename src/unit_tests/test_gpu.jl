@@ -91,7 +91,7 @@ function test_training()
 end
 
 function test_prune(model, ps, st, x)
-    mask_before = st.mask[1]
+    mask_before = st[Symbol("mask_1")]
     model, ps, st = prune(Random.default_rng(), model, ps, st)
     mask_after = st.mask
     y, st = model(x, ps, st)

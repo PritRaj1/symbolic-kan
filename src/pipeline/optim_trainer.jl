@@ -196,7 +196,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     pars = t.params |> ComponentArray
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
-    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, abstol=Float32(1e-32), reltol=Float32(1e-32))
+    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, abstol=Float32(1e-32), reltol=Float32(1e-32), allow_f_increases=true, x_tol=Float32(1e-32), f_tol=Float32(1e-32), g_tol=Float32(1e-32))
     t.params = res.minimizer
     return t.model, cpu_device()(t.params), cpu_device()(t.state)
 end

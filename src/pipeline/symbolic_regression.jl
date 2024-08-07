@@ -497,9 +497,15 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
             symbolic_acts[end] = output_lyr
         end
 
-        new_symbolic_acts = [[symbolic_acts[l][i] for i in eachindex(symbolic_acts[l])] for l in eachindex(symbolic_acts)]
+        # new_symbolic_acts = [[symbolic_acts[l][i] for i in eachindex(symbolic_acts[l])] for l in eachindex(symbolic_acts)]
 
-        @reset st.symbolic_acts = new_symbolic_acts
+        # @reset st.symbolic_acts = new_symbolic_acts
+
+        for l in eachindex(symbolic_acts)
+            for i in eachindex(symbolic_acts[l])
+                @reset st[Symbol("symbolic_acts_$l")] = symbolic_acts[l][i]
+            end
+        end
 
         return [symbolic_acts[end][i] for i in eachindex(symbolic_acts[end])], x0, st
     

@@ -4,7 +4,6 @@ export KAN, KAN_model, prune, update_grid
 
 using CUDA, KernelAbstractions, Lux, LuxCUDA
 using Lux, Tullio, NNlib, Random, Statistics, SymPy, Accessors
-using Zygote: @nograd
 
 include("kan_layer.jl")
 include("symbolic_layer.jl")

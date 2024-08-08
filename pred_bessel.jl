@@ -40,11 +40,14 @@ lims = (lower_lim, upper_lim)
 ### Architecture hyperparams ###
 k = parse(Int, retrieve(conf, "ARCHITECTURE", "k"))
 G = parse(Int, retrieve(conf, "ARCHITECTURE", "G"))
+grid_lower_lim = parse(Float32, retrieve(conf, "ARCHITECTURE", "grid_lower_lim"))
+grid_upper_lim = parse(Float32, retrieve(conf, "ARCHITECTURE", "grid_upper_lim"))
 λ = parse(Float64, retrieve(conf, "ARCHITECTURE", "λ"))
 λ_l1 = parse(Float64, retrieve(conf, "ARCHITECTURE", "λ_l1"))
 λ_entropy = parse(Float64, retrieve(conf, "ARCHITECTURE", "λ_entropy"))
 λ_coef = parse(Float64, retrieve(conf, "ARCHITECTURE", "λ_coef"))
 λ_coefdiff = parse(Float64, retrieve(conf, "ARCHITECTURE", "λ_coefdiff"))
+g_lims = (grid_lower_lim, grid_upper_lim)
 
 ### Optimisation hyperparams ###
 type = retrieve(conf, "OPTIMIZER", "type")
@@ -60,7 +63,7 @@ seed = Random.seed!(123)
 train_data, test_data = create_data(FUNCTION, N_var=2, x_range=lims, N_train=N_train, N_test=N_test, normalise_input=normalise, init_seed=seed)
 opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=α0)
 
-model = KAN_model([2, 5, 1]; k=k, grid_interval=G)
+model = KAN_model([2, 5, 1]; k=k, grid_interval=G, grid_range=g_lims)
 ps, st = Lux.setup(seed, model)
 y, st = model(train_data[1], ps, st) # warmup for plotting
 st = cpu_device()(st)

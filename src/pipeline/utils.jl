@@ -38,14 +38,16 @@ function create_data(fcn; N_var=2, x_range=(-1.0,1.0), N_train=1000, N_test=1000
     X_train = randn(Float32, (N_train, N_var)) .* (x_range[2] - x_range[1]) .+ x_range[1]
     X_test = randn(Float32, (N_train, N_var)) .* (x_range[2] - x_range[1]) .+ x_range[1]
 
+    y_train = fcn(X_train)
+    y_test = fcn(X_test)
+
     # Normalise data
     if normalise_input
         X_train = (X_train .- mean(X_train, dims=1)) ./ std(X_train, dims=1)
         X_test = (X_test .- mean(X_test, dims=1)) ./ std(X_test, dims=1)
+        y_train = (y_train .- mean(y_train, dims=1)) ./ std(y_train, dims=1)
+        y_test = (y_test .- mean(y_test, dims=1)) ./ std(y_test, dims=1)
     end
-
-    y_train = fcn(X_train)
-    y_test = fcn(X_test)
 
     return (X_train, y_train), (X_test, y_test)
 end

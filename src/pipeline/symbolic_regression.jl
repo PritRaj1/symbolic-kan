@@ -33,13 +33,16 @@ function coeff_pearson(y, ŷ)
     """
     Compute the Pearson correlation coefficient.
     """
-    ŷ_std = @tullio res[i, j, k] := ŷ[i, j, k] - mean(ŷ; dims=1)[1, j, k]
-    y_std = y .- mean(y)
-    numer = @tullio out[i, j, k] := (y_std[i] * ŷ_std[i, j, k])
+    ŷ_mean = mean(ŷ; dims=1)
+    ŷ_err = @tullio res[i, j, k] := ŷ[i, j, k] - ŷ_mean[1, j, k]
+    y_err = y .- mean(y)
+    numer = @tullio out[i, j, k] := (y_err[i] * ŷ_err[i, j, k])
     numer = sum(numer.^2; dims=1)[1, :, :]
-    denom = sum(ŷ_std.^2; dims=1)[1, :, :]
-    denom = denom .* sum(y_std.^2)
-    return numer ./ denom
+    denom = sum(ŷ_err.^2; dims=1)[1, :, :]
+    denom = denom .* sum(y_err.^2)
+    removeZero(denom; ε=1e-3)
+    pearson = numer ./ denom
+    return replace(pearson, NaN => 0.0)
 end
 
 get_coeff = coeff_type == "R2" ? coeff_determintation : coeff_pearson
@@ -496,10 +499,6 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
             output_lyr = [(output_lyr[i] * std[i]) + mean[i] for i in eachindex(output_lyr)]
             symbolic_acts[end] = output_lyr
         end
-
-        # new_symbolic_acts = [[symbolic_acts[l][i] for i in eachindex(symbolic_acts[l])] for l in eachindex(symbolic_acts)]
-
-        # @reset st.symbolic_acts = new_symbolic_acts
 
         for l in eachindex(symbolic_acts)
             for i in eachindex(symbolic_acts[l])

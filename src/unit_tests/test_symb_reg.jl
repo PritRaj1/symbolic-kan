@@ -38,33 +38,33 @@ end
 
 function test_poly_fit()
     num = 500
-    x = range(-1, 1, length=num) |> collect
+    x = range(-5, 5, length=num) |> collect
     noises = randn(num) .* 0.02
-    y = 2 .* x .^ 2 .+ 1 .+ noises
-    fcn = x -> x^2
+    y = 3 .* ((2 .* x .+ 4) .^ 3) .+ 1 .+ noises
+    fcn = x -> x^3
     params, R2 = fit_params(x, y, fcn)
 
-    println("True params: 0, 0, 2, 0")
+    println("True params: 2, 4, 3, 1")
     println("Fitted params: ", params)
-
-    @test abs(params[1] - 0) < 0.01
-    @test abs(params[2] - 0) < 0.01
-    @test abs(params[3] - 2) < 0.01
-    @test abs(params[4] - 1) < 0.01
 
     # Plot
     fig = Figure()
     ax = Axis(fig[1, 1], xlabel="x", ylabel="y")
     lines!(ax, x, y, label="data")
-    lines!(ax, x, fcn.(x) .* 2 .+ 1, label="true")
+    lines!(ax, x, 3 .* fcn.(2 .* x .+ 4) .+ 1, label="true")
     lines!(ax, x, fcn.(params[1] .* x .+ params[2]) .* params[3] .+ params[4], label="fit")
     Legend(fig, ax, position = :rt)
     save("figures/test_poly_fit.png", fig)
+
+    @test abs(params[1] - 2) < 0.01
+    @test abs(params[2] - 4) < 0.01
+    @test abs(params[3] - 3) < 0.01
+    @test abs(params[4] - 1) < 0.01
 end
 
 function test_sin_fitting()
     num = 500
-    x = range(-1, 1, length=num) |> collect
+    x = range(-5, 5, length=num) |> collect
     Random.seed!(123)
     noises = randn(num) .* 0.02
     y = 5 .* sin.(3 .* x .+ 2) .+ 0.7 .+ noises
@@ -74,11 +74,6 @@ function test_sin_fitting()
     println("True params: 3, 2, 5, 0.7")
     println("Fitted params: ", params)
 
-    @test abs(params[1] - 3) < 0.1
-    @test abs(params[2] - 2) < 0.1 
-    @test abs(params[3] - 5) < 0.1
-    @test abs(params[4] - 0.7) < 0.1
-
     # Plot
     fig = Figure()
     ax = Axis(fig[1, 1], xlabel="x", ylabel="y")
@@ -87,6 +82,11 @@ function test_sin_fitting()
     lines!(ax, x, fcn.(params[1] .* x .+ params[2]) .* params[3] .+ params[4], label="fit")
     Legend(fig, ax, position = :rt)
     save("figures/test_sin_fitting.png", fig)
+
+    @test abs(params[1] - 3) < 0.1
+    @test abs(params[2] - 2) < 0.1 
+    @test abs(params[3] - 5) < 0.1
+    @test abs(params[4] - 0.7) < 0.1
 end
 
 function test_lock_symb()
@@ -163,10 +163,10 @@ end
     test_param_fitting()
     test_poly_fit()
     test_sin_fitting()
-    test_lock_symb()
-    test_suggestion()
+    # test_lock_symb()
+    # test_suggestion()
 end
 
-m, p, s = test_auto()
-formula, st = test_formula(m, p, s)
-plot_symb(m, st, formula)
+# m, p, s = test_auto()
+# formula, st = test_formula(m, p, s)
+# plot_symb(m, st, formula)

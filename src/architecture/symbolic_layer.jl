@@ -53,7 +53,7 @@ function apply_fcn(x, y; fcn)
 end
 
 ### c * f(a*x + b) + d ###  
-function (l::symbolic_dense)(x, ps, mask; avoid_singular=false, y_th=10.0f0)
+function (l::symbolic_dense)(x, ps, mask; avoid_singular=true, y_th=10.0f0)
     """
     Forward pass of the symbolic dense layer evaluated for input x.
 

@@ -35,7 +35,7 @@ function test_prune(model, ps, st, x)
     mask_after = st[Symbol("mask_2")]
     y, st = model(x, ps, st)
 
-    println("Number of neurons after pruning: ", sum_mask_after)
+    println("Number of neurons after pruning: ", sum(mask_after))
     @test sum(mask_after) != sum(mask_before)
     return model, st
 end

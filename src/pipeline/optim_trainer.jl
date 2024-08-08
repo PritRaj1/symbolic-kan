@@ -122,7 +122,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
             reg_ += (l1 * λ_l1) + (entropy * λ_entropy)
         end
 
-        for i in eachindex(t.model.act_fcns)
+        for i in eachindex(t.model.depth)
             coeff_l1 = sum(mean(abs.(ps[Symbol("coef_$i")]), dims=2))
             coeff_diff_l1 = sum(mean(abs.(diff(ps[Symbol("coef_$i")]; dims=3)), dims=2))
             reg_ += (λ_coef * coeff_l1) + (λ_coefdiff * coeff_diff_l1)
@@ -148,7 +148,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     start_time = time()
 
     function log_callback!(state::Optimization.OptimizationState, obj)
-        t.params = state.u 
+        t.params = state.u
 
         if t.verbose
             println("Grad sum: ", sum(state.grad))
@@ -178,7 +178,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
             @reset state.u = new_p 
             t.params = new_p
         end
-        
+           
         log_csv(t.epoch, time() - start_time, obj, test_loss, reg_, file_name; log_time=t.log_time)
         
         t.epoch += 1

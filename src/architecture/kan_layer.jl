@@ -31,12 +31,13 @@ struct kan_dense <: Lux.AbstractExplicitLayer
 end
 
 function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=0.1, σ_base=nothing, σ_sp=1.0, base_act=NNlib.selu, grid_eps=0.02, grid_range=(-1, 1))
-    grid = range(grid_range[1], grid_range[2], length=num_splines + 1) |> collect |> x -> reshape(x, 1, length(x))
+    grid = range(grid_range[1], grid_range[2], length=num_splines + 1) |> collect |> x -> reshape(x, 1, length(x)) |> device
     grid = repeat(grid, in_dim, 1) 
-    grid = extend_grid(grid, degree) |> device
+    grid = extend_grid(grid, degree) 
     RBF_σ = 1.0
 
     σ_base = isnothing(σ_base) ? ones(Float32, in_dim, out_dim) : σ_base
+    σ_base = σ_base |> device
     
     return kan_dense(in_dim, out_dim, num_splines, degree, grid, RBF_σ, base_act, grid_eps, grid_range, ε_scale, σ_base, σ_sp)
 end
@@ -98,8 +99,17 @@ function (l::kan_dense)(x, ps, mask)
     return y, new_st
 end
 
+function sort_columns(A)
+    sorted_A = device(zeros(Float32, size(A,1), 0))
+    num_cols = size(A, 2)
+    for j in 1:num_cols
+        sorted_A = hcat(sorted_A, sort(Array(A[:, j])))
+    end
+    return sorted_A
+end
 
-function update_lyr_grid(l, ps, x)
+
+function update_lyr_grid(l, coef, x)
     """
     Adapt the grid to the distribution of the input data
 
@@ -116,8 +126,8 @@ function update_lyr_grid(l, ps, x)
     b_size = size(x, 1)
     
     # Compute the B-spline basis functions of degree k
-    CUDA.@allowscalar x_sort = sortslices(x, dims=1)
-    current_splines = coef2curve(x_sort, l.grid, ps.coef; k=l.degree, scale=l.RBF_σ)
+    x_sort = sort_columns(x)
+    current_splines = coef2curve(x_sort, l.grid, coef; k=l.degree, scale=l.RBF_σ)
 
     # Adaptive grid - concentrate grid points around regions of higher density
     num_interval = size(l.grid, 2) - 2*l.degree - 1
@@ -136,14 +146,11 @@ function update_lyr_grid(l, ps, x)
 
     # Grid is a convex combination of the uniform and adaptive grid
     grid = l.grid_eps .* grid_uniform + (1 - l.grid_eps) .* grid_adaptive
-    new_grid = extend_grid(grid, l.degree)
-    new_coef = curve2coef(x_sort, current_splines, new_grid; k=l.degree, scale=l.RBF_σ)
-    
-    # Update parameters
-    @reset ps.coef = new_coef
-    @reset l.grid = new_grid
+    new_grid = extend_grid(grid, l.degree) |> device
 
-    return l, ps
+    new_coef = curve2coef(x_sort, current_splines, new_grid; k=l.degree, scale=l.RBF_σ)
+
+    return new_grid, new_coef
 end
 
 function get_subset(l, ps, old_mask, in_indices, out_indices)

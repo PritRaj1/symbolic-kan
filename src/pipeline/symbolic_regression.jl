@@ -329,15 +329,15 @@ function fix_symbolic(model, ps, st, l, i, j, fcn_name; fit_params=true, α_rang
     st = set_mode(st, l, i, j, "s")
     
     if !fit_params
-        R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[l], ps[Symbol("affine_$l")], i, j, fcn_name)
-        @reset model.symbolic_fcns[l] = new_l
+        R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[Symbol("symb_lyr_$l")], ps[Symbol("affine_$l")], i, j, fcn_name)
+        @reset model.symbolic_fcns[Symbol("symb_lyr_$l")]= new_l
         @reset ps[Symbol("affine_$l")] = new_ps
         return nothing, model, ps, st
     else
         x = st[Symbol("acts_$l")][:, i]
         y = st[Symbol("post_acts_$l")][:, j, i]
-        R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[l], ps[Symbol("affine_$l")], i, j, fcn_name; x=x, y=y, α_range=α_range, β_range=β_range, random=random, seed=seed, verbose=verbose)
-        @reset model.symbolic_fcns[l] = new_l
+        R2, new_l, new_ps = lock_symbolic(model.symbolic_fcns[Symbol("symb_lyr_$l")], ps[Symbol("affine_$l")], i, j, fcn_name; x=x, y=y, α_range=α_range, β_range=β_range, random=random, seed=seed, verbose=verbose)
+        @reset model.symbolic_fcns[Symbol("symb_lyr_$l")] = new_l
         @reset ps[Symbol("affine_$l")] = new_ps
         return R2, model, ps, st
     end 
@@ -471,7 +471,7 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
             yj = 0.0
             for i in 1:model.widths[l]
                 a, b, c, d = ps[Symbol("affine_$l")][j, i, :]
-                sympy_fcn = model.symbolic_fcns[l].fcns[j][i]
+                sympy_fcn = model.symbolic_fcns[Symbol("symb_lyr_$l")].fcns[j][i]
                 try 
                     yj += c * sympy_fcn(a * x[i] + b) + d
                 catch

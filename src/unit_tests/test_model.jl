@@ -19,12 +19,12 @@ function test_grid()
     model = KAN_model([2,5,1]; k=3, grid_interval=5)
     ps, st = Lux.setup(Random.default_rng(), model)
 
-    before = model.act_fcns[1].grid[1, :]
+    before = model.act_fcns[Symbol("act_lyr_1")].grid[1, :]
     
     x = randn(Float32, 100, 2) .* 5
     model, ps = update_grid(model, x, ps, st)
     
-    after = model.act_fcns[1].grid[1, :]
+    after = model.act_fcns[Symbol("act_lyr_1")].grid[1, :]
     @test abs(sum(before) - sum(after)) > 0.1
 end
 

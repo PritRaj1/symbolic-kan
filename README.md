@@ -7,8 +7,8 @@ WORK IN PROGRESS
 Thank you to KindXiaoming and the rest of the KAN community for putting this awesome network out there for the world to see.
 
 <p align="center">
-<img src="figures/symbolic_test.png" alt="KAN Network" width="48%" style="padding-right: 20px;">
-<img src="figures/symbolic_test_pruned.png" alt="Pruned KAN Network" width="48%">
+<img src="figures/multipl_pruned.png" alt="KAN Network" width="48%" style="padding-right: 20px;">
+<img src="figures/multiply_symbolic.png" alt="Pruned KAN Network" width="48%">
 </p>
 
 
@@ -53,6 +53,7 @@ julia --sysimage precompile.so pred_multiply.jl
 - **c_1**: Armijo condition parameter for linesearch. Used to ensure sufficient decrease in the objective function.
 - **c_2**: Second Wolfe condition parameter. Ensures the step size satisfies the curvature condition.
 - **ρ**: Bracket expansion factor. Determines the factor by which the interval for the step size is expanded during the linesearch.
+- **α0**: Initital step size for linesearch.
 
 ### Pipeline
 - **num_epochs**: Number of training epochs. Defines how many times the training process will iterate over the entire dataset.
@@ -64,6 +65,11 @@ julia --sysimage precompile.so pred_multiply.jl
 - **N_train**: Number of training samples. Specifies the size of the training dataset.
 - **N_test**: Number of testing samples. Specifies the size of the testing dataset.
 
+### Param fitting
+- **num_g**: Number of evaluation points used in grid search.
+- **iters**: Number of iterations to run grid search for.
+- **coeff_type**: Either R2 or pearson to fit the inner affine parameters to.
+
 ## References
 
 - [Liu, Z., Wang, Y., Vaidya, S., Ruehle, F., Halverson, J., Soljačić, M., Hou, T. Y., & Tegmark, M. (2024). KAN: Kolmogorov-Arnold Networks.](https://arxiv.org/abs/2404.19756)
@@ -72,7 +78,9 @@ julia --sysimage precompile.so pred_multiply.jl
 
 ## TODO
 
+1. GPU - currently doesn't work
 1. Feynmann Dataset?
+2. StaticArrays or similar for performance
 
 
 

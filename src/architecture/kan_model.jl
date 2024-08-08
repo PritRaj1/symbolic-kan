@@ -32,18 +32,20 @@ end
 function KAN_model(widths; k=3, grid_interval=3, ε_scale=0.1f0, μ_scale=0.0f0, σ_scale=1.0f0, base_act=NNlib.selu, symbolic_enabled=true, grid_eps=1.0f0, grid_range=(-1f0, 1f0))
     depth = length(widths) - 1
 
-    act_fcns = []
-    symbolic_fcns = []
+    act_fcns = NamedTuple()
+    symbolic_fcns = NamedTuple()
 
     for i in 1:depth
         base_scale = (μ_scale * (1 / √(widths[i])) 
         .+ σ_scale .* (randn(Float32, widths[i], widths[i + 1]) .* 2 .- 1) .* (1 / √(widths[i])))
         
         spline = KAN_Dense(widths[i], widths[i + 1]; num_splines=grid_interval, degree=k, ε_scale=ε_scale, σ_base=base_scale, σ_sp=1.0, base_act=base_act, grid_eps=grid_eps, grid_range=grid_range)
-        push!(act_fcns, spline)
+        # push!(act_fcns, spline)
+        @reset act_fcns[Symbol("act_lyr_$i")] = spline
         
         symbolic = SymbolicDense(widths[i], widths[i + 1])
-        push!(symbolic_fcns, symbolic)
+        # push!(symbolic_fcns, symbolic)
+        @reset symbolic_fcns[Symbol("symb_lyr_$i")] = symbolic
     end
 
     return KAN(widths, depth, k, grid_interval, base_act, ε_scale, μ_scale, σ_scale, grid_eps, grid_range, symbolic_enabled, act_fcns, symbolic_fcns)
@@ -56,7 +58,7 @@ function Lux.initialparameters(rng::AbstractRNG, m::KAN)
     for i in 1:m.depth
 
         # Parameters for the spline layer
-        layer_ps = Lux.initialparameters(rng, m.act_fcns[i])
+        layer_ps = Lux.initialparameters(rng, m.act_fcns[Symbol("act_lyr_$i")])
         ε, coef, w_base, w_sp = layer_ps[:ε], layer_ps[:coef], layer_ps[:w_base], layer_ps[:w_sp]
         @reset ps[Symbol("ε_$i")] = ε
         @reset ps[Symbol("coef_$i")] = coef
@@ -64,7 +66,7 @@ function Lux.initialparameters(rng::AbstractRNG, m::KAN)
         @reset ps[Symbol("w_sp_$i")] = w_sp
 
         # Parameters for the symbolic layer
-        symb_ps = Lux.initialparameters(rng, m.symbolic_fcns[i])
+        symb_ps = Lux.initialparameters(rng, m.symbolic_fcns[Symbol("symb_lyr_$i")])
         @reset ps[Symbol("affine_$i")] = symb_ps
 
     end
@@ -79,9 +81,9 @@ function Lux.initialstates(rng::AbstractRNG, m::KAN)
 
     for i in 1:m.depth
         @reset st[Symbol("act_scale_$i")] = zeros(Float32, maximum(m.widths[i+1]), maximum(m.widths[i]))
-        act_st = Lux.initialstates(rng, m.act_fcns[i])
+        act_st = Lux.initialstates(rng, m.act_fcns[Symbol("act_lyr_$i")])
         @reset st[Symbol("act_fcn_mask_$i")] = act_st.mask
-        symb_st = Lux.initialstates(rng, m.symbolic_fcns[i])
+        symb_st = Lux.initialstates(rng, m.symbolic_fcns[Symbol("symb_lyr_$i")])
         @reset st[Symbol("symb_fcn_mask_$i")] = symb_st.mask
 
         @reset st[Symbol("acts_$(i+1)")] = nothing
@@ -111,7 +113,7 @@ function (m::KAN)(x, ps, st)
     x, ps, st = device(x), device(ps), device(st)
 
     x_eval = copy(x)
-    @reset st[Symbol("acts_1")] = copy(x_eval)
+    @reset st[Symbol("acts_1")] = copy(x)
 
     for i in 1:m.depth
 
@@ -122,13 +124,13 @@ function (m::KAN)(x, ps, st)
             w_sp = ps[Symbol("w_sp_$i")]
         )
 
-        x_numerical, spline_st = m.act_fcns[i](x_eval, kan_ps, st[Symbol("act_fcn_mask_$i")])
+        x_numerical, spline_st = m.act_fcns[Symbol("act_lyr_$i")](x_eval, kan_ps, st[Symbol("act_fcn_mask_$i")])
         any(isnan.(x_numerical)) && throw(ArgumentError("NaNs in the activations"))
 
         x_symbolic, symbolic_st = Float32(0.0), (post_acts=Float32(0.0),)
         if m.symbolic_enabled
             affine = ps[Symbol("affine_$i")]
-            x_symbolic, symbolic_st = m.symbolic_fcns[i](x_eval, affine, st[Symbol("symb_fcn_mask_$i")])
+            x_symbolic, symbolic_st = m.symbolic_fcns[Symbol("symb_lyr_$i")](x_eval, affine, st[Symbol("symb_fcn_mask_$i")])
             any(isnan.(x_symbolic)) && throw(ArgumentError("NaNs in the symbolic activations"))
         end
 
@@ -275,7 +277,7 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
         @reset ps_pruned[Symbol("w_sp_$i")] = ps_new[:w_sp]
         @reset st_pruned[Symbol("act_fcn_mask_$i")] = new_mask
 
-        new_fcn, ps_new, new_mask = get_symb_subset(m.symbolic_fcns[i], symb_ps, st_pruned[Symbol("symb_fcn_mask_$i")], active_neurons_id[i], active_neurons_id[i+1])
+        new_fcn, ps_new, new_mask = get_symb_subset(m.symbolic_fcns[Symbol("symb_lyr_$i")], symb_ps, st_pruned[Symbol("symb_fcn_mask_$i")], active_neurons_id[i], active_neurons_id[i+1])
         @reset model_pruned.symbolic_fcns[i] = new_fcn
         @reset ps_pruned[Symbol("affine_$i")] = ps_new
         @reset st_pruned[Symbol("symb_fcn_mask_$i")] = new_mask
@@ -290,27 +292,17 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
     return model_pruned, ps_pruned, st_pruned
 end
 
-@nograd function update_grid(model, x, ps, st)
+function update_grid(model, x, ps, st)
     """
     Update the grid for each b-spline layer in the model.
     """
- 
+
+    _, st = model(x, ps, st)
+    
     for i in 1:model.depth
-        _, st = model(x, ps, st)
-
-        kan_ps = (
-            ε = ps[Symbol("ε_$i")],
-            coef = ps[Symbol("coef_$i")],
-            w_base = ps[Symbol("w_base_$i")],
-            w_sp = ps[Symbol("w_sp_$i")]
-        )
-
-        new_l, new_ps = update_lyr_grid(model.act_fcns[i], kan_ps, st[Symbol("acts_$i")])
-        @reset ps[Symbol("ε_$i")] = new_ps.ε
-        @reset ps[Symbol("coef_$i")] = new_ps.coef
-        @reset ps[Symbol("w_base_$i")] = new_ps.w_base
-        @reset ps[Symbol("w_sp_$i")] = new_ps.w_sp
-        @reset model.act_fcns[i] = new_l
+        new_grid, new_coef = update_lyr_grid(model.act_fcns[Symbol("act_lyr_$i")], ps[Symbol("coef_$i")], st[Symbol("acts_$i")])
+        @reset ps[Symbol("coef_$i")] = collect(new_coef)
+        @reset model.act_fcns[Symbol("act_lyr_$i")].grid = collect(new_grid) |> device
     end
         
     return model, ps

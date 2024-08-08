@@ -4,7 +4,6 @@ export extend_grid, B_batch, coef2curve, curve2coef
 
 using CUDA, KernelAbstractions
 using Tullio, LinearAlgebra
-using Zygote: @nograd
 using NNlib: sigmoid
 
 include("../utils.jl")
@@ -23,7 +22,7 @@ function extend_grid(grid, k_extend=0)
     Returns:
         A matrix of size (d, m + 2 * k_extend) containing the extended grid of knots.
     """
-    h = (grid[ :, end] - grid[:, 1]) / (size(grid, 2) - 1)
+    h = (grid[:, end] - grid[:, 1]) / (size(grid, 2) - 1)
 
     for i in 1:k_extend
         grid = hcat(grid[:, 1:1] - h, grid)
@@ -78,6 +77,7 @@ function B_batch(x, grid; degree::Int64, σ=nothing)
         denom2 = grid[:, :, (k + 2):end] .- grid[:, :, 2:(end - k)]
         B_i1 = B[:, :, 1:end - 1]
         B_i2 = B[:, :, 2:end]
+
         B = @tullio out[d, n, m] := (numer1[d, n, m] / denom1[1, n, m] * B_i1[d, n, m]) + (numer2[d, n, m] / denom2[1, n, m] * B_i2[d, n, m])
     end
     
@@ -144,7 +144,9 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0, ε=1e-1)
     in_dim = size(x_eval, 2)
     n_coeffs = size(grid, 2) - k - 1
     out_dim = size(y_eval, 3)
+
     B = BasisFcn(x_eval, grid; degree=k, σ=scale) 
+
     # B = permutedims(B, [2, 1, 3])
     # B = reshape(B, in_dim, 1, b_size, n_coeffs)
     # B = repeat(B, 1, out_dim, 1, 1)

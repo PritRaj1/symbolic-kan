@@ -26,9 +26,9 @@ function test_spline_lyr()
     l = KAN_Dense(1, 1; num_splines=5, degree=3)
     ps = Lux.initialparameters(Random.GLOBAL_RNG, l)
     st = Lux.initialstates(Random.GLOBAL_RNG, l)
-    l, ps = update_lyr_grid(l, ps, x)
+    grid, coef = update_lyr_grid(l, ps.coef, x)
 
-    @test all(size(l.grid) .== (1, 12))
+    @test all(size(grid) .== (1, 12))
 
     l =  KAN_Dense(10, 10)
     ps = Lux.initialparameters(Random.GLOBAL_RNG, l)

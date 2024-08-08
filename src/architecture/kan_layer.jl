@@ -37,7 +37,6 @@ function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=
     RBF_σ = 1.0
 
     σ_base = isnothing(σ_base) ? ones(Float32, in_dim, out_dim) : σ_base
-    σ_base = σ_base |> device
     
     return kan_dense(in_dim, out_dim, num_splines, degree, grid, RBF_σ, base_act, grid_eps, grid_range, ε_scale, σ_base, σ_sp)
 end

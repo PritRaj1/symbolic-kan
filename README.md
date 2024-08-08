@@ -78,7 +78,7 @@ julia --sysimage precompile.so pred_multiply.jl
 
 ## TODO
 
-1. GPU - currently doesn't work
+<!-- 1. GPU - currently doesn't work -->
 1. Feynmann Dataset?
 2. StaticArrays or similar for performance
 

@@ -150,9 +150,9 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     function log_callback!(state::Optimization.OptimizationState, obj)
         t.params = state.u
 
-        if t.verbose
-            println("Grad sum: ", sum(state.grad))
-        end
+        # if t.verbose
+        #     println("Grad sum: ", sum(state.grad))
+        # end
 
         if any(isnan.(state.grad))
             println("NaN in gradients")
@@ -175,7 +175,8 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
         new_p = nothing
         if (t.epoch % grid_update_freq == 0) && (t.epoch < stop_grid_update_step) && t.update_grid_bool
             t.model, new_p = update_grid(t.model, x_train, t.params, t.state)
-            @reset state.u = new_p 
+            # @reset state.u = new_p 
+            copy!(state.u, new_p)
             t.params = new_p
         end
            
@@ -200,7 +201,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     pars = t.params |> ComponentArray
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
-    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, abstol=Float32(1e-32), reltol=Float32(1e-32), allow_f_increases=true, x_tol=Float32(1e-32), f_tol=Float32(1e-32), g_tol=Float32(1e-32))
+    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, abstol=Float32(0), reltol=Float32(0), allow_f_increases=true, x_tol=Float32(0), f_tol=Float32(0), g_tol=Float32(0), show_trace=true)
     t.params = res.minimizer
     return t.model, cpu_device()(t.params), cpu_device()(t.state)
 end

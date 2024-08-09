@@ -147,31 +147,31 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0, ε=1e-1)
 
     B = BasisFcn(x_eval, grid; degree=k, σ=scale) 
 
-    # B = permutedims(B, [2, 1, 3])
-    # B = reshape(B, in_dim, 1, b_size, n_coeffs)
-    # B = repeat(B, 1, out_dim, 1, 1)
+    B = permutedims(B, [2, 1, 3])
+    B = reshape(B, in_dim, 1, b_size, n_coeffs)
+    B = repeat(B, 1, out_dim, 1, 1)
 
-    # y_eval = permutedims(y_eval, [2, 3, 1]) 
+    y_eval = permutedims(y_eval, [2, 3, 1]) 
 
-    # # Get BtB and Bty
-    # Bt = permutedims(B, [1, 2, 4, 3])
+    # Get BtB and Bty
+    Bt = permutedims(B, [1, 2, 4, 3])
     
-    # BtB = @tullio out[i, j, p, p] := Bt[i, j, p, n] * B[i, j, n, p]
-    # n1, n2, n, _ = size(BtB)
-    # eye = Matrix{Float32}(I, n, n) .* ε |> device
-    # eye = reshape(eye, 1, 1, n, n)
-    # eye = repeat(eye, n1, n2, 1, 1)
-    # BtB = BtB + eye 
+    BtB = @tullio out[i, j, p, p] := Bt[i, j, p, n] * B[i, j, n, p]
+    n1, n2, n, _ = size(BtB)
+    eye = Matrix{Float32}(I, n, n) .* ε |> device
+    eye = reshape(eye, 1, 1, n, n)
+    eye = repeat(eye, n1, n2, 1, 1)
+    BtB = BtB + eye 
     
-    # Bty = @tullio out[i, j, p] := Bt[i, j, p, n] * y_eval[i, j, n]
+    Bty = @tullio out[i, j, p] := Bt[i, j, p, n] * y_eval[i, j, n]
     
-    # # x = (BtB)^-1 * Bty
-    # coef = @tullio out[i, j, p] := pinv(BtB[i, j, p, p]) * Bty[i, j, p]
-    # any(isnan.(coef)) && error("NaN in coef")
-
-    B = removeZero(B; ε=ε)
-    coef = @tullio out[j, q, p] := B[i, j, p] \ y_eval[i, j, q]
+    # x = (BtB)^-1 * Bty
+    coef = @tullio out[i, j, p] := pinv(BtB[i, j, p, p]) * Bty[i, j, p]
     any(isnan.(coef)) && error("NaN in coef")
+
+    # B = removeZero(B; ε=ε)
+    # coef = @tullio out[j, q, p] := B[i, j, p] \ y_eval[i, j, q]
+    # any(isnan.(coef)) && error("NaN in coef")
 
     return coef
 

@@ -515,7 +515,9 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
 
         formula = [symbolic_acts[end][i] for i in eachindex(symbolic_acts[end])]
 
-        return formula, x0, st, latexstring(formula[1])
+        formula = simplify ? [sympy.simplify(form) for form in formula] : formula
+
+        return formula, x0, st
     
     end
 end

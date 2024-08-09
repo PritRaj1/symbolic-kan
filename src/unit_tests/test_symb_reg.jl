@@ -1,4 +1,4 @@
-using Test, GLMakie, Random, Lux
+using Test, GLMakie, Random, Lux, LaTeXStrings
 
 include("../pipeline/symbolic_regression.jl")
 include("../architecture/kan_model.jl")
@@ -139,7 +139,7 @@ function test_auto()
     trainer = init_optim_trainer(Random.default_rng(), model, train_data, test_data, opt; max_iters=10, verbose=true)
     model, ps, st = train!(trainer; λ=1.0, λ_l1=1., λ_entropy=0.1, λ_coef=0.1, λ_coefdiff=0.1, grid_update_num=5, stop_grid_update_step=10)
     y, st = model(train_data[1], ps, st)
-    plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=["x1 + x1"], title="KAN", file_name="symbolic_test")
+    plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=["x_1 + x_2"], title="KAN", file_name="symbolic_test")
     model, ps, st = prune(Random.default_rng(), model, ps, st)
     y, st = model(train_data[1], ps, st)
     model, ps, st = auto_symbolic(model, ps, st; lib=["sin", "exp", "x^2"])
@@ -149,12 +149,14 @@ function test_auto()
 end
 
 function test_formula(model, ps, st)
-    _, x0, st, formula = symbolic_formula(model, ps, st)
+    formula, x0, st = symbolic_formula(model, ps, st)
+    formula = latexstring(formula[1])
+    println("Formula: ", formula)
     return formula, st
 end
 
 function plot_symb(model, st, form)
-    plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[form], title="Pruned Symbolic KAN", file_name="symbolic_test_pruned")
+    plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[form], title="Pruned Symbolic KAN", file_name="symbolic_test_pruned")
 end
 
 @testset "KAN_model Tests" begin

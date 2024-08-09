@@ -284,7 +284,7 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
         n = widths[1]
         for (i, var) in enumerate(in_vars)
             text!(fig[1, 1], 1 / (2 * n) + (i-1) / n, -0.1*y0, 
-                    text=var, align=(:center, :center), fontsize=20σ)
+                    text=latexstring(var), align=(:center, :center), fontsize=20σ)
         end
     end
     
@@ -293,7 +293,7 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
         n = widths[end]
         for (i, var) in enumerate(out_vars)
             text!(fig[1, 1], 1 / (2 * n) + (i-1) / n, y0 * (length(widths) - 1 + 0.25), 
-                    text=var, align=(:center, :center), fontsize=20σ)
+                    text=latexstring(var), align=(:center, :center), fontsize=20σ)
         end
     end
 

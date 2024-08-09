@@ -1,4 +1,4 @@
-using ConfParser, Random, Lux, SpecialFunctions
+using ConfParser, Random, Lux, SpecialFunctions, LaTeXStrings
 
 conf = ConfParse("config/config.ini")
 parse_conf!(conf)
@@ -68,7 +68,7 @@ ps, st = Lux.setup(seed, model)
 y, st = model(train_data[1], ps, st) # warmup for plotting
 st = cpu_device()(st)
 
-plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[STRING_VERSION], title="KAN", file_name=FILE_NAME*"_before")
+plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[STRING_VERSION], title="KAN", file_name=FILE_NAME*"_before")
 
 trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, grid_update_num=num_grid_updates, stop_grid_update_step=final_grid_epoch)
@@ -82,10 +82,11 @@ model, ps, st = auto_symbolic(model, ps, st; α_range = (-40, 40), β_range = (-
 trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=20, verbose=true) # Don't forget to re-init after pruning!
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, grid_update_num=num_grid_updates, stop_grid_update_step=final_grid_epoch)
 
-_, x0, st, formula = symbolic_formula(model, ps, st)
+formula, x0, st = symbolic_formula(model, ps, st)
+formula = latexstring(formula[1])
 println("Formula: ", formula)
 
-plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[formula], title="Symbolic KAN", file_name=FILE_NAME*"_after")
+plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[formula], title="Symbolic KAN", file_name=FILE_NAME*"_after")
 
 println("Formula: ", formula)
 

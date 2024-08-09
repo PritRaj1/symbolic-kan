@@ -118,9 +118,9 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
         function non_linear(x; th=mag_threshold, factor=reg_factor)
             # term1 = ifelse.(x .< th, 1f0, 0f0)
             # term2 = ifelse.(x .>= th, 1f0, 0f0)
-            term1 = sigmoid(th .- x)
-            term2 = 1 .- term1
-            return term1 .* x .* factor .+ term2 .* (x .+ (factor - 1) .* th)
+            # return term1 .* x .* factor .+ term2 .* (x .+ (factor - 1) .* th)
+            s = sigmoid(x .- th)
+            return x .+ s .* ((factor - 1) .* (1 .- s))
         end
 
         reg_ = 0f0

@@ -86,6 +86,7 @@ function (l::kan_dense)(x, ps, mask)
     # B-spline basis functions of degree k
     y = coef2curve(x, l.grid, ps.coef; k=l.degree, scale=l.RBF_σ) # spline(x)
     post_spline = permutedims(copy(y), [1, 3, 2])
+    any(isnan.(y)) && throw(ArgumentError("NaNs in the coefs"))
 
     # w_b*b(x) + w_s*spline(x)
     y = @tullio out[b, i, o] := (ps.w_base[i, o] * base[b, i] + ps.w_sp[i, o] * y[b, i, o]) * mask[i, o]

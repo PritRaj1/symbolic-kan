@@ -32,3 +32,4 @@ using Optimisers
 using ComponentArrays
 using ConfParser
 using SpecialFunctions
+using LaTeXStrings

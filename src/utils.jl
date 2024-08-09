@@ -13,7 +13,7 @@ end
 
 function removeNaN(x)
     NaNs = @tullio res[i, j, k] := isnan(x[i, j, k])
-    x = ifelse.(NaNs, Float32(0), x)
+    x = ifelse.(NaNs, 0f0, x)
     return device(x)
 end
 
@@ -43,7 +43,7 @@ function sparse_mask(in_dim, out_dim)
     in_coord = in_coord .* (1 / (2 * in_dim^2))
     out_coord = out_coord .* (1 / (2 * out_dim^2))
     
-    dist_mat = @tullio res[j, i] := (out_coord[i] - in_coord[j])^2
+    dist_mat = @tullio res[j, i] := abs(out_coord[i] - in_coord[j])
     in_nearest = [argmin(mat)[1] for mat in eachrow(dist_mat)] |> collect
     in_connection = hcat(collect(1:in_dim), in_nearest)
 
@@ -54,7 +54,7 @@ function sparse_mask(in_dim, out_dim)
     mask = zeros(Float32, in_dim, out_dim)
 
     for i in eachindex(all_connection[:, 1])
-        mask[all_connection[i, 1], all_connection[i, 2]] = Float32(1)
+        mask[all_connection[i, 1], all_connection[i, 2]] = 1f0
     end
 
     return mask

@@ -2,7 +2,7 @@ module OptimTrainer
 
 export init_optim_trainer, train!
 
-using Lux, LuxCUDA, ProgressBars, Dates, Tullio, CSV, Statistics, Zygote, Random, ComponentArrays, Optimization, OptimizationOptimJL, Accessors, ComponentArrays
+using Lux, LuxCUDA, ProgressBars, Dates, Tullio, CSV, Statistics, Zygote, Random, ComponentArrays, Optimization, OptimizationOptimJL, Accessors, ComponentArrays, Random
 using NNlib: sigmoid
 
 include("utils.jl")
@@ -20,6 +20,7 @@ mutable struct optim_trainer
     state
     train_data::Tuple{AbstractArray{Float32}, AbstractArray{Float32}}
     test_data::Tuple{AbstractArray{Float32}, AbstractArray{Float32}}
+    b_size::Int
     opt
     loss_fn
     epoch::Int
@@ -31,7 +32,7 @@ mutable struct optim_trainer
     y::AbstractArray{Float32}
 end
 
-function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, optim_optimiser; loss_fn=nothing, max_iters=1e5, update_grid_bool=true, verbose=true, log_time=true)
+function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, optim_optimiser; batch_size=nothing, loss_fn=nothing, max_iters=1e5, update_grid_bool=true, verbose=true, log_time=true)
     """
     Initialise trainer for training symbolic model.
 
@@ -56,7 +57,8 @@ function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, opti
     x, y = train_data
     x = device(x)
     y = device(y)
-    return optim_trainer(model, params, state, train_data, test_data, optim_optimiser, loss_fn, 0, max_iters, update_grid_bool, verbose, log_time, x, y)
+    batch_size = isnothing(batch_size) ? size(x, 1) : batch_size
+    return optim_trainer(model, params, state, train_data, test_data, batch_size, optim_optimiser, loss_fn, 0, max_iters, update_grid_bool, verbose, log_time, x, y)
 end
 
 function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_update_num=5, stop_grid_update_step=10, reg_factor=1.0, mag_threshold=1e-16, 
@@ -92,10 +94,15 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     x_train, y_train = t.train_data
     x_test, y_test = t.test_data
     
-    x_train = device(x_train)
-    y_train = device(y_train)
+    # x_train = device(x_train)
+    # y_train = device(y_train)
     x_test = device(x_test)
     y_test = device(y_test)
+
+    N_train = size(x_train, 1)
+    train_idx = shuffle(Random.seed!(1), Vector(1:N_train))[1:t.b_size]
+    t.x = device(x_train[train_idx, :])
+    t.y = device(y_train[train_idx, :])
 
     if !isnothing(ps)
         t.params = device(ps)
@@ -109,16 +116,19 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
         
         # L2 regularisation
         function non_linear(x; th=mag_threshold, factor=reg_factor)
-            s = sigmoid(x - th)
-            return x + s * ((factor - 1) * (x - th))
+            # term1 = ifelse.(x .< th, 1f0, 0f0)
+            # term2 = ifelse.(x .>= th, 1f0, 0f0)
+            term1 = sigmoid(th .- x)
+            term2 = 1 .- term1
+            return term1 .* x .* factor .+ term2 .* (x .+ (factor - 1) .* th)
         end
 
-        reg_ = Float32(0.0)
+        reg_ = 0f0
         for i in 1:t.model.depth
             vec = reshape(st[Symbol("act_scale_$i")], :)
             p = vec ./ sum(vec)
-            l1 = sum(non_linear.(vec))
-            entropy = -1 * sum(p .* log.(p .+ Float32(1e-2)))
+            l1 = sum(non_linear(vec))
+            entropy = -1 * sum(p .* log.(p .+ 1f-2))
             reg_ += (l1 * λ_l1) + (entropy * λ_entropy)
         end
 
@@ -169,17 +179,19 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
         test_loss = t.loss_fn(state.u, nothing)
         ŷ, t.state = t.model(t.x, t.params, t.state)
         reg_ = reg(t.params, t.state)
-        t.x, t.y = x_train, y_train
+
+        train_idx = shuffle(Random.seed!(t.epoch+1), Vector(1:N_train))[1:t.b_size]
+        t.x = device(x_train[train_idx, :])
+        t.y = device(y_train[train_idx, :]) 
 
         # Update grid once per epoch if it's time
         new_p = nothing
         if (t.epoch % grid_update_freq == 0) && (t.epoch < stop_grid_update_step) && t.update_grid_bool
-            t.model, new_p = update_grid(t.model, x_train, t.params, t.state)
-            # @reset state.u = new_p 
+            t.model, new_p = update_grid(t.model, t.x, t.params, t.state)
             copy!(state.u, new_p)
             t.params = new_p
         end
-           
+ 
         log_csv(t.epoch, time() - start_time, obj, test_loss, reg_, file_name; log_time=t.log_time)
         
         t.epoch += 1
@@ -201,7 +213,10 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     pars = t.params |> ComponentArray
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
-    res = Optimization.solve(optprob, opt_get(t.opt); maxiters=t.max_iters, callback=log_callback!, abstol=Float32(0), reltol=Float32(0), allow_f_increases=true, x_tol=Float32(0), f_tol=Float32(0), g_tol=Float32(0))
+
+    res = Optimization.solve(optprob, opt_get(t.opt); 
+    maxiters=t.max_iters, callback=log_callback!, abstol=0f0, reltol=0f0, allow_f_increases=true, allow_outer_f_increases=true, x_tol=0f0, x_abstol=0f0, x_reltol=0f0, f_tol=0f0, f_abstol=0f0, f_reltol=0f0, g_tol=0f0, g_abstol=0f0, g_reltol=0f0,
+    outer_x_abstol=0f0, outer_x_reltol=0f0, outer_f_abstol=0f0, outer_f_reltol=0f0, outer_g_abstol=0f0, outer_g_reltol=0f0, successive_f_tol=t.max_iters)
     t.params = res.minimizer
     return t.model, cpu_device()(t.params), cpu_device()(t.state)
 end

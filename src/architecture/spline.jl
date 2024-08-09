@@ -55,12 +55,12 @@ function B_batch(x, grid; degree::Int64, σ=nothing)
         grid_2 = grid_eval[:, :, 2:end] # grid[p+1]
     
         # Apply thresholding 
-        # term1 = ifelse.(x_eval .>= grid_1, Float32(1), Float32(0))
-        # term2 = ifelse.(x_eval .< grid_2, Float32(1), Float32(0))
+        term1 = ifelse.(x_eval .>= grid_1, 1f0, 0f0)
+        term2 = ifelse.(x_eval .< grid_2, 1f0, 0f0)
 
-        # Smooth approximation of thresholding
-        term1 = sigmoid(x_eval - grid_1)
-        term2 = sigmoid(grid_2 - x_eval)
+        # # Smooth approximation of thresholding
+        # term1 = sigmoid(x_eval - grid_1)
+        # term2 = sigmoid(grid_2 - x_eval)
 
         B = @tullio res[d, p, n] := term1[d, p, n] * term2[d, p, n]
     

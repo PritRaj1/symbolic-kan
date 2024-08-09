@@ -33,7 +33,7 @@ function create_optim_opt(type="l-bfgs", line_search="strongwolfe"; m=10, c_1=1e
         "strongwolfe" => LineSearches.StrongWolfe{Float32}(c_1=Float32(c_1), c_2=Float32(c_2), ρ=Float32(ρ)),
         "backtrack" => LineSearches.BackTracking{Float32}(c_1=Float32(c_1), ρ_hi=Float32(ρ), ρ_lo=Float32(0.1), maxstep=Inf32),
         "hagerzhang" => LineSearches.HagerZhang{Float32}(),
-        "morethuente" => LineSearches.MoreThuente{Float32}(),
+        "morethuente" => LineSearches.MoreThuente{Float32}(f_tol=0f0, gtol=0f0, x_tol=0f0),
         # "static" => LineSearches.Static{Float32}(),
     )
 

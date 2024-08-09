@@ -3,7 +3,7 @@ module SymbolicRegression
 export fit_params, set_affine, lock_symbolic, set_mode, fix_symbolic, unfix_symbolic, unfix_symb_all, suggest_symbolic, auto_symbolic, symbolic_formula, remove_edge
 
 using  Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy, Accessors, Lux, LuxCUDA, ConfParser
-using HypothesisTests
+using HypothesisTests, LaTeXStrings
 
 include("../symbolic_lib.jl")
 include("../architecture/symbolic_layer.jl")
@@ -167,7 +167,7 @@ function remove_edge(st, l, i, j)
     """
     Remove φ(l, i, j) from the symbolic layer.
     """
-    @reset st[Symbol("act_fcn_mask_$l")][i, j] = Float32(0.0)
+    @reset st[Symbol("act_fcn_mask_$l")][i, j] = 0f0
 
     return st
 end
@@ -215,6 +215,7 @@ function lock_symbolic(l, ps, i, j, fun_name; x=nothing, y=nothing, random=false
                 params = rand(4) .* 2 .- 1
                 ps = set_affine(ps, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
             end
+            return nothing, l, ps
 
         # If x and y are provided, fit the function
         else
@@ -228,8 +229,8 @@ function lock_symbolic(l, ps, i, j, fun_name; x=nothing, y=nothing, random=false
     # fun_name is a symbolic function
     else
         @reset l.fcns[j][i] = fun_name
-        @reset l.fcn_sympys[j][i] = fun_name
         @reset l.fcns_avoid_singular[j][i] = fun_name
+        @reset l.fcn_sympys[j][i] = fun_name
         @reset l.fcn_names[j][i] = "anonymous"
 
         # Set affine parameters either to random values or to default values
@@ -240,9 +241,8 @@ function lock_symbolic(l, ps, i, j, fun_name; x=nothing, y=nothing, random=false
             params = rand(4) .* 2 .- 1
             ps = set_affine(ps, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
         end
-    end
-
-    return nothing, l, ps
+        return nothing, l, ps  
+    end          
 end
 
 function set_mode(st, l, i, j, mode; mask_n=nothing)
@@ -258,21 +258,21 @@ function set_mode(st, l, i, j, mode; mask_n=nothing)
     """
 
     if mode == "s"
-        mask_n = Float32(0)
-        mask_s = Float32(1)
+        mask_n = 0f0
+        mask_s = 1f0
     elseif mode == "n"
-        mask_n = Float32(1)
-        mask_s = Float32(0)
+        mask_n = 1f0
+        mask_s = 0f0
     elseif mode == "sn" || mode == "ns"
         if isnothing(mask_n)
-            mask_n = Float32(1)
+            mask_n = 1f0
         else
             mask_n = mask_n
         end
-        mask_s = Float32(1)
+        mask_s = 1f0
     else
-        mask_n = Float32(0)
-        mask_s = Float32(0)
+        mask_n = 0f0
+        mask_s = 0f0
     end
 
     @reset st[Symbol("act_fcn_mask_$l")][i, j] = mask_n
@@ -389,7 +389,7 @@ function suggest_symbolic(model, ps, st, l, i, j; α_range=(-10, 10), β_range=(
     if verbose
         println("Top ", top_K, " symbolic functions for φ(", l, ", ", i, ", ", j, "):")
         for i in 1:top_K
-            println("Name: ", collect(symbolic_lib)[top_R2s[i]][1], " R2: ", R2s[top_R2s[i]])
+            println("Function: ", collect(symbolic_lib)[top_R2s[i]][1], "       R2: ", R2s[top_R2s[i]])
         end
     end
 
@@ -429,7 +429,7 @@ function auto_symbolic(model, ps, st; α_range=(-10, 10), β_range=(-10, 10), li
     return model, ps, st
 end
 
-function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output_normaliser=nothing, simplify=true)
+function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output_normaliser=nothing, simplify=true, floating_digit=2)
     """
     Convert the activations of a model to symbolic formulas.
 
@@ -452,10 +452,12 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
     # Create symbolic variables
     if isnothing(var)
         for i in 1:model.widths[1]+1
-            push!(x, sympy.Symbol("x$i"))
+            sym_expr = Expr(:(=), Symbol("x$i"), sympy.Symbol("x_$i"))
+            eval(sym_expr)
+            push!(x, eval(Symbol("x$i")))
         end
     else
-        x = [sympy.Symbol(var_) for var_ in var]
+        x = [sympy.symbols(var_) for var_ in var]
     end
 
     x0 = x
@@ -474,22 +476,27 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
             yj = 0.0
             for i in 1:model.widths[l]
                 a, b, c, d = ps[Symbol("affine_$l")][j, i, :]
-                sympy_fcn = model.symbolic_fcns[Symbol("symb_lyr_$l")].fcns[j][i]
+                a, b, c, d = round(a, digits=floating_digit), round(b, digits=floating_digit), round(c, digits=floating_digit), round(d, digits=floating_digit)
+                a, b, c, d = sympy.Symbol(string(a)), sympy.Symbol(string(b)), sympy.Symbol(string(c)), sympy.Symbol(string(d))
+                sympy_fcn = model.symbolic_fcns[Symbol("symb_lyr_$l")].fcn_sympys[j][i]
                 try 
-                    yj += c * sympy_fcn(a * x[i] + b) + d
+                    yj += c * sympy_fcn(a * x[i] + b)[1] + d
                 catch
                     println("Make sure all activations need to be converted to symbolic formulas first!")
                 end
 
             end
 
+            bias = round(ps[Symbol("bias_$l")][1, j], digits=floating_digit)
+            bias = sympy.Symbol(string(bias))
             if simplify
-                push!(y, sympy.simplify(yj + ps[Symbol("bias_$l")][1, j]))
+                push!(y, sympy.simplify(yj + bias))
             else
-                push!(y, yj + ps[Symbol("bias_$l")][1, j])
+                push!(y, yj + bias)
             end
 
         end
+
         x = y
         push!(symbolic_acts, x)
 
@@ -506,7 +513,9 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
             end
         end
 
-        return [symbolic_acts[end][i] for i in eachindex(symbolic_acts[end])], x0, st
+        formula = [symbolic_acts[end][i] for i in eachindex(symbolic_acts[end])]
+
+        return formula, x0, st, latexstring(formula[1])
     
     end
 end

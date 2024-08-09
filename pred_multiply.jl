@@ -68,14 +68,19 @@ ps, st = Lux.setup(seed, model)
 trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true, update_grid_bool=false)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, grid_update_num=num_grid_updates, stop_grid_update_step=final_grid_epoch)
 
+plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[STRING_VERSION], title="Trained KAN", file_name=FILE_NAME*"_trained")
 model, ps, st = prune(Random.default_rng(), model, ps, st)
-y, st = model(device(train_data[1]), ps, st)
-plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=["x1 * x2"], title="Trained KAN", file_name=FILE_NAME*"_pruned")
+
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true, update_grid_bool=false)
+model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, grid_update_num=num_grid_updates, stop_grid_update_step=final_grid_epoch)
+
+plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=["x1 * x2"], title="Pruned KAN", file_name=FILE_NAME*"_pruned")
 ps, st = cpu_device()(ps), cpu_device()(st)
-model, ps, st = auto_symbolic(model, ps, st)
-formula, x0, st = symbolic_formula(model, ps, st)
-formula = round_formula(string(formula[1]); digits=1)
+model, ps, st = auto_symbolic(model, ps, st; lib = ["x", "x^2", "sqrt"])
+_, x0, st, formula = symbolic_formula(model, ps, st)
+
 println("Formula: ", formula)
+
 plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[formula], title="Symbolic KAN", file_name=FILE_NAME*"_symbolic")
 
 println("Formula: ", formula)

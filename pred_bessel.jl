@@ -22,8 +22,8 @@ using .Optimisation
 using .Utils: round_formula, device
 using .Plotting
 
-FUNCTION = x -> sin.((20 .* x[:,1]) + x[:,2].^2)
-STRING_VERSION = "sin((20 * x1) + x2^2)"
+FUNCTION = x -> besselj0.(20 .* x[:,1]) + x[:,2].^2
+STRING_VERSION = "besselj0((20 * x1) + x2^2)"
 FILE_NAME = "bessel"
 
 ### Pipeline hyperparams ###
@@ -78,12 +78,11 @@ model, ps, st = prune(seed, model, ps, st)
 trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, grid_update_num=num_grid_updates, stop_grid_update_step=final_grid_epoch)
 
-model, ps, st = auto_symbolic(model, ps, st)
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true) # Don't forget to re-init after pruning!
+model, ps, st = auto_symbolic(model, ps, st; α_range = (-40, 40), β_range = (-40, 40))
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=20, verbose=true) # Don't forget to re-init after pruning!
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, grid_update_num=num_grid_updates, stop_grid_update_step=final_grid_epoch)
 
-formula, x0, st = symbolic_formula(model, ps, st)
-formula = round_formula(string(formula[1]); digits=1)
+_, x0, st, formula = symbolic_formula(model, ps, st)
 println("Formula: ", formula)
 
 plot_kan(model, st; mask=true, in_vars=["x1", "x2"], out_vars=[formula], title="Symbolic KAN", file_name=FILE_NAME*"_after")

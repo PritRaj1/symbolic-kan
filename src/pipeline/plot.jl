@@ -2,7 +2,7 @@ module Plotting
 
 export plot_kan
 
-using Statistics, Makie, GLMakie, FileIO, Printf, IntervalSets, Lux, LuxCUDA
+using Statistics, Makie, GLMakie, FileIO, Printf, IntervalSets, Lux, LuxCUDA, LaTeXStrings
 
 function get_range(st, l, i, j; verbose=true)
     """
@@ -106,13 +106,13 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
                 end
 
                 # Determine color and alpha_mask based on conditions
-                if symbol_mask == 1.0 && numerical_mask == 1.0
+                if symbol_mask == 1f0 && numerical_mask == 1f0
                     color = :purple
                     alpha_mask = 1
-                elseif symbol_mask == 1.0 && numerical_mask == 0.0
+                elseif symbol_mask == 1f0 && numerical_mask == 0f0
                     color = :red
                     alpha_mask = 1
-                elseif symbol_mask == 0.0 && numerical_mask == 1.0
+                elseif symbol_mask == 0f0 && numerical_mask == 1f0
                     color = :black
                     alpha_mask = 1
                 else
@@ -190,13 +190,13 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
                     symbol_mask = st[Symbol("symb_fcn_mask_$l")][j, i]
                     numerical_mask = st[Symbol("act_fcn_mask_$l")][i, j]
                     
-                    if symbol_mask > 0 && numerical_mask > 0
+                    if symbol_mask > 0f0 && numerical_mask > 0f0
                         color = :purple
                         alpha_mask = 1.0
-                    elseif symbol_mask > 0 && numerical_mask == 0
+                    elseif symbol_mask > 0f0 && numerical_mask == 0f0
                         color = :red
                         alpha_mask = 1.0
-                    elseif symbol_mask == 0.0 && numerical_mask > 0
+                    elseif symbol_mask == 0f0 && numerical_mask > 0f0
                         color = :black
                         alpha_mask = 1.0
                     else
@@ -215,13 +215,13 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
                     symbol_mask = st[Symbol("symb_fcn_mask_$last")][j, i]
                     numerical_mask = st[Symbol("act_fcn_mask_$last")][i, j]
 
-                    if symbol_mask > 0 && numerical_mask > 0
+                    if symbol_mask > 0f0 && numerical_mask > 0f0
                         color = :purple
                         alpha_mask = 1.0
-                    elseif symbol_mask > 0 && numerical_mask == 0
+                    elseif symbol_mask > 0f0 && numerical_mask == 0f0
                         color = :red
                         alpha_mask = 1.0
-                    elseif symbol_mask == 0.0 && numerical_mask > 0
+                    elseif symbol_mask == 0f0 && numerical_mask > 0f0
                         color = :black
                         alpha_mask = 1.0
                     else

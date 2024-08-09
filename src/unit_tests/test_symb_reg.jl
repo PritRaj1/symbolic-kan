@@ -149,10 +149,8 @@ function test_auto()
 end
 
 function test_formula(model, ps, st)
-    formula, x0, st = symbolic_formula(model, ps, st)
-    println(formula[1])
-    formula = string(formula[1])
-    return round_formula(formula), st
+    _, x0, st, formula = symbolic_formula(model, ps, st)
+    return formula, st
 end
 
 function plot_symb(model, st, form)
@@ -163,10 +161,10 @@ end
     test_param_fitting()
     test_poly_fit()
     test_sin_fitting()
-    # test_lock_symb()
-    # test_suggestion()
+    test_lock_symb()
+    test_suggestion()
 end
 
-# m, p, s = test_auto()
-# formula, st = test_formula(m, p, s)
-# plot_symb(m, st, formula)
+m, p, s = test_auto()
+formula, st = test_formula(m, p, s)
+plot_symb(m, st, formula)

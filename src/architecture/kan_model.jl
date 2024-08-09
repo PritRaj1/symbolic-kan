@@ -126,7 +126,7 @@ function (m::KAN)(x, ps, st)
         x_numerical, spline_st = m.act_fcns[Symbol("act_lyr_$i")](x_eval, kan_ps, st[Symbol("act_fcn_mask_$i")])
         any(isnan.(x_numerical)) && throw(ArgumentError("NaNs in the activations"))
 
-        x_symbolic, symbolic_st = Float32(0.0), (post_acts=Float32(0.0),)
+        x_symbolic, symbolic_st = 0f0, (post_acts=0f0,)
         if m.symbolic_enabled
             affine = ps[Symbol("affine_$i")]
             x_symbolic, symbolic_st = m.symbolic_fcns[Symbol("symb_lyr_$i")](x_eval, affine, st[Symbol("symb_fcn_mask_$i")])
@@ -206,6 +206,7 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
         ps_pruned: Pruned parameters.
         st_pruned: Pruned state.
     """
+    threshold = Float32(threshold)
 
     @reset st[Symbol("mask_1")] = ones(Float32, m.widths[1],)
     active_neurons_id = []
@@ -217,16 +218,16 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
         if mode == "auto"
             scale1 = st[Symbol("act_scale_$i")]
             scale2 = st[Symbol("act_scale_$(i+1)")]
-            in_important = ifelse.(maximum(scale1, dims=2)[1, :, :] .> threshold, Float32(1),  Float32(0))
-            out_important = ifelse.(maximum(scale2, dims=1)[1, :, :] .> threshold,  Float32(1),  Float32(0))
+            in_important = ifelse.(maximum(scale1, dims=2)[1, :, :] .> threshold, 1f0,  0f0)
+            out_important = ifelse.(maximum(scale2, dims=1)[1, :, :] .> threshold,  1f0,  0f0)
             overall_important = in_important .* out_important
         elseif mode == "manual"
             overall_important = zeros(Float32, m.widths[i+1])
-            overall_important[active_neurons_id[i+1]] .= 1.0
+            overall_important[active_neurons_id[i+1]] .= 1f0
         end
 
         @reset st[Symbol("mask_$(i+1)")] = overall_important
-        cart_ind = findall(x -> x > 0.0, overall_important)
+        cart_ind = findall(x -> x > 0f0, overall_important)
         push!(active_neurons_id, [i[1] for i in cart_ind])
     end
     

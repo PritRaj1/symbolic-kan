@@ -476,8 +476,6 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
             yj = 0.0
             for i in 1:model.widths[l]
                 a, b, c, d = ps[Symbol("affine_$l")][j, i, :]
-                a, b, c, d = round(a, digits=floating_digit), round(b, digits=floating_digit), round(c, digits=floating_digit), round(d, digits=floating_digit)
-                a, b, c, d = sympy.Symbol(string(a)), sympy.Symbol(string(b)), sympy.Symbol(string(c)), sympy.Symbol(string(d))
                 sympy_fcn = model.symbolic_fcns[Symbol("symb_lyr_$l")].fcn_sympys[j][i]
                 try 
                     yj += c * sympy_fcn(a * x[i] + b)[1] + d
@@ -487,12 +485,11 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
 
             end
 
-            bias = round(ps[Symbol("bias_$l")][1, j], digits=floating_digit)
-            bias = sympy.Symbol(string(bias))
+            bias = ps[Symbol("bias_$l")][1, j]
             if simplify
-                push!(y, sympy.simplify(yj + bias))
+                push!(y, (sympy.simplify(yj + bias)).evalf(floating_digit))
             else
-                push!(y, yj + bias)
+                push!(y, (yj + bias).evalf(floating_digit))
             end
 
         end
@@ -513,11 +510,10 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
             end
         end
 
-        formula = [symbolic_acts[end][i] for i in eachindex(symbolic_acts[end])]
+        # Sympy formulas for each output variable
+        formulas = [symbolic_acts[end][i] for i in eachindex(symbolic_acts[end])]
 
-        formula = simplify ? [sympy.simplify(form) for form in formula] : formula
-
-        return formula, x0, st
+        return formulas, x0, st
     
     end
 end

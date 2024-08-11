@@ -91,22 +91,22 @@ function B_batch_RBF(x, grid; degree=nothing, σ=1f0)
     Compute the RBF basis functions for a batch of points x and a grid of knots.
 
     Args:
-        x: A matrix of size (d, n) containing the points at which to evaluate the RBF basis functions.
-        grid: A matrix of size (d, m) containing the grid of knots.
+        x: A matrix of size (b, i) containing the points at which to evaluate the RBF basis functions.
+        grid: A matrix of size (i, g) containing the grid of knots.
         σ: Tuning for the bandwidth (standard deviation) of the RBF kernel.
 
     Returns:
-        A matrix of size (d, m, n) containing the RBF basis functions evaluated at the points x.
+        A matrix of size (b, i, g) containing the RBF basis functions evaluated at the points x.
     """
     x = reshape(x, size(x)..., 1)
     grid = reshape(grid, 1, size(grid)...)
     
-    squared_dist = @tullio res[d, n, m] := (x[d, n, 1] - grid[1, n, m])
+    squared_dist = @tullio res[d, n, m] := (x[d, n, 1] - grid[1, n, m]) ^ 2
     σ = (maximum(grid) - minimum(grid)) / (size(grid, 3) - 1) * σ
     
-    B = exp.(-(squared_dist ./ σ).^2)
+    B = exp.(-(squared_dist ./ σ)) .* (1 / sqrt(2*Float32(π)) * σ) 
 
-    any(isnan.(B)) && error("NaN in B")
+    # any(isnan.(B)) && error("NaN in B")
     return B
 end
 
@@ -133,7 +133,7 @@ function coef2curve(x_eval, grid, coef; k::Int64, scale=1f0)
     return y_eval
 end
 
-function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-4, rcond=1f-6)
+function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-4, rcond=1f-4)
     """
     Convert B-spline curves to B-spline coefficients using least squares.
 

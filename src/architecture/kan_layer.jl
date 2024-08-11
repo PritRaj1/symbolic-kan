@@ -96,8 +96,8 @@ function (l::kan_dense)(x, mask; coef, w_base, w_sp)
     # Inner Kolmogorov-Arnold sum
     y = sum(y, dims=2)[:, 1, :]
 
+    # Find term with NaN
     Zygote.ignore() do
-        # Find term with NaN
         any(isnan.(base)) && println("NaNs in base at forward pass.")
         any(isnan.(y)) && println("NaNs in y at forward pass.")
         any(isnan.(w_base)) && println("NaNs in w_base at forward pass.")    

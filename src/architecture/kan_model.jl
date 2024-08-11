@@ -147,8 +147,7 @@ function (m::KAN)(x, ps, st)
         post_acts = post_acts_num .+ symbolic_post_acts
 
         # Scales for l1 regularisation
-        in_range = std(pre_acts, dims=1)
-        in_range = removeZero(in_range; ε=1f-1)
+        in_range = std(pre_acts, dims=1) .+ 1f-1
         out_range = std(post_acts, dims=1) 
         scale = (out_range ./ in_range)[1, :, :]
 

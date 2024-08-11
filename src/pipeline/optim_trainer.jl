@@ -130,7 +130,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
             vec = scales[i, 1:t.model.widths[i]*t.model.widths[i+1]]
             p = vec ./ sum(vec)
             l1 = sum(non_linear(vec))
-            entropy = -1 * sum(p .* log.(p .+ 1f-2))
+            entropy = -1 * sum(p .* log.(p .+ 1f-4))
             reg_ += (l1 * λ_l1) + (entropy * λ_entropy)
         end
 
@@ -187,7 +187,6 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
         t.x = device(x_train[train_idx, :])
         t.y = device(y_train[train_idx, :]) 
 
-        
         t.params = state.u
         t.state = st
 

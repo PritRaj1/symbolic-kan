@@ -82,7 +82,7 @@ function B_batch(x, grid; degree::Int64, σ=nothing)
     end
     
     # B = removeNaN(B)
-    any(isnan.(B)) && error("NaN in B") 
+    # any(isnan.(B)) && error("NaN in B") 
     return B
 end
 
@@ -133,7 +133,7 @@ function coef2curve(x_eval, grid, coef; k::Int64, scale=1f0)
     return y_eval
 end
 
-function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-2, rcond=1f-3)
+function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-4, rcond=1f-6)
     """
     Convert B-spline curves to B-spline coefficients using least squares.
 

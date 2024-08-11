@@ -3,7 +3,7 @@ module dense_kan
 export KAN_Dense, kan_dense, update_lyr_grid, get_subset
 
 using CUDA, KernelAbstractions
-using Lux, Tullio, NNlib, Random, Accessors, ConfParser
+using Lux, Tullio, NNlib, Random, Accessors, ConfParser, Zygote
 
 include("spline.jl")
 include("../utils.jl")
@@ -32,7 +32,7 @@ end
 
 silu = x -> x .* NNlib.sigmoid.(x)
 
-function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=1f-1, σ_base=nothing, σ_sp=1f0, base_act=silu, grid_eps=2f-2, grid_range=(-1, 1))
+function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=5f-1, σ_base=nothing, σ_sp=1f0, base_act=silu, grid_eps=2f-2, grid_range=(-1, 1))
     grid = Float32.(range(grid_range[1], grid_range[2], length=num_splines + 1)) |> collect |> x -> reshape(x, 1, length(x)) |> device
     grid = repeat(grid, in_dim, 1) 
     grid = extend_grid(grid, degree) 
@@ -84,7 +84,6 @@ function (l::kan_dense)(x, mask; coef, w_base, w_sp)
 
     pre_acts = repeat(reshape(copy(x), b_size, 1, l.in_dim), 1, l.out_dim, 1)
     base = l.base_act(x) # b(x)
-    any(isnan.(base)) && println("NaNs in base at forward pass.")
 
     # B-spline basis functions of degree k
     y = coef2curve(x, l.grid, coef; k=l.degree, scale=l.RBF_σ) # spline(x)
@@ -93,15 +92,18 @@ function (l::kan_dense)(x, mask; coef, w_base, w_sp)
     # w_b*b(x) + w_s*spline(x)
     y = @tullio out[b, i, o] := (w_base[i, o] * base[b, i] + w_sp[i, o] * y[b, i, o]) * mask[i, o]
     post_acts = permutedims(copy(y), [1, 3, 2])
-
-    # Find term with NaN
-    any(isnan.(y)) && println("NaNs in y at forward pass.")
-    any(isnan.(w_base)) && println("NaNs in w_base at forward pass.")    
-    any(isnan.(w_sp)) && println("NaNs in w_sp at forward pass.")
-    any(isnan.(mask)) && println("NaNs in mask at forward pass.")
     
     # Inner Kolmogorov-Arnold sum
     y = sum(y, dims=2)[:, 1, :]
+
+    Zygote.ignore() do
+        # Find term with NaN
+        any(isnan.(base)) && println("NaNs in base at forward pass.")
+        any(isnan.(y)) && println("NaNs in y at forward pass.")
+        any(isnan.(w_base)) && println("NaNs in w_base at forward pass.")    
+        any(isnan.(w_sp)) && println("NaNs in w_sp at forward pass.")
+        any(isnan.(mask)) && println("NaNs in mask at forward pass.")
+    end
 
     return y, pre_acts, post_acts, post_spline
 end

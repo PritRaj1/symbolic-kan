@@ -117,7 +117,7 @@ function (m::KAN)(x, ps, st)
         y: A matrix of size (b, out_dim) containing the output data.
         new_st: A tuple containing the new state of the model.
     """
-    # x, ps, st = device(x), device(ps), device(st)
+    x, ps, st = device(x), device(ps), device(st)
 
     Zygote.ignore() do
         @reset st[Symbol("acts_1")] = copy(x)
@@ -158,7 +158,7 @@ function (m::KAN)(x, ps, st)
         flat_scale = vcat(flat_scale, pad)
         scales = vcat(scales, reshape(flat_scale, 1, max_width*max_width))
         
-        # Add (non-trainable) bias b(x)
+        # Add (non-traina15ble) bias b(x)
         bias = m.bias_trainable ? ps[Symbol("bias_$i")] : st[Symbol("bias_$i")]
         b = repeat(bias, size(x, 1), 1)
         x = x + b

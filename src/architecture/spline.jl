@@ -5,11 +5,15 @@ export extend_grid, B_batch, coef2curve, curve2coef
 using CUDA, KernelAbstractions
 using Tullio, LinearAlgebra
 using NNlib: sigmoid
+using ConfParser
 
 include("../utils.jl")
 using .Utils: removeNaN, device, removeZero
 
-method = get(ENV, "METHOD", "spline") # "spline" or "RBF"; RBF not properly implemented yet
+conf = ConfParse("config/config.ini")
+parse_conf!(conf)
+
+method = retrieve(conf, "ARCHITECTURE", "method") # "spline" or "RBF"; RBF currently doesn't work
 
 function extend_grid(grid, k_extend=0)
     """
@@ -25,8 +29,8 @@ function extend_grid(grid, k_extend=0)
     h = (grid[:, end] - grid[:, 1]) / (size(grid, 2) - 1)
 
     for i in 1:k_extend
-        grid = hcat(grid[:, 1:1] - h, grid)
-        grid = hcat(grid, grid[:, end:end] + h)
+        grid = hcat(grid[:, 1:1] .- h, grid)
+        grid = hcat(grid, grid[:, end:end] .+ h)
     end
     
     return grid
@@ -44,32 +48,27 @@ function B_batch(x, grid; degree::Int64, σ=nothing)
     Returns:
         A matrix of size (d, m, n) containing the B-spline basis functions evaluated at the points x.
     """
+    x = reshape(x, size(x)..., 1) 
+    grid = reshape(grid, 1, size(grid)...) 
     
-    # B-spline basis functions of degree 0 are piecewise constant functions: B = 1 if x in [grid[p], grid[p+1]) else 0
+    # B-spline basis functions of degree 0
     if degree == 0
-        # Expand for broadcasting
-        x_eval = repeat(reshape(x, size(x)..., 1), 1, 1, size(grid, 2) - 1)
-        grid_eval = repeat(reshape(grid, 1, size(grid)...), size(x, 1), 1, 1)
-
-        grid_1 = grid_eval[:, :, 1:end-1] # grid[p]
-        grid_2 = grid_eval[:, :, 2:end] # grid[p+1]
+        grid_1 = grid[:, :, 1:end-1] # grid[p]
+        grid_2 = grid[:, :, 2:end] # grid[p+1]
     
-        # Apply thresholding 
-        term1 = ifelse.(x_eval .>= grid_1, 1f0, 0f0)
-        term2 = ifelse.(x_eval .< grid_2, 1f0, 0f0)
-
-        # # Smooth approximation of thresholding
-        # term1 = sigmoid(x_eval - grid_1)
-        # term2 = sigmoid(grid_2 - x_eval)
+        # B0 is piecewise constant
+        term1 = @tullio res[i, j, l] := x[i, j, k] >= grid_1[p, j, l]
+        term2 = @tullio res[i, j, l] := x[i, j, k] < grid_2[p, j, l]
+        term1 = Float32.(term1)
+        term2 = Float32.(term2)
 
         B = @tullio res[d, p, n] := term1[d, p, n] * term2[d, p, n]
-    
+
     else
         # Compute the B-spline basis functions of degree k
         k = degree
-        B = B_batch(x, grid; degree=k-1)
-        x = reshape(x, size(x)..., 1) 
-        grid = reshape(grid, 1, size(grid)...) 
+        B = B_batch(x[:, :, 1], grid[1, :, :]; degree=k-1)
+        
 
         numer1 = x .- grid[:, :, 1:(end - k - 1)]
         denom1 = grid[:, :, (k + 1):end-1] .- grid[:, :, 1:(end - k - 1)]
@@ -78,37 +77,44 @@ function B_batch(x, grid; degree::Int64, σ=nothing)
         B_i1 = B[:, :, 1:end - 1]
         B_i2 = B[:, :, 2:end]
 
-        B = @tullio out[d, n, m] := (numer1[d, n, m] / denom1[1, n, m] * B_i1[d, n, m]) + (numer2[d, n, m] / denom2[1, n, m] * B_i2[d, n, m])
+        B = @tullio out[d, n, m] := (numer1[d, n, m] / denom1[1, n, m]) * B_i1[d, n, m] + (numer2[d, n, m] / denom2[1, n, m]) * B_i2[d, n, m]
     end
     
-    B = removeNaN(B)
+    # B = removeNaN(B)
     any(isnan.(B)) && error("NaN in B") 
     return B
 end
 
-# function B_batch_RBF(x, grid; degree=nothing, σ=1.0)
-#     """
-#     Compute the B-spline basis functions for a batch of points x and a grid of knots using the RBF kernel.
+function B_batch_RBF(x, grid; degree=nothing, σ=1f0)
+    """
+    Compute the RBF basis functions for a batch of points x and a grid of knots.
 
-#     Args:
-#         x: A matrix of size (d, n) containing the points at which to evaluate the B-spline basis functions.
-#         grid: A matrix of size (d, m) containing the grid of knots.
-#         sigma: The bandwidth of the RBF kernel.
+    Args:
+        x: A matrix of size (d, n) containing the points at which to evaluate the RBF basis functions.
+        grid: A matrix of size (d, m) containing the grid of knots.
+        σ: Tuning for the bandwidth (standard deviation) of the RBF kernel.
 
-#     Returns:
-#         A matrix of size (d, m, n) containing the B-spline basis functions evaluated at the points x.
-#     """
-#     B = @tullio out[n, d, m] := exp(-sum((x[n, d] - grid[d, m])^2) / (2*σ[1]^2))
-#     return B
+    Returns:
+        A matrix of size (d, m, n) containing the RBF basis functions evaluated at the points x.
+    """
+    x = reshape(x, size(x)..., 1)
+    grid = reshape(grid, 1, size(grid)...)
+    
+    squared_dist = @tullio res[d, n, m] := (x[d, n, 1] - grid[1, n, m])
+    σ = (maximum(grid) - minimum(grid)) / (size(grid, 3) - 1) * σ
+    
+    B = exp.(-(squared_dist ./ σ).^2)
 
-# end
+    any(isnan.(B)) && error("NaN in B")
+    return B
+end
 
 BasisFcn = Dict(
     "spline" => B_batch,
-    # "RBF" => B_batch_RBF
+    "RBF" => B_batch_RBF
 )[method]
 
-function coef2curve(x_eval, grid, coef; k::Int64, scale=1.0)
+function coef2curve(x_eval, grid, coef; k::Int64, scale=1f0)
     """
     Compute the B-spline curves from the B-spline coefficients.
 
@@ -121,13 +127,12 @@ function coef2curve(x_eval, grid, coef; k::Int64, scale=1.0)
     Returns:
         A matrix of size (d, l, n) containing the B-spline curves evaluated at the points x_eval.
     """
-    
     b_splines = BasisFcn(x_eval, grid; degree=k, σ=scale)
     y_eval = @tullio out[i, j, l] := b_splines[i, j, p] * coef[j, l, p]
     return y_eval
 end
 
-function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0, ε=1e-1)
+function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-1)
     """
     Convert B-spline curves to B-spline coefficients using least squares.
 
@@ -142,38 +147,47 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1.0, ε=1e-1)
     """
     b_size = size(x_eval, 1)
     in_dim = size(x_eval, 2)
-    n_coeffs = size(grid, 2) - k - 1
     out_dim = size(y_eval, 3)
+    n_coeff = size(grid, 2) - k - 1
 
     B = BasisFcn(x_eval, grid; degree=k, σ=scale) 
-    
-    # B = permutedims(B, [2, 1, 3])
-    # B = reshape(B, in_dim, 1, b_size, n_coeffs)
-    # B = repeat(B, 1, out_dim, 1, 1)
 
-    # y_eval = permutedims(y_eval, [2, 3, 1]) 
+    n_coeff == size(B, 3) || println("Number of coefficients does not match the number of basis functions")
 
-    # # Get BtB and Bty
-    # Bt = permutedims(B, [1, 2, 4, 3])
-    
-    # BtB = @tullio out[i, j, p, p] := Bt[i, j, p, n] * B[i, j, n, p]
-    # n1, n2, n, _ = size(BtB)
-    # eye = Matrix{Float32}(I, n, n) .* ε |> device
-    # eye = reshape(eye, 1, 1, n, n)
-    # eye = repeat(eye, n1, n2, 1, 1)
-    # BtB = BtB + eye 
-    
-    # Bty = @tullio out[i, j, p] := Bt[i, j, p, n] * y_eval[i, j, n]
-    
-    # # x = (BtB)^-1 * Bty
-    # coef = @tullio out[i, j, p] := pinv(BtB[i, j, p, p]) * Bty[i, j, p]
-    # any(isnan.(coef)) && error("NaN in coef")
+    B = permutedims(B, [2, 1, 3])
+    B = reshape(B, in_dim, 1, b_size, size(B, 3))
+    B = repeat(B, 1, out_dim, 1, 1) # in_dim x out_dim x b_size x n_coeffs
 
-    B = removeZero(B; ε=ε)
-    coef = @tullio out[j, q, p] := B[i, j, p] \ y_eval[i, j, q]
+    y_eval = permutedims(y_eval, [2, 3, 1]) # in_dim x out_dim x b_size
+
+    # Get BtB and Bty
+    Bt = permutedims(B, [1, 2, 4, 3])
+    
+    BtB = @tullio out[i, j, m, p] := Bt[i, j, m, n] * B[i, j, n, p] # in_dim x out_dim x n_coeffs x n_coeffs
+    n1, n2, n, _ = size(BtB)
+    eye = Matrix{Float32}(I, n, n) .* ε |> device
+    eye = reshape(eye, 1, 1, n, n)
+    eye = repeat(eye, n1, n2, 1, 1)
+    BtB = BtB + eye 
+    
+    Bty = @tullio out[i, j, m] := Bt[i, j, m, n] * y_eval[i, j, n]
+    
+    # x = (BtB)^-1 * Bty
+    coef = @tullio out[i, j, m] := pinv(BtB[i, j, m, n]) * Bty[i, j, n]
+    # coef = zeros(Float32, 0, out_dim, n_coeff) |> device
+    # for i in 1:in_dim
+    #     coef_ = zeros(Float32, 0, n_coeff) |> device
+    #     for j in 1:out_dim
+    #         result = pinv(BtB[i, j, :, :]) * Bty[i, j, :, :]
+    #         result = result |> permutedims
+    #         coef_ = vcat(coef_, result)
+    #     end
+    #     coef_ = reshape(coef_, 1, size(coef_)...)
+    #     vcat(coef, coef_)
+    # end
+
     any(isnan.(coef)) && error("NaN in coef")
 
     return coef
-
 end
 end

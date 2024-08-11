@@ -30,11 +30,13 @@ struct kan_dense <: Lux.AbstractExplicitLayer
     σ_sp::Float32
 end
 
-function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=0.1, σ_base=nothing, σ_sp=1.0, base_act=NNlib.selu, grid_eps=0.02, grid_range=(-1, 1))
-    grid = range(grid_range[1], grid_range[2], length=num_splines + 1) |> collect |> x -> reshape(x, 1, length(x)) |> device
+silu = x -> x .* NNlib.sigmoid.(x)
+
+function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=1f-1, σ_base=nothing, σ_sp=1f0, base_act=silu, grid_eps=2f-2, grid_range=(-1, 1))
+    grid = Float32.(range(grid_range[1], grid_range[2], length=num_splines + 1)) |> collect |> x -> reshape(x, 1, length(x)) |> device
     grid = repeat(grid, in_dim, 1) 
     grid = extend_grid(grid, degree) 
-    RBF_σ = 1.0
+    RBF_σ = 1f0
 
     σ_base = isnothing(σ_base) ? ones(Float32, in_dim, out_dim) : σ_base
     
@@ -54,17 +56,17 @@ function Lux.initialparameters(rng::AbstractRNG, l::kan_dense)
     w_base = ones(Float32, l.in_dim, l.out_dim) .* l.σ_base .* mask
     w_sp = ones(Float32, l.in_dim, l.out_dim) .* l.σ_sp .* mask
 
-    return (ε=ε, coef=coef, w_base=w_base, w_sp=w_sp)
+    return (coef=coef, w_base=w_base, w_sp=w_sp)
 end
 
 function Lux.initialstates(rng::AbstractRNG, l::kan_dense)
     
     mask = ones(Float32, l.in_dim, l.out_dim)
 
-    return (mask=mask, pre_acts=nothing, post_acts=nothing, post_spline=nothing)
+    return (mask=mask)
 end
 
-function (l::kan_dense)(x, ps, mask)
+function (l::kan_dense)(x, mask; coef, w_base, w_sp)
     """
     Forward pass of the KAN layer.
 
@@ -82,32 +84,27 @@ function (l::kan_dense)(x, ps, mask)
 
     pre_acts = repeat(reshape(copy(x), b_size, 1, l.in_dim), 1, l.out_dim, 1)
     base = l.base_act(x) # b(x)
+    any(isnan.(base)) && println("NaNs in base at forward pass.")
 
     # B-spline basis functions of degree k
-    y = coef2curve(x, l.grid, ps.coef; k=l.degree, scale=l.RBF_σ) # spline(x)
+    y = coef2curve(x, l.grid, coef; k=l.degree, scale=l.RBF_σ) # spline(x)
     post_spline = permutedims(copy(y), [1, 3, 2])
-    any(isnan.(y)) && throw(ArgumentError("NaNs in the coefs"))
 
     # w_b*b(x) + w_s*spline(x)
-    y = @tullio out[b, i, o] := (ps.w_base[i, o] * base[b, i] + ps.w_sp[i, o] * y[b, i, o]) * mask[i, o]
+    y = @tullio out[b, i, o] := (w_base[i, o] * base[b, i] + w_sp[i, o] * y[b, i, o]) * mask[i, o]
     post_acts = permutedims(copy(y), [1, 3, 2])
 
+    # Find term with NaN
+    any(isnan.(y)) && println("NaNs in y at forward pass.")
+    any(isnan.(w_base)) && println("NaNs in w_base at forward pass.")    
+    any(isnan.(w_sp)) && println("NaNs in w_sp at forward pass.")
+    any(isnan.(mask)) && println("NaNs in mask at forward pass.")
+    
     # Inner Kolmogorov-Arnold sum
     y = sum(y, dims=2)[:, 1, :]
 
-    new_st = (mask=mask, pre_acts=pre_acts, post_acts=post_acts, post_spline=post_spline)
-    return y, new_st
+    return y, pre_acts, post_acts, post_spline
 end
-
-function sort_columns(A)
-    sorted_A = device(zeros(Float32, size(A,1), 0))
-    num_cols = size(A, 2)
-    for j in 1:num_cols
-        sorted_A = hcat(sorted_A, sort(Array(A[:, j])))
-    end
-    return sorted_A
-end
-
 
 function update_lyr_grid(l, coef, x)
     """
@@ -126,8 +123,9 @@ function update_lyr_grid(l, coef, x)
     b_size = size(x, 1)
     
     # Compute the B-spline basis functions of degree k
-    x_sort = sort_columns(x)
+    x_sort = sort(x, dims=1)
     current_splines = coef2curve(x_sort, l.grid, coef; k=l.degree, scale=l.RBF_σ)
+    any(isnan.(current_splines)) && println("NaNs in current splines at grid update.")
 
     # Adaptive grid - concentrate grid points around regions of higher density
     num_interval = size(l.grid, 2) - 2*l.degree - 1
@@ -141,14 +139,15 @@ function update_lyr_grid(l, coef, x)
 
     # Uniform grid
     h = (grid_adaptive[:, end:end] .- grid_adaptive[:, 1:1]) ./ num_interval # step size
-    range = collect(0:num_interval)[:, :] |> permutedims |> device
+    range = Float32.(collect(0:num_interval))[:, :] |> permutedims |> device
     grid_uniform = h .* range .+ grid_adaptive[:, 1:1] 
 
     # Grid is a convex combination of the uniform and adaptive grid
     grid = l.grid_eps .* grid_uniform + (1 - l.grid_eps) .* grid_adaptive
-    new_grid = extend_grid(grid, l.degree) |> device
+    new_grid = extend_grid(grid, l.degree) 
 
     new_coef = curve2coef(x_sort, current_splines, new_grid; k=l.degree, scale=l.RBF_σ)
+    any(isnan.(new_coef)) && println("NaNs in new coef at grid update.")
 
     return new_grid, new_coef
 end
@@ -187,7 +186,6 @@ function get_subset(l, ps, old_mask, in_indices, out_indices)
 
     # Initialize new parameters
     ps_sub = (
-        ε = ps.ε[:, in_indices, out_indices],
         coef = ps.coef[in_indices, out_indices, :],
         w_base = ps.w_base[in_indices, out_indices],
         w_sp = ps.w_sp[in_indices, out_indices]

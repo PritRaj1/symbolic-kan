@@ -17,8 +17,8 @@ function removeNaN(x)
     return device(x)
 end
 
-function removeZero(x; ε=1e-3)
-    return ifelse.(abs.(x) .< ε, Float32(ε), x)
+function removeZero(x; ε=1f-3)
+    return ifelse.(abs.(x) .< ε, ε, x)
 end
 
 # Rounds string formula to a certain number of digits.
@@ -40,8 +40,8 @@ function sparse_mask(in_dim, out_dim)
 
     in_coord = 1:in_dim |> collect
     out_coord = 1:out_dim |> collect
-    in_coord = in_coord .* (1 / (2 * in_dim^2))
-    out_coord = out_coord .* (1 / (2 * out_dim^2))
+    in_coord = in_coord .* (1 / (2 * in_dim^2)) |> Float32
+    out_coord = out_coord .* (1 / (2 * out_dim^2)) |> Float32
     
     dist_mat = @tullio res[j, i] := abs(out_coord[i] - in_coord[j])
     in_nearest = [argmin(mat)[1] for mat in eachrow(dist_mat)] |> collect
@@ -64,8 +64,8 @@ function expand_apply(fcn, x, α, β; grid_number)
     """
     Creates meshgrids for α and β and applies the function fcn to the meshgrids.
     """
-    α = ones(grid_number)' .* α
-    β = β' .* ones(grid_number)
+    α = ones(Float32, grid_number)' .* α
+    β = β' .* ones(Float32, grid_number)
 
     eval = @tullio res[i, j, k] := fcn(α[j, k] * x[i] + β[j, k])
     return eval, α, β

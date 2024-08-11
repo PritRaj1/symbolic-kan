@@ -6,13 +6,13 @@ using LinearAlgebra, SymPy
 
 # Helper functions
 nan_to_num = function(x)
-    x = ifelse.(isnan.(x), 0.0, x)
-    x = ifelse.(isinf.(x), 0.0, x)
+    x = ifelse.(isnan.(x), 0f0, x)
+    x = ifelse.(isinf.(x), 0f0, x)
     return x
 end
 
-sign(x) = x < 0 ? -1 : (x > 0 ? 1 : 0)
-safe_log(x) = x > 0 ? log(x) : (x < 0 ? complex(log(-x), π) : -Inf)
+sign(x) = x < 0 ? -1f0 : (x > 0 ? 1f0 : 0f0)
+safe_log(x) = x > 0 ? log(x) : (x < 0 ? complex(log(-x), Float32(π)) : -Inf32)
 
 # Singularity protection functions
 function f_inv((x), (y_th))
@@ -21,7 +21,7 @@ function f_inv((x), (y_th))
 end
 
 function f_inv2((x), (y_th))
-    x_th = (1 ./ y_th).^0.5
+    x_th = sqrt.(1 ./ y_th)
     return (x_th, y_th .* (abs.(x) .< x_th) .+ nan_to_num(1 ./ x.^2) .* (abs.(x) .>= x_th))
 end
 
@@ -59,21 +59,21 @@ end
 
 function f_tan((x), (y_th))
     clip = x .% π
-    delta = π/2 .- atan.(y_th)
-    return (delta, -y_th ./ delta .* (clip .- π/2) .* (abs.(clip .- π/2) .< delta) .+ nan_to_num(tan.(clip)) .* (abs.(clip .- π/2) .>= delta))
+    delta = Float32(π/2) .- atan.(y_th)
+    return (delta, -y_th ./ delta .* (clip .- Float32(π/2)) .* (abs.(clip .- Float32(π/2)) .< delta) .+ nan_to_num(tan.(clip)) .* (abs.(clip .- Float32(π/2)) .>= delta))
 end
 
 function f_arctanh((x), (y_th))
-    delta = 1 .- tanh.(y_th) .+ 1e-4
+    delta = 1 .- tanh.(y_th) .+ 1f-4
     return (delta, y_th .* sign.(x) .* (abs.(x) .> 1 .- delta) .+ nan_to_num(atanh.(x)) .* (abs.(x) .<= 1 .- delta))
 end
 
 function f_arcsin((x), (y_th))
-    return (nothing, π/2 .* sign.(x) .* (abs.(x) .> 1) .+ nan_to_num(asin.(x)) .* (abs.(x) .<= 1))
+    return (nothing, Float32(π/2) .* sign.(x) .* (abs.(x) .> 1) .+ nan_to_num(asin.(x)) .* (abs.(x) .<= 1))
 end
 
 function f_arccos((x), (y_th))
-    return (nothing, π/2 .* (1 .- sign.(x)) .* (abs.(x) .> 1) .+ nan_to_num(acos.(x)) .* (abs.(x) .<= 1))
+    return (nothing, Float32(π/2) .* (1 .- sign.(x)) .* (abs.(x) .> 1) .+ nan_to_num(acos.(x)) .* (abs.(x) .<= 1))
 end
 
 function f_exp((x), (y_th))

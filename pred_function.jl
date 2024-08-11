@@ -22,9 +22,9 @@ using .Optimisation
 using .Utils: round_formula, device
 using .Plotting
 
-FUNCTION = x -> besselj0.(20 .* x[:,1]) + x[:,2].^2
-STRING_VERSION = "besselj0((20 * x1) + x2^2)"
-FILE_NAME = "bessel"
+FUNCTION = x -> sin.(π .* x[:, 1] + x[:, 2].^2)
+STRING_VERSION = "sin(π x_1 + x_2^2)"
+FILE_NAME = "sine"
 
 ### Pipeline hyperparams ###
 epochs = parse(Int, retrieve(conf, "PIPELINE", "num_epochs"))
@@ -47,6 +47,7 @@ grid_upper_lim = parse(Float32, retrieve(conf, "ARCHITECTURE", "grid_upper_lim")
 λ_entropy = parse(Float64, retrieve(conf, "ARCHITECTURE", "λ_entropy"))
 λ_coef = parse(Float64, retrieve(conf, "ARCHITECTURE", "λ_coef"))
 λ_coefdiff = parse(Float64, retrieve(conf, "ARCHITECTURE", "λ_coefdiff"))
+w_scale = parse(Float32, retrieve(conf, "ARCHITECTURE", "base_init_scale"))
 g_lims = (grid_lower_lim, grid_upper_lim)
 
 ### Optimisation hyperparams ###
@@ -63,7 +64,7 @@ seed = Random.seed!(123)
 train_data, test_data = create_data(FUNCTION, N_var=2, x_range=lims, N_train=N_train, N_test=N_test, normalise_input=normalise, init_seed=seed)
 opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=α0)
 
-model = KAN_model([2, 5, 1]; k=k, grid_interval=G, grid_range=g_lims)
+model = KAN_model([2, 5, 1]; k=k, grid_interval=G, grid_range=g_lims, σ_scale=w_scale)
 ps, st = Lux.setup(seed, model)
 y, st = model(train_data[1], ps, st) # warmup for plotting
 st = cpu_device()(st)
@@ -77,6 +78,8 @@ model, ps, st = prune(seed, model, ps, st)
 # After training remember to reinit the trainer
 trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, grid_update_num=num_grid_updates, stop_grid_update_step=final_grid_epoch)
+
+plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[STRING_VERSION], title="Pruned KAN", file_name=FILE_NAME*"_trained")
 
 model, ps, st = auto_symbolic(model, ps, st; α_range = (-40, 40), β_range = (-40, 40))
 trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=20, verbose=true) # Don't forget to re-init after pruning!

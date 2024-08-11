@@ -37,11 +37,7 @@ end
 
 function Lux.initialstates(rng::AbstractRNG, l::symbolic_dense)
     mask = zeros(Float32, l.out_dim, l.in_dim)
-    st = (
-        mask = mask,
-        post_acts = nothing
-    )
-    return st
+    return (mask = mask)
 end
 
 function apply_fcn(x, y; fcn)
@@ -97,8 +93,8 @@ function (l::symbolic_dense)(x, ps, mask; avoid_singular=true, y_th=10.0f0)
     post_acts = @tullio out[b, j, i] := mask[j, i] * post_acts[b, j, i]
 
     z = sum(post_acts, dims=3)[:, :, 1]
-    new_st = (mask=mask, post_acts=post_acts)
-    return z, new_st
+
+    return z, post_acts
 end
 
 function get_symb_subset(l::symbolic_dense, ps, old_mask, in_indices, out_indices)

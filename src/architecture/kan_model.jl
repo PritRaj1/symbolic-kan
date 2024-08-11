@@ -26,19 +26,22 @@ struct KAN <: Lux.AbstractExplicitLayer
     symbolic_enabled::Bool
     act_fcns
     symbolic_fcns
+    bias_trainable::Bool
 end
 
-function KAN_model(widths; k=3, grid_interval=3, ε_scale=0.1f0, μ_scale=0.0f0, σ_scale=1.0f0, base_act=NNlib.selu, symbolic_enabled=true, grid_eps=1.0f0, grid_range=(-1f0, 1f0))
+silu = x -> x .* NNlib.sigmoid.(x)
+
+function KAN_model(widths; k=3, grid_interval=3, ε_scale=0.1f0, μ_scale=0.0f0, σ_scale=1.0f0, base_act=silu, symbolic_enabled=true, grid_eps=1.0f0, grid_range=(-1f0, 1f0), bias_trainable=false)
     depth = length(widths) - 1
 
     act_fcns = NamedTuple()
     symbolic_fcns = NamedTuple()
 
     for i in 1:depth
-        base_scale = (μ_scale * (1 / √(widths[i])) 
-        .+ σ_scale .* (randn(Float32, widths[i], widths[i + 1]) .* 2 .- 1) .* (1 / √(widths[i])))
+        base_scale = (μ_scale * (1f0 / √(Float32(widths[i]))) 
+        .+ σ_scale .* (randn(Float32, widths[i], widths[i + 1]) .* 2f0 .- 1f0) .* (1f0 / √(Float32(widths[i]))))
         
-        spline = KAN_Dense(widths[i], widths[i + 1]; num_splines=grid_interval, degree=k, ε_scale=ε_scale, σ_base=base_scale, σ_sp=1.0, base_act=base_act, grid_eps=grid_eps, grid_range=grid_range)
+        spline = KAN_Dense(widths[i], widths[i + 1]; num_splines=grid_interval, degree=k, ε_scale=ε_scale, σ_base=base_scale, σ_sp=1f0, base_act=base_act, grid_eps=grid_eps, grid_range=grid_range)
         # push!(act_fcns, spline)
         @reset act_fcns[Symbol("act_lyr_$i")] = spline
         
@@ -47,19 +50,19 @@ function KAN_model(widths; k=3, grid_interval=3, ε_scale=0.1f0, μ_scale=0.0f0,
         @reset symbolic_fcns[Symbol("symb_lyr_$i")] = symbolic
     end
 
-    return KAN(widths, depth, k, grid_interval, base_act, ε_scale, μ_scale, σ_scale, grid_eps, grid_range, symbolic_enabled, act_fcns, symbolic_fcns)
+    return KAN(widths, depth, k, grid_interval, base_act, ε_scale, μ_scale, σ_scale, grid_eps, grid_range, symbolic_enabled, act_fcns, symbolic_fcns, bias_trainable)
 end
 
 function Lux.initialparameters(rng::AbstractRNG, m::KAN)
+
     # Create one long, flattened named tuple (nested tuples aren't nice with Lux)
-    ps = NamedTuple(Symbol("bias_$i") => zeros(Float32, 1, m.widths[i+1]) for i in 1:m.depth)
+    ps = m.bias_trainable ? NamedTuple(Symbol("bias_$i") => zeros(Float32, 1, m.widths[i+1]) for i in 1:m.depth) : NamedTuple()
     
     for i in 1:m.depth
 
         # Parameters for the spline layer
         layer_ps = Lux.initialparameters(rng, m.act_fcns[Symbol("act_lyr_$i")])
-        ε, coef, w_base, w_sp = layer_ps[:ε], layer_ps[:coef], layer_ps[:w_base], layer_ps[:w_sp]
-        @reset ps[Symbol("ε_$i")] = ε
+        coef, w_base, w_sp = layer_ps[:coef], layer_ps[:w_base], layer_ps[:w_sp]
         @reset ps[Symbol("coef_$i")] = coef
         @reset ps[Symbol("w_base_$i")] = w_base
         @reset ps[Symbol("w_sp_$i")] = w_sp
@@ -78,12 +81,18 @@ function Lux.initialstates(rng::AbstractRNG, m::KAN)
     st = NamedTuple(Symbol("mask_$i") => ones(Float32, width) for (i, width) in enumerate(m.widths))
     @reset st[Symbol("acts_1")] = nothing
 
+    if !m.bias_trainable
+        for i in 1:m.depth
+            @reset st[Symbol("bias_$i")] = zeros(Float32, 1, m.widths[i+1])
+        end
+    end
+
     for i in 1:m.depth
         @reset st[Symbol("act_scale_$i")] = zeros(Float32, maximum(m.widths[i+1]), maximum(m.widths[i]))
         act_st = Lux.initialstates(rng, m.act_fcns[Symbol("act_lyr_$i")])
-        @reset st[Symbol("act_fcn_mask_$i")] = act_st.mask
+        @reset st[Symbol("act_fcn_mask_$i")] = act_st
         symb_st = Lux.initialstates(rng, m.symbolic_fcns[Symbol("symb_lyr_$i")])
-        @reset st[Symbol("symb_fcn_mask_$i")] = symb_st.mask
+        @reset st[Symbol("symb_fcn_mask_$i")] = symb_st
 
         @reset st[Symbol("acts_$(i+1)")] = nothing
         @reset st[Symbol("pre_acts_$i")] = nothing
@@ -109,55 +118,55 @@ function (m::KAN)(x, ps, st)
         y: A matrix of size (b, out_dim) containing the output data.
         new_st: A tuple containing the new state of the model.
     """
-    x, ps, st = device(x), device(ps), device(st)
+    # x, ps, st = device(x), device(ps), device(st)
 
-    x_eval = copy(x)
     @reset st[Symbol("acts_1")] = copy(x)
 
     for i in 1:m.depth
 
-        kan_ps = (
-            ε = ps[Symbol("ε_$i")],
-            coef = ps[Symbol("coef_$i")],
-            w_base = ps[Symbol("w_base_$i")],
-            w_sp = ps[Symbol("w_sp_$i")]
-        )
+        coef = ps[Symbol("coef_$i")]
+        w_base = ps[Symbol("w_base_$i")]
+        w_sp = ps[Symbol("w_sp_$i")]
+        kan_layer = m.act_fcns[Symbol("act_lyr_$i")]
 
-        x_numerical, spline_st = m.act_fcns[Symbol("act_lyr_$i")](x_eval, kan_ps, st[Symbol("act_fcn_mask_$i")])
+        x_numerical, pre_acts, post_acts_num, post_spline = kan_layer(x, st[Symbol("act_fcn_mask_$i")];  coef=coef, w_base=w_base, w_sp=w_sp)
         any(isnan.(x_numerical)) && throw(ArgumentError("NaNs in the activations"))
 
-        x_symbolic, symbolic_st = 0f0, (post_acts=0f0,)
+        x_symbolic, symbolic_post_acts = 0f0, 0f0
         if m.symbolic_enabled
             affine = ps[Symbol("affine_$i")]
-            x_symbolic, symbolic_st = m.symbolic_fcns[Symbol("symb_lyr_$i")](x_eval, affine, st[Symbol("symb_fcn_mask_$i")])
+            symbolic_layer = m.symbolic_fcns[Symbol("symb_lyr_$i")]
+            x_symbolic, symbolic_post_acts = symbolic_layer(x, affine, st[Symbol("symb_fcn_mask_$i")])
             any(isnan.(x_symbolic)) && throw(ArgumentError("NaNs in the symbolic activations"))
         end
 
         # φ(x) + φs(x)
-        x_eval = x_numerical + x_symbolic
-        post_acts = spline_st.post_acts + symbolic_st.post_acts
+        x = x_numerical .+ x_symbolic
+        post_acts = post_acts_num .+ symbolic_post_acts
 
         # Scales for l1 regularisation
-        in_range = std(spline_st.pre_acts, dims=1)
-        in_range = removeZero(in_range; ε=0.1)
+        in_range = std(pre_acts, dims=1)
+        in_range = removeZero(in_range; ε=1f-1)
         out_range = std(post_acts, dims=1) 
         @reset st[Symbol("act_scale_$i")] = (out_range ./ in_range)[1, :, :]
         any(isnan.(st[Symbol("act_scale_$i")])) && throw(ArgumentError("NaNs in the activation scales"))
         
-        @reset st[Symbol("pre_acts_$i")] = spline_st.pre_acts
+        @reset st[Symbol("pre_acts_$i")] = pre_acts
         @reset st[Symbol("post_acts_$i")] = post_acts
-        @reset st[Symbol("post_splines_$i")] = spline_st.post_spline
+        @reset st[Symbol("post_splines_$i")] = post_spline
 
         # Bias b(x)
-        b = repeat(ps[Symbol("bias_$i")], size(x_eval, 1), 1)
+        bias = m.bias_trainable ? ps[Symbol("bias_$i")] : st[Symbol("bias_$i")]
+        b = repeat(bias, size(x, 1), 1)
 
         # Accumulate outputs of each layer in accordance with outer sum of Kolmogorov-Arnold theorem
-        x_eval = x_eval + b
+        x = x + b
+        any(isnan.(x)) && throw(ArgumentError("NaNs in the bias addition"))
 
-        @reset st[Symbol("acts_$(i+1)")] = copy(x_eval)
+        @reset st[Symbol("acts_$(i+1)")] = copy(x)
     end
 
-    return x_eval, st
+    return x, st
 end
 
 function remove_node(st, l, j; verbose=true)
@@ -186,7 +195,7 @@ function remove_node(st, l, j; verbose=true)
     return st
 end
 
-function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_neurons_id=nothing, verbose=true)
+function prune(rng::AbstractRNG, m, ps, st; threshold=1f-2, mode="auto", active_neurons_id=nothing, verbose=true)
     """
     Prune the activation of neuron (l, i, j) based on the threshold.
     If the neuron has a small range of activation, shave off the neuron.
@@ -206,8 +215,6 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
         ps_pruned: Pruned parameters.
         st_pruned: Pruned state.
     """
-    threshold = Float32(threshold)
-
     @reset st[Symbol("mask_1")] = ones(Float32, m.widths[1],)
     active_neurons_id = []
     push!(active_neurons_id, [1:m.widths[1]...])
@@ -248,17 +255,20 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
     end
 
     # Create pruned models from important subsets
-    model_pruned = KAN_model(deepcopy(m.widths); k=m.degree, grid_interval=m.grid_interval, ε_scale=m.ε_scale, μ_scale=m.μ_scale, σ_scale=m.σ_scale, base_act=m.base_fcn, symbolic_enabled=m.symbolic_enabled, grid_eps=m.grid_eps, grid_range=m.grid_range)
+    model_pruned = KAN_model(deepcopy(m.widths); k=m.degree, grid_interval=m.grid_interval, ε_scale=m.ε_scale, μ_scale=m.μ_scale, σ_scale=m.σ_scale, base_act=m.base_fcn, symbolic_enabled=m.symbolic_enabled, grid_eps=m.grid_eps, grid_range=m.grid_range, bias_trainable=m.bias_trainable)
     ps_pruned = Lux.initialparameters(rng, model_pruned)
     st_pruned = Lux.initialstates(rng, model_pruned)
 
     for i in 1:m.depth
         if i < m.depth
-            @reset ps_pruned[Symbol("bias_$i")] = ps[Symbol("bias_$i")][:, active_neurons_id[i+1]]
+            if m.bias_trainable
+                @reset ps_pruned[Symbol("bias_$i")] = ps[Symbol("bias_$i")][:, active_neurons_id[i+1]]
+            else
+                @reset st_pruned[Symbol("bias_$i")] = st[Symbol("bias_$i")][:, active_neurons_id[i+1]]
+            end
         end
 
         kan_ps = (
-            ε = ps_pruned[Symbol("ε_$i")],
             coef = ps_pruned[Symbol("coef_$i")],
             w_base = ps_pruned[Symbol("w_base_$i")],
             w_sp = ps_pruned[Symbol("w_sp_$i")]
@@ -271,7 +281,6 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=0.01, mode="auto", active_
         new_fcn, ps_new, new_mask = get_subset(model_pruned.act_fcns[i], kan_ps, st_pruned[Symbol("act_fcn_mask_$i")], active_neurons_id[i], active_neurons_id[i+1])
         @reset model_pruned.act_fcns[i] = new_fcn
 
-        @reset ps_pruned[Symbol("ε_$i")] = ps_new[:ε]
         @reset ps_pruned[Symbol("coef_$i")] = ps_new[:coef]
         @reset ps_pruned[Symbol("w_base_$i")] = ps_new[:w_base]
         @reset ps_pruned[Symbol("w_sp_$i")] = ps_new[:w_sp]

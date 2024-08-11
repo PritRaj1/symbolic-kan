@@ -142,7 +142,7 @@ function fit_params(x, y, fcn; α_range=(-10, 10), β_range=(-10, 10), verbose=t
     return [α_best, β_best, w_best, b_best], ρ_best
 end
 
-function set_affine(ps, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)
+function set_affine(ps, j, i; a1=1f0, a2=0f0, a3=1f0, a4=0f0)
     """
     Set affine parameters for symbolic dense layer.
     
@@ -155,10 +155,10 @@ function set_affine(ps, j, i; a1=1.0, a2=0.0, a3=1.0, a4=0.0)
     - a3: param3.
     - a4: param4.
     """
-    @reset ps[j, i, 1] = Float32(a1)
-    @reset ps[j, i, 2] = Float32(a2)
-    @reset ps[j, i, 3] = Float32(a3)
-    @reset ps[j, i, 4] = Float32(a4)
+    @reset ps[j, i, 1] = a1
+    @reset ps[j, i, 2] = a2
+    @reset ps[j, i, 3] = a3
+    @reset ps[j, i, 4] = a4
 
     return ps
 end
@@ -212,7 +212,7 @@ function lock_symbolic(l, ps, i, j, fun_name; x=nothing, y=nothing, random=false
                 ps = set_affine(ps, j, i)
             else
                 Random.seed!(seed)
-                params = rand(4) .* 2 .- 1
+                params = rand(Float32, 4) .* 2 .- 1
                 ps = set_affine(ps, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
             end
             return nothing, l, ps
@@ -238,7 +238,7 @@ function lock_symbolic(l, ps, i, j, fun_name; x=nothing, y=nothing, random=false
             ps = set_affine(ps, j, i)
         else
             Random.seed!(seed)
-            params = rand(4) .* 2 .- 1
+            params = rand(Float32, 4) .* 2 .- 1
             ps = set_affine(ps, j, i; a1=params[1], a2=params[2], a3=params[3], a4=params[4])
         end
         return nothing, l, ps  
@@ -485,7 +485,7 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
 
             end
 
-            bias = ps[Symbol("bias_$l")][1, j]
+            bias = model.bias_trainable ? ps[Symbol("bias_$l")][1, j] : st[Symbol("bias_$l")][1, j]
             if simplify
                 push!(y, (sympy.simplify(yj + bias)).evalf(floating_digit))
             else

@@ -47,6 +47,7 @@ grid_upper_lim = parse(Float32, retrieve(conf, "ARCHITECTURE", "grid_upper_lim")
 λ_entropy = parse(Float64, retrieve(conf, "ARCHITECTURE", "λ_entropy"))
 λ_coef = parse(Float64, retrieve(conf, "ARCHITECTURE", "λ_coef"))
 λ_coefdiff = parse(Float64, retrieve(conf, "ARCHITECTURE", "λ_coefdiff"))
+w_scale = parse(Float32, retrieve(conf, "ARCHITECTURE", "base_init_scale"))
 g_lims = (grid_lower_lim, grid_upper_lim)
 
 ### Optimisation hyperparams ###
@@ -63,9 +64,9 @@ seed = Random.seed!(123)
 train_data, test_data = create_data(FUNCTION, N_var=2, x_range=lims, N_train=N_train, N_test=N_test, normalise_input=normalise, init_seed=seed)
 opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=α0)
 
-model = KAN_model([2, 5, 1]; k=k, grid_interval=G, grid_range=g_lims)
+model = KAN_model([2, 5, 1]; k=k, grid_interval=G, grid_range=g_lims, σ_scale=w_scale)
 ps, st = Lux.setup(seed, model)
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true, update_grid_bool=false)
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true, update_grid_bool=true)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, grid_update_num=num_grid_updates, stop_grid_update_step=final_grid_epoch)
 
 plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[STRING_VERSION], title="Trained KAN", file_name=FILE_NAME*"_trained")

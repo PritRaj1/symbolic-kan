@@ -16,7 +16,7 @@ using .Optimisation: opt_get
 using .Utils: device
 using .Plotting
 
-struct optim_trainer
+mutable struct optim_trainer
     model
     params
     state
@@ -103,18 +103,18 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
 
     N_train = size(x_train, 1)
     train_idx = shuffle(Random.seed!(1), Vector(1:N_train))[1:t.b_size]
-    @reset t.x = device(x_train[train_idx, :])
-    @reset t.y = device(y_train[train_idx, :])
+    t.x = device(x_train[train_idx, :])
+    t.y = device(y_train[train_idx, :])
 
     if !isnothing(ps)
-        @reset t.params = device(ps)
+        t.params = device(ps)
     end
     if !isnothing(st)
-        @reset t.state = device(st)
+        t.state = device(st)
     end
 
     # Regularisation
-    function reg(ps, st)
+    function reg(ps, scales)
         
         # L2 regularisation
         function non_linear(x; th=mag_threshold, factor=reg_factor)
@@ -127,7 +127,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
 
         reg_ = 0f0
         for i in 1:t.model.depth
-            vec = reshape(st[Symbol("act_scale_$i")], :)
+            vec = scales[i, 1:t.model.widths[i]*t.model.widths[i+1]]
             p = vec ./ sum(vec)
             l1 = sum(non_linear(vec))
             entropy = -1 * sum(p .* log.(p .+ 1f-2))
@@ -146,26 +146,25 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
 
     # l1 regularisation loss
     function reg_loss(ps, s)
-        ŷ, st = t.model(t.x, ps, t.state)
+        ŷ, scales, st = t.model(t.x, ps, t.state)
         l2 = mean(sum((ŷ - t.y).^2; dims=2)) 
-        reg_ = reg(ps, st)
+        reg_ = reg(ps, scales)
         reg_ = λ * reg_
 
-        @reset t.state = st
-        println("ps: ", ps)
-        @reset t.params = ps
+        t.state = st
+        t.params = ps
 
         return l2 + reg_
     end
 
     if isnothing(t.loss_fn)
-        @reset t.loss_fn = reg_loss
+        t.loss_fn = reg_loss
     end
 
     start_time = time()
 
     function log_callback!(state::Optimization.OptimizationState, obj)
-        @reset t.params = state.u
+        t.params = state.u
 
         if any(isnan.(state.grad))
             println("NaN in gradients")
@@ -178,21 +177,19 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
             end
         end
 
-        println("grads:                ", state.grad)
-
-        @reset t.x = x_test
-        @reset t.y = y_test
+        t.x = x_test
+        t.y = y_test
         test_loss = t.loss_fn(state.u, nothing)
-        ŷ, st = t.model(t.x, state.u, t.state)
-        reg_ = reg(state.u, st)
+        ŷ, scales, st = t.model(t.x, state.u, t.state)
+        reg_ = reg(state.u, scales)
 
         train_idx = shuffle(Random.seed!(t.epoch+1), Vector(1:N_train))[1:t.b_size]
-        @reset t.x = device(x_train[train_idx, :])
-        @reset t.y = device(y_train[train_idx, :]) 
+        t.x = device(x_train[train_idx, :])
+        t.y = device(y_train[train_idx, :]) 
 
         
-        @reset t.params = state.u
-        @reset t.state = st
+        t.params = state.u
+        t.state = st
 
         # Update grid once per epoch if it's time
         if (t.epoch % grid_update_freq == 0) && (t.epoch < stop_grid_update_step) && t.update_grid_bool
@@ -201,8 +198,8 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
             end
             new_model, new_p = update_grid(t.model, t.x, state.u, st)
             copy!(state.u, new_p)
-            @reset t.params = new_p
-            @reset t.model = new_model
+            t.params = new_p
+            t.model = new_model
         end
  
         log_csv(t.epoch, time() - start_time, obj, test_loss, reg_, file_name; log_time=t.log_time)
@@ -211,9 +208,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
             plot_kan(t.model, st; mask=true, title="Epoch $(t.epoch)", folder=img_loc, file_name="epoch_$(t.epoch)")
         end
 
-        @reset t.epoch = t.epoch + 1
-
-        println("===========================================================")
+        t.epoch = t.epoch + 1
 
         return false
     end
@@ -248,7 +243,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     #     outer_x_abstol=0f0, outer_x_reltol=0f0, outer_f_abstol=0f0, outer_f_reltol=0f0, outer_g_abstol=0f0, outer_g_reltol=0f0, successive_f_tol=t.max_iters)
     # end
     
-    @reset t.params = res.minimizer
+    t.params = res.minimizer
     return t.model, cpu_device()(t.params), cpu_device()(t.state)
 end
 

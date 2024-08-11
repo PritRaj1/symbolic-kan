@@ -4,6 +4,7 @@ export KAN, KAN_model, prune, update_grid
 
 using CUDA, KernelAbstractions, Lux, LuxCUDA
 using Lux, Tullio, NNlib, Random, Statistics, SymPy, Accessors
+using Zygote
 
 include("kan_layer.jl")
 include("symbolic_layer.jl")
@@ -42,11 +43,9 @@ function KAN_model(widths; k=3, grid_interval=3, ε_scale=0.1f0, μ_scale=0.0f0,
         .+ σ_scale .* (randn(Float32, widths[i], widths[i + 1]) .* 2f0 .- 1f0) .* (1f0 / √(Float32(widths[i]))))
         
         spline = KAN_Dense(widths[i], widths[i + 1]; num_splines=grid_interval, degree=k, ε_scale=ε_scale, σ_base=base_scale, σ_sp=1f0, base_act=base_act, grid_eps=grid_eps, grid_range=grid_range)
-        # push!(act_fcns, spline)
         @reset act_fcns[Symbol("act_lyr_$i")] = spline
         
         symbolic = SymbolicDense(widths[i], widths[i + 1])
-        # push!(symbolic_fcns, symbolic)
         @reset symbolic_fcns[Symbol("symb_lyr_$i")] = symbolic
     end
 
@@ -120,7 +119,12 @@ function (m::KAN)(x, ps, st)
     """
     # x, ps, st = device(x), device(ps), device(st)
 
-    @reset st[Symbol("acts_1")] = copy(x)
+    Zygote.ignore() do
+        @reset st[Symbol("acts_1")] = copy(x)
+    end
+
+    max_width = maximum(m.widths)
+    scales = zeros(Float32, 0, max_width * max_width) |> device
 
     for i in 1:m.depth
 
@@ -130,14 +134,12 @@ function (m::KAN)(x, ps, st)
         kan_layer = m.act_fcns[Symbol("act_lyr_$i")]
 
         x_numerical, pre_acts, post_acts_num, post_spline = kan_layer(x, st[Symbol("act_fcn_mask_$i")];  coef=coef, w_base=w_base, w_sp=w_sp)
-        any(isnan.(x_numerical)) && throw(ArgumentError("NaNs in the activations"))
-
+        
         x_symbolic, symbolic_post_acts = 0f0, 0f0
         if m.symbolic_enabled
             affine = ps[Symbol("affine_$i")]
             symbolic_layer = m.symbolic_fcns[Symbol("symb_lyr_$i")]
             x_symbolic, symbolic_post_acts = symbolic_layer(x, affine, st[Symbol("symb_fcn_mask_$i")])
-            any(isnan.(x_symbolic)) && throw(ArgumentError("NaNs in the symbolic activations"))
         end
 
         # φ(x) + φs(x)
@@ -148,25 +150,34 @@ function (m::KAN)(x, ps, st)
         in_range = std(pre_acts, dims=1)
         in_range = removeZero(in_range; ε=1f-1)
         out_range = std(post_acts, dims=1) 
-        @reset st[Symbol("act_scale_$i")] = (out_range ./ in_range)[1, :, :]
-        any(isnan.(st[Symbol("act_scale_$i")])) && throw(ArgumentError("NaNs in the activation scales"))
-        
-        @reset st[Symbol("pre_acts_$i")] = pre_acts
-        @reset st[Symbol("post_acts_$i")] = post_acts
-        @reset st[Symbol("post_splines_$i")] = post_spline
+        scale = (out_range ./ in_range)[1, :, :]
 
-        # Bias b(x)
+        # Pad scales to max width for regularisation
+        flat_scale = reshape(scale, :)
+        pad = zeros(Float32, (max_width*max_width) - length(flat_scale)) |> device
+        flat_scale = vcat(flat_scale, pad)
+        scales = vcat(scales, reshape(flat_scale, 1, max_width*max_width))
+        
+        # Add (non-trainable) bias b(x)
         bias = m.bias_trainable ? ps[Symbol("bias_$i")] : st[Symbol("bias_$i")]
         b = repeat(bias, size(x, 1), 1)
-
-        # Accumulate outputs of each layer in accordance with outer sum of Kolmogorov-Arnold theorem
         x = x + b
-        any(isnan.(x)) && throw(ArgumentError("NaNs in the bias addition"))
 
-        @reset st[Symbol("acts_$(i+1)")] = copy(x)
+        Zygote.ignore() do
+            any(isnan.(x_numerical)) && throw(ArgumentError("NaNs in the activations"))
+            any(isnan.(x_symbolic)) && throw(ArgumentError("NaNs in the symbolic activations"))
+            any(isnan.(st[Symbol("act_scale_$i")])) && throw(ArgumentError("NaNs in the activation scales"))
+            any(isnan.(x)) && throw(ArgumentError("NaNs in the bias addition"))
+
+            @reset st[Symbol("acts_$(i+1)")] = copy(x)
+            @reset st[Symbol("pre_acts_$i")] = copy(pre_acts)
+            @reset st[Symbol("post_acts_$i")] = copy(post_acts)
+            @reset st[Symbol("post_splines_$i")] = copy(post_spline)
+            @reset st[Symbol("act_scale_$i")] = copy(scale)
+        end
     end
 
-    return x, st
+    return x, scales, st
 end
 
 function remove_node(st, l, j; verbose=true)
@@ -306,7 +317,7 @@ function update_grid(model, x, ps, st)
     Update the grid for each b-spline layer in the model.
     """
 
-    _, st = model(x, ps, st)
+    _, _, st = model(x, ps, st)
     
     for i in 1:model.depth
         new_grid, new_coef = update_lyr_grid(model.act_fcns[Symbol("act_lyr_$i")], ps[Symbol("coef_$i")], st[Symbol("acts_$i")])

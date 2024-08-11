@@ -66,7 +66,7 @@ opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=�
 
 model = KAN_model([2, 5, 1]; k=k, grid_interval=G, grid_range=g_lims, σ_scale=w_scale)
 ps, st = Lux.setup(seed, model)
-y, st = model(train_data[1], ps, st) # warmup for plotting
+_, _, st = model(train_data[1], ps, st) # warmup for plotting
 st = cpu_device()(st)
 
 plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[STRING_VERSION], title="KAN", file_name=FILE_NAME*"_before")

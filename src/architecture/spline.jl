@@ -159,6 +159,7 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-1)
     B = repeat(B, 1, out_dim, 1, 1) # in_dim x out_dim x b_size x n_coeffs
 
     y_eval = permutedims(y_eval, [2, 3, 1]) # in_dim x out_dim x b_size
+    y_eval = reshape(y_eval, size(y_eval)..., 1)
 
     # Get BtB and Bty
     Bt = permutedims(B, [1, 2, 4, 3])
@@ -170,13 +171,13 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-1)
     eye = repeat(eye, n1, n2, 1, 1)
     BtB = BtB + eye 
     
-    Bty = @tullio out[i, j, m] := Bt[i, j, m, n] * y_eval[i, j, n]
+    Bty = @tullio out[i, j, m, p] := Bt[i, j, m, n] * y_eval[i, j, n, p]
     
     # x = (BtB)^-1 * Bty
-    coef = @tullio out[i, j, m] := pinv(BtB[i, j, m, n]) * Bty[i, j, n]
-    # coef = zeros(Float32, 0, out_dim, n_coeff) |> device
+    coef = @tullio out[i, j, m, p] := pinv(BtB[i, j, m, n]) * Bty[i, j, n, p]
+    # coef = zeros(Float32, 0, out_dim, n) |> device
     # for i in 1:in_dim
-    #     coef_ = zeros(Float32, 0, n_coeff) |> device
+    #     coef_ = zeros(Float32, 0, n) |> device
     #     for j in 1:out_dim
     #         result = pinv(BtB[i, j, :, :]) * Bty[i, j, :, :]
     #         result = result |> permutedims
@@ -188,6 +189,6 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-1)
 
     any(isnan.(coef)) && error("NaN in coef")
 
-    return coef
+    return coef[:, :, :, 1]
 end
 end

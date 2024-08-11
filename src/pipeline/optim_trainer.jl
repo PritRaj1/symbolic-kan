@@ -232,19 +232,20 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     res = Optimization.solve(optprob, opt_get(t.opt); 
     maxiters=t.max_iters, callback=log_callback!, abstol=0f0, reltol=0f0, allow_f_increases=true, allow_outer_f_increases=true, x_tol=0f0, x_abstol=0f0, x_reltol=0f0, f_tol=0f0, f_abstol=0f0, f_reltol=0f0, g_tol=0f0, g_abstol=0f0, g_reltol=0f0,
     outer_x_abstol=0f0, outer_x_reltol=0f0, outer_f_abstol=0f0, outer_f_reltol=0f0, outer_g_abstol=0f0, outer_g_reltol=0f0, successive_f_tol=t.max_iters)
-    
-    # while t.epoch < t.max_iters
-    #     if t.verbose
-    #         println("Training stopped early at epoch ", t.epoch, ". Restarting")
-    #     end
-    #     optprob = Optimization.OptimizationProblem(optf, res.minimizer)
-    #     res = Optimization.solve(optprob, opt_get(t.opt);
-    #     maxiters=t.max_iters, callback=log_callback!, abstol=0f0, reltol=0f0, allow_f_increases=true, allow_outer_f_increases=true, x_tol=0f0, x_abstol=0f0, x_reltol=0f0, f_tol=0f0, f_abstol=0f0, f_reltol=0f0, g_tol=0f0, g_abstol=0f0, g_reltol=0f0,
-    #     outer_x_abstol=0f0, outer_x_reltol=0f0, outer_f_abstol=0f0, outer_f_reltol=0f0, outer_g_abstol=0f0, outer_g_reltol=0f0, successive_f_tol=t.max_iters)
-    # end
+
+    while t.epoch < t.max_iters
+        if t.verbose
+            println("Early stopping at epoch $(t.epoch), restarting optimisation")
+        end
+
+        optprob = Optimization.OptimizationProblem(optf, res.minimizer)
+        res = Optimization.solve(optprob, opt_get(t.opt);
+        maxiters=t.max_iters, callback=log_callback!, abstol=0f0, reltol=0f0, allow_f_increases=true, allow_outer_f_increases=true, x_tol=0f0, x_abstol=0f0, x_reltol=0f0, f_tol=0f0, f_abstol=0f0, f_reltol=0f0, g_tol=0f0, g_abstol=0f0, g_reltol=0f0,
+        outer_x_abstol=0f0, outer_x_reltol=0f0, outer_f_abstol=0f0, outer_f_reltol=0f0, outer_g_abstol=0f0, outer_g_reltol=0f0, successive_f_tol=t.max_iters)
+    end
     
     t.params = res.minimizer
-    return t.model, cpu_device()(t.params), cpu_device()(t.state)
+    return t.model, cpu_device()(res.minimizer), cpu_device()(t.state)
 end
 
 end

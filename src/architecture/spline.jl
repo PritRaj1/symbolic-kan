@@ -1,4 +1,4 @@
-module Spline
+module spline_utils
 
 export extend_grid, B_batch, coef2curve, curve2coef
 
@@ -6,6 +6,7 @@ using CUDA, KernelAbstractions
 using Tullio, LinearAlgebra
 using NNlib: sigmoid
 using ConfParser
+using BSplineKit
 
 include("../utils.jl")
 using .Utils: removeNaN, device, removeZero
@@ -119,38 +120,38 @@ function coef2curve(x_eval, grid, coef; k::Int64, scale=1f0)
     Compute the B-spline curves from the B-spline coefficients.
 
     Args:
-        x_eval: A matrix of size (d, n) containing the points at which to evaluate the B-spline curves.
-        grid: A matrix of size (d, m) containing the grid of knots.
-        coef: A matrix of size (d, m, l, k) containing the B-spline coefficients.
+        x_eval: A matrix of size (b, i) containing the points at which to evaluate the B-spline curves.
+        grid: A matrix of size (b, g) containing the grid of knots.
+        coef: A matrix of size (i, o, nc) containing the B-spline coefficients.
         k: The degree of the B-spline basis functions.
 
     Returns:
-        A matrix of size (d, l, n) containing the B-spline curves evaluated at the points x_eval.
+        A matrix of size (b, i, o) containing the B-spline curves evaluated at the points x_eval.
     """
     b_splines = BasisFcn(x_eval, grid; degree=k, σ=scale)
     y_eval = @tullio out[i, j, l] := b_splines[i, j, p] * coef[j, l, p]
     return y_eval
 end
 
-function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-1)
+function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-2, rcond=1f-3)
     """
     Convert B-spline curves to B-spline coefficients using least squares.
 
     Args:
-        x_eval: A matrix of size (d, n) containing the points at which the B-spline curves were evaluated.
-        y_eval: A matrix of size (d, l, n) containing the B-spline curves evaluated at the points x_eval.
-        grid: A matrix of size (d, m) containing the grid of knots.
+        x_eval: A matrix of size (b, i) containing the points at which the B-spline curves were evaluated.
+        y_eval: A matrix of size (b, i, o) containing the B-spline curves evaluated at the points x_eval.
+        grid: A matrix of size (b, g) containing the grid of knots.
         k: The degree of the B-spline basis functions.
 
     Returns:
-        A matrix of size (d, m, l, k) containing the B-spline coefficients.
+        A matrix of size (i, o, nc) containing the B-spline coefficients.
     """
     b_size = size(x_eval, 1)
     in_dim = size(x_eval, 2)
     out_dim = size(y_eval, 3)
     n_coeff = size(grid, 2) - k - 1
 
-    B = BasisFcn(x_eval, grid; degree=k, σ=scale) 
+    B = BasisFcn(x_eval, grid; degree=k, σ=scale)  # b_size x in_dim x n_coeff
 
     n_coeff == size(B, 3) || println("Number of coefficients does not match the number of basis functions")
 
@@ -159,7 +160,6 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-1)
     B = repeat(B, 1, out_dim, 1, 1) # in_dim x out_dim x b_size x n_coeffs
 
     y_eval = permutedims(y_eval, [2, 3, 1]) # in_dim x out_dim x b_size
-    y_eval = reshape(y_eval, size(y_eval)..., 1)
 
     # Get BtB and Bty
     Bt = permutedims(B, [1, 2, 4, 3])
@@ -171,24 +171,13 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-1)
     eye = repeat(eye, n1, n2, 1, 1)
     BtB = BtB + eye 
     
-    Bty = @tullio out[i, j, m, p] := Bt[i, j, m, n] * y_eval[i, j, n, p]
+    Bty = @tullio out[i, j, m] := Bt[i, j, m, n] * y_eval[i, j, n]
     
-    # x = (BtB)^-1 * Bty
-    coef = @tullio out[i, j, m, p] := pinv(BtB[i, j, m, n]) * Bty[i, j, n, p]
-    # coef = zeros(Float32, 0, out_dim, n) |> device
-    # for i in 1:in_dim
-    #     coef_ = zeros(Float32, 0, n) |> device
-    #     for j in 1:out_dim
-    #         result = pinv(BtB[i, j, :, :]) * Bty[i, j, :, :]
-    #         result = result |> permutedims
-    #         coef_ = vcat(coef_, result)
-    #     end
-    #     coef_ = reshape(coef_, 1, size(coef_)...)
-    #     vcat(coef, coef_)
-    # end
+    # x = (BtB)^-1 * Bty, rcond is the conditioning applied to the reciprocal of the singular values
+    coef = @tullio out[i, j, m] := removeZero(BtB[i, j, m, n]; ε=rcond) \ Bty[i, j, n]
 
     any(isnan.(coef)) && error("NaN in coef")
 
-    return coef[:, :, :, 1]
+    return coef
 end
 end

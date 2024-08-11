@@ -7,7 +7,7 @@ using Lux, Tullio, NNlib, Random, Accessors, ConfParser
 
 include("spline.jl")
 include("../utils.jl")
-using .Spline: extend_grid, coef2curve, curve2coef
+using .spline_utils: extend_grid, coef2curve, curve2coef
 using .Utils: sparse_mask, device
 
 conf = ConfParse("config/config.ini")

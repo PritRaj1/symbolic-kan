@@ -63,7 +63,7 @@ function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, opti
     return optim_trainer(model, params, state, train_data, test_data, batch_size, optim_optimiser, loss_fn, 0, max_iters, update_grid_bool, verbose, log_time, x, y)
 end
 
-function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_update_num=5, stop_grid_update_step=10, reg_factor=1.0, mag_threshold=1e-16, 
+function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_update_num=10, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
     λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0, plot_bool=true, img_loc="training_plots/")
     """
     Train symbolic model.
@@ -228,10 +228,9 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     end
     println("Created log at $file_name")
 
-    pars = t.params |> ComponentArray
+    pars = ComponentVector(t.params)
     optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
     optprob = Optimization.OptimizationProblem(optf, pars)
-
     res = Optimization.solve(optprob, opt_get(t.opt); 
     maxiters=t.max_iters, callback=log_callback!, abstol=0f0, reltol=0f0, allow_f_increases=true, allow_outer_f_increases=true, x_tol=0f0, x_abstol=0f0, x_reltol=0f0, f_tol=0f0, f_abstol=0f0, f_reltol=0f0, g_tol=0f0, g_abstol=0f0, g_reltol=0f0,
     outer_x_abstol=0f0, outer_x_reltol=0f0, outer_f_abstol=0f0, outer_f_reltol=0f0, outer_g_abstol=0f0, outer_g_reltol=0f0, successive_f_tol=t.max_iters)
@@ -240,12 +239,6 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
 
         if t.verbose
             println("Grid updated at epoch $(t.epoch)")
-
-            for i in 1:t.model.depth
-                println("Grid $i: ", t.model.act_fcns[Symbol("act_lyr_$i")].grid[1, :])
-                println("Coef $i: ", t.params[Symbol("coef_$i")])
-            end
-
         end
 
         optprob = remake(optprob; u0=t.params, p=optprob.p)

@@ -132,7 +132,7 @@ function coef2curve(x_eval, grid, coef; k::Int64, scale=1f0)
     return y_eval
 end
 
-function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-4, rcond=1f-15)
+function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-4)
     """
     Convert B-spline curves to B-spline coefficients using least squares.
 
@@ -175,8 +175,7 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-4, rcond=1f
     
     Bty = @tullio out[i, j, m, p] := Bt[i, j, m, n] * y_eval[i, j, n, p]
     
-    # x = (BtB)^-1 * Bty, rcond is the conditioning applied to the reciprocal of the singular values
-    # coef = @tullio out[i, j, m, p] := qr(BtB[i, j, m, n], Val(true)) \ Bty[i, j, n, p]
+    # x = (BtB)^-1 * Bty
     coef = zeros(Float32, 0, out_dim, n_coeff) |> device
     for i in 1:in_dim
         coef_ = zeros(Float32, 0, n_coeff) |> device

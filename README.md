@@ -7,8 +7,9 @@ WORK IN PROGRESS
 Thank you to KindXiaoming and the rest of the KAN community for putting this awesome network out there for the world to see.
 
 <p align="center">
-<img src="figures/multipl_pruned.png" alt="KAN Network" width="48%" style="padding-right: 20px;">
-<img src="figures/multiply_symbolic.png" alt="Pruned KAN Network" width="48%">
+<img src="figures/sin_before.png" alt="KAN Network" width="30%" style="padding-right: 20px;">
+<img src="figures/sin_trained.png" alt="Pruned KAN Network" width="30%" style="padding-right: 20px;">
+<img src="figures/sin_trained.png" alt="Pruned KAN Network" width="30%">
 </p>
 
 
@@ -33,11 +34,11 @@ bash src/unit_tests/run_tests.sh
 - Symbolic regression on user-defined formula:
 
 ```bash
-julia --sysimage precompile.so pred_multiply.jl
+julia --sysimage precompile.so pred_function.jl
 ```
 ## [Configuration File](config/config.ini) 
 
-### Architecture
+### Architectureps_pruned
 - **k**: Degree of spline basis functions. Determines the smoothness of the spline functions used.
 - **G**: Grid number. Specifies the number of grid points in the grid used for splines.
 - **λ**: Overall regularization parameter. Controls the trade-off between fitting the data and regularizing the model.
@@ -45,6 +46,7 @@ julia --sysimage precompile.so pred_multiply.jl
 - **λ_entropy**: Entropy regularization parameter. Used to limit the number of active activations, promoting a more compact model.
 - **λ_coef**: Coefficient regularization parameter. Regularizes the coefficients to avoid overfitting.
 - **λ_coefdiff**: Coefficient difference regularization parameter. Helps in controlling the differences between coefficients, ensuring smoothness in the model.
+- **sparse_init**:
 
 ### Optimizer
 - **type**: Optimization algorithm to use. Choices include `bfgs`, `l-bfgs`, `cg`, `newton`, or `interior-point`.
@@ -78,10 +80,8 @@ julia --sysimage precompile.so pred_multiply.jl
 
 ## TODO
 
-<!-- 1. GPU - currently doesn't work -->
-1. Feynmann Dataset?
-2. StaticArrays or similar for performance
-3. MoreThuente on CUDA?
+1. PINN
+2. Feynmann Dataset?
 
 
 

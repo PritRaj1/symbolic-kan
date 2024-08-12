@@ -279,13 +279,13 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=1f-2, mode="auto", active_
         end
 
         kan_ps = (
-            coef = ps_pruned[Symbol("coef_$i")],
-            w_base = ps_pruned[Symbol("w_base_$i")],
-            w_sp = ps_pruned[Symbol("w_sp_$i")]
+            coef = ps[Symbol("coef_$i")],
+            w_base = ps[Symbol("w_base_$i")],
+            w_sp = ps[Symbol("w_sp_$i")]
         )
 
         symb_ps = (
-            affine = ps_pruned[Symbol("affine_$i")]
+            affine = ps[Symbol("affine_$i")]
         )
 
         new_fcn, ps_new, new_mask = get_subset(model_pruned.act_fcns[i], kan_ps, st_pruned[Symbol("act_fcn_mask_$i")], active_neurons_id[i], active_neurons_id[i+1])

@@ -36,14 +36,18 @@ function test_opt()
     x = randn(Float32, 100, 2)
 
     function loss(ps)
-        y, st = model(x, ps, st)
+        y, _, st = model(x, ps, st)
         return sum((y .- 1).^2)
     end
 
+    pars = ps
     ps = ComponentVector(ps)
     loss_val, grad = Zygote.withgradient(loss, ps)
+    grad_2 = Zygote.gradient(p -> loss(p), pars)[1]
 
     println(grad[1])
+    println("======================================")
+    println(grad_2)
     @test abs(loss_val) > 0
 end
 
@@ -58,9 +62,11 @@ function test_prune()
     y, st = model(x, ps, st)
 end
 
-@testset "KAN_model Tests" begin
-    # test_fwd()
-    # test_grid()
-    test_opt()
-    # test_prune()
-end
+# @testset "KAN_model Tests" begin
+#     # test_fwd()
+#     # test_grid()
+#     test_opt()
+#     # test_prune()
+# end
+
+test_opt()

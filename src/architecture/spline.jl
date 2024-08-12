@@ -5,15 +5,11 @@ export extend_grid, B_batch, coef2curve, curve2coef
 using CUDA, KernelAbstractions
 using Tullio, LinearAlgebra
 using NNlib: sigmoid
-using ConfParser
 
 include("../utils.jl")
 using .Utils: removeNaN, device, removeZero
 
-conf = ConfParse("config/config.ini")
-parse_conf!(conf)
-
-method = retrieve(conf, "ARCHITECTURE", "method") # "spline" or "RBF"; RBF currently doesn't work
+method = get(ENV, "method", "spline") # "spline" or "RBF"; RBF currently doesn't work
 
 function extend_grid(grid, k_extend=0)
     """

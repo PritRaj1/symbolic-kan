@@ -4,6 +4,7 @@ export init_optim_trainer, train!
 
 using Lux, LuxCUDA, ProgressBars, Dates, Tullio, CSV, Statistics, Zygote, Random, ComponentArrays, Optimization, OptimizationOptimJL, Accessors, ComponentArrays, Random
 using NNlib: sigmoid
+using Flux: DataLoader
 
 include("utils.jl")
 include("../pipeline/optimisation.jl")
@@ -105,12 +106,9 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
     x_test = device(x_test)
     y_test = device(y_test)
 
-    N_train = size(x_train, 1)
     rng = Random.seed!(t.seed)
     t.seed += 1
-    train_idx = shuffle(rng, Vector(1:N_train))[1:t.b_size]
-    t.x = device(x_train[train_idx, :])
-    t.y = device(y_train[train_idx, :])
+    train_loader = DataLoader((permutedims(x_train), permutedims(y_train)); batchsize=t.b_size, shuffle=true, rng=rng)
 
     step = 1
 
@@ -172,12 +170,6 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
 
         t.params = u
 
-        rng = Random.seed!(t.seed)
-        t.seed += 1
-        train_idx = shuffle(rng, Vector(1:N_train))[1:t.b_size]
-        t.x = device(x_train[train_idx, :])
-        t.y = device(y_train[train_idx, :]) 
-
         # Update grid once per epoch if it's time
         if (t.grid_update_freq > 0) && (step % t.grid_update_freq == 0) && t.update_grid_bool
             
@@ -185,7 +177,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
                 println("Updating grid at epoch $(t.epoch), step $step")
             end
 
-            new_model, new_p = update_grid(t.model, t.x, u, st)
+            new_model, new_p = update_grid(t.model, device(x_train), u, st)
             t.params = new_p
             t.model = new_model
 
@@ -194,11 +186,12 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
 
         step += 1
 
-        grads = Zygote.gradient(θ -> reg_loss(θ, nothing), t.params)[1]
-
-        # grads = gradient(t.params) do θ
-        #     reg_loss(Zygote.@showgrad(θ), nothing)
-        # end[1]
+        grads = zeros(Float32, length(u)) |> device
+        for (x, y) in train_loader
+            t.x = x |> permutedims |> device
+            t.y = y |> permutedims |> device
+            grads += Zygote.gradient(θ -> reg_loss(θ, nothing), t.params)[1]
+        end
 
         rng = Random.seed!(t.seed)
         t.seed += 1

@@ -78,7 +78,7 @@ function plot_kan(model, st; folder="figures/", file_name="kan", μ=100, γ=3, m
         w_large = 2.0
         for i in 1:model.widths[l]
             for j in 1:model.widths[l+1]
-                rank = sortperm(view(st[Symbol("acts_$l")][:, i], :), rev=true)
+                rank = sortperm(view(st[Symbol("acts_$l")][:, i], :)) # Sort activations for plotting in order
 
                 symbol_mask = st[Symbol("symb_fcn_mask_$l")][j, i]
                 numerical_mask = st[Symbol("act_fcn_mask_$l")][i, j]

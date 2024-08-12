@@ -1,6 +1,6 @@
 using ConfParser, Random, Lux, LaTeXStrings
 
-conf = ConfParse("config/config.ini")
+conf = ConfParse("config/pred_multiply_config.ini")
 parse_conf!(conf)
 
 use_gpu = parse(Bool, retrieve(conf, "CUDA", "use_gpu"))

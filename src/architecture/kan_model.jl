@@ -2,7 +2,7 @@ module KolmogorovArnoldNets
 
 export KAN, KAN_model, prune, update_grid
 
-using CUDA, KernelAbstractions, Lux, LuxCUDA
+using CUDA, KernelAbstractions, Lux, LuxCUDA, Random
 using Lux, Tullio, NNlib, Random, Statistics, SymPy, Accessors
 using Zygote
 
@@ -32,7 +32,7 @@ end
 
 silu = x -> x .* NNlib.sigmoid.(x)
 
-function KAN_model(widths; k=3, grid_interval=3, ε_scale=0.1f0, μ_scale=0.0f0, σ_scale=1.0f0, base_act=silu, symbolic_enabled=true, grid_eps=1.0f0, grid_range=(-1f0, 1f0), bias_trainable=false)
+function KAN_model(widths; k=3, grid_interval=3, ε_scale=0.1f0, μ_scale=1.0f0, σ_scale=1.0f0, base_act=silu, symbolic_enabled=true, grid_eps=1.0f0, grid_range=(-1f0, 1f0), bias_trainable=false)
     depth = length(widths) - 1
 
     act_fcns = NamedTuple()
@@ -58,6 +58,7 @@ function Lux.initialparameters(rng::AbstractRNG, m::KAN)
     ps = m.bias_trainable ? NamedTuple(Symbol("bias_$i") => zeros(Float32, 1, m.widths[i+1]) for i in 1:m.depth) : NamedTuple()
     
     for i in 1:m.depth
+        rng = Random.seed!(rng, i)
 
         # Parameters for the spline layer
         layer_ps = Lux.initialparameters(rng, m.act_fcns[Symbol("act_lyr_$i")])
@@ -87,6 +88,8 @@ function Lux.initialstates(rng::AbstractRNG, m::KAN)
     end
 
     for i in 1:m.depth
+        rng = Random.seed!(rng, i)
+
         @reset st[Symbol("act_scale_$i")] = zeros(Float32, maximum(m.widths[i+1]), maximum(m.widths[i]))
         act_st = Lux.initialstates(rng, m.act_fcns[Symbol("act_lyr_$i")])
         @reset st[Symbol("act_fcn_mask_$i")] = act_st
@@ -115,19 +118,21 @@ function (m::KAN)(x, ps, st)
 
     Returns:
         y: A matrix of size (b, out_dim) containing the output data.
+        scales: A matrix containing the scales for l1 regularization.
         new_st: A tuple containing the new state of the model.
     """
     x, ps, st = device(x), device(ps), device(st)
 
     Zygote.ignore() do
-        @reset st[Symbol("acts_1")] = copy(x)
+        @reset st[Symbol("acts_1")] = x
     end
 
     max_width = maximum(m.widths)
-    scales = zeros(Float32, 0, max_width * max_width) |> device
+    x_init = x
+    scales_init = zeros(Float32, 0, max_width * max_width) |> device
 
-    for i in 1:m.depth
-
+    # Forward pass - use explicit recursion to be more amenable to Zygote, i.e. Φ(Φ(Φ(x)))
+    x, scales, st = foldl(enumerate(1:m.depth), init=(x_init, scales_init, st)) do (x, scales, st), (i, _)
         coef = ps[Symbol("coef_$i")]
         w_base = ps[Symbol("w_base_$i")]
         w_sp = ps[Symbol("w_sp_$i")]
@@ -143,7 +148,7 @@ function (m::KAN)(x, ps, st)
         end
 
         # φ(x) + φs(x)
-        x = x_numerical .+ x_symbolic
+        x_new = x_numerical .+ x_symbolic
         post_acts = post_acts_num .+ symbolic_post_acts
 
         # Scales for l1 regularisation
@@ -155,25 +160,25 @@ function (m::KAN)(x, ps, st)
         flat_scale = reshape(scale, :)
         pad = zeros(Float32, (max_width*max_width) - length(flat_scale)) |> device
         flat_scale = vcat(flat_scale, pad)
-        scales = vcat(scales, reshape(flat_scale, 1, max_width*max_width))
+        new_scales = vcat(scales, reshape(flat_scale, 1, max_width*max_width))
         
-        # Add (non-traina15ble) bias b(x)
+        # Add (non-trainable) bias b(x)
         bias = m.bias_trainable ? ps[Symbol("bias_$i")] : st[Symbol("bias_$i")]
-        b = repeat(bias, size(x, 1), 1)
-        x = x + b
+        b = repeat(bias, size(x_new, 1), 1)
+        x_new = x_new + b
 
-        Zygote.ignore() do
-            any(isnan.(x_numerical)) && throw(ArgumentError("NaNs in the activations"))
-            any(isnan.(x_symbolic)) && throw(ArgumentError("NaNs in the symbolic activations"))
-            any(isnan.(st[Symbol("act_scale_$i")])) && throw(ArgumentError("NaNs in the activation scales"))
-            any(isnan.(x)) && throw(ArgumentError("NaNs in the bias addition"))
-
-            @reset st[Symbol("acts_$(i+1)")] = copy(x)
-            @reset st[Symbol("pre_acts_$i")] = copy(pre_acts)
-            @reset st[Symbol("post_acts_$i")] = copy(post_acts)
-            @reset st[Symbol("post_splines_$i")] = copy(post_spline)
-            @reset st[Symbol("act_scale_$i")] = copy(scale)
+        new_st = Zygote.@ignore begin
+            st_update = Dict(
+                Symbol("acts_$(i+1)") => x_new,
+                Symbol("pre_acts_$i") => pre_acts,
+                Symbol("post_acts_$i") => post_acts,
+                Symbol("post_splines_$i") => post_spline,
+                Symbol("act_scale_$i") => scale
+            )
+            merge(st, st_update)
         end
+
+        (x_new, new_scales, new_st)
     end
 
     return x, scales, st
@@ -316,9 +321,8 @@ function update_grid(model, x, ps, st)
     Update the grid for each b-spline layer in the model.
     """
 
-    _, _, st = model(x, ps, st)
-    
     for i in 1:model.depth
+        _, _, st = model(x, ps, st)
         new_grid, new_coef = update_lyr_grid(model.act_fcns[Symbol("act_lyr_$i")], ps[Symbol("coef_$i")], st[Symbol("acts_$i")])
         @reset ps[Symbol("coef_$i")] = collect(new_coef)
         @reset model.act_fcns[Symbol("act_lyr_$i")].grid = collect(new_grid) |> device

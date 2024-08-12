@@ -1,6 +1,7 @@
 using Pkg
 
 Pkg.add("Lux")
+Pkg.add("Flux")
 Pkg.add("NNlib")
 Pkg.add("OptimizationOptimJL")
 Pkg.add("LineSearches")

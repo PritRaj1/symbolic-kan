@@ -1,6 +1,6 @@
 using DifferentialEquations, Plots, Random, DataFrames, CSV, ConfParser
 
-conf = ConfParse("config/config.ini")
+conf = ConfParse("config/pred_pendulum_config.ini")
 parse_conf!(conf)
 
 plot_bool = parse(Bool, retrieve(conf, "PLOT", "plot_sim"))

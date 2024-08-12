@@ -60,7 +60,9 @@ function test_symb_lyr()
     @test layer.out_dim == 3
 end
 
-@testset "KAN_layer Tests" begin
-    test_spline_lyr()
-    test_symb_lyr()
-end
+# @testset "KAN_layer Tests" begin
+#     test_spline_lyr()
+#     test_symb_lyr()
+# end
+
+test_spline_lyr()

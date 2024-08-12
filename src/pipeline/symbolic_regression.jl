@@ -2,7 +2,7 @@ module SymbolicRegression
 
 export fit_params, set_affine, lock_symbolic, set_mode, fix_symbolic, unfix_symbolic, unfix_symb_all, suggest_symbolic, auto_symbolic, symbolic_formula, remove_edge
 
-using  Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy, Accessors, Lux, LuxCUDA, ConfParser
+using  Tullio, LinearAlgebra, Statistics, GLM, DataFrames, Random, SymPy, Accessors, Lux, LuxCUDA
 using HypothesisTests, LaTeXStrings
 
 include("../symbolic_lib.jl")
@@ -11,12 +11,9 @@ include("../utils.jl")
 using .SymbolicLib: SYMBOLIC_LIB
 using .Utils: expand_apply, removeZero
 
-conf = ConfParse("config/config.ini")
-parse_conf!(conf)
-
-grid_number = parse(Int, retrieve(conf, "PARAM_FITTING", "num_g"))
-iterations = parse(Int, retrieve(conf, "PARAM_FITTING", "iters"))
-coeff_type = retrieve(conf, "PARAM_FITTING", "coeff_type")
+grid_number = parse(Int, get(ENV, "num_g", "101"))
+iterations = parse(Int, get(ENV, "iters", "6"))
+coeff_type = get(ENV, "coeff_type", "R2")
 
 function coeff_determintation(y, ŷ)
     """

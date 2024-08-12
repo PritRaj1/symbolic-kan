@@ -3,17 +3,14 @@ module dense_kan
 export KAN_Dense, kan_dense, update_lyr_grid, get_subset
 
 using CUDA, KernelAbstractions
-using Lux, Tullio, NNlib, Random, Accessors, ConfParser, Zygote
+using Lux, Tullio, NNlib, Random, Accessors, Zygote
 
 include("spline.jl")
 include("../utils.jl")
 using .spline_utils: extend_grid, coef2curve, curve2coef
 using .Utils: sparse_mask, device
 
-conf = ConfParse("config/config.ini")
-parse_conf!(conf)
-
-sparse_init = parse(Bool, retrieve(conf, "ARCHITECTURE", "sparse_init"))
+sparse_init = parse(Bool, get(ENV, "sparse_init", "false"))
 
 struct kan_dense <: Lux.AbstractExplicitLayer
     in_dim::Int
@@ -53,8 +50,10 @@ function Lux.initialparameters(rng::AbstractRNG, l::kan_dense)
         mask = ones(Float32, l.in_dim, l.out_dim)
     end
     
-    w_base = ones(Float32, l.in_dim, l.out_dim) .* l.σ_base .* mask
-    w_sp = ones(Float32, l.in_dim, l.out_dim) .* l.σ_sp .* mask
+    w_base = randn(rng, Float32, l.in_dim, l.out_dim) .* l.σ_base .* mask
+
+    rng = Random.seed!(rng, 2)
+    w_sp = randn(rng, Float32, l.in_dim, l.out_dim) .* l.σ_sp .* mask
 
     return (coef=coef, w_base=w_base, w_sp=w_sp)
 end
@@ -82,16 +81,16 @@ function (l::kan_dense)(x, mask; coef, w_base, w_sp)
     """
     b_size = size(x, 1)
 
-    pre_acts = repeat(reshape(copy(x), b_size, 1, l.in_dim), 1, l.out_dim, 1)
+    pre_acts = repeat(reshape(x, b_size, 1, l.in_dim), 1, l.out_dim, 1)
     base = l.base_act(x) # b(x)
 
     # B-spline basis functions of degree k
     y = coef2curve(x, l.grid, coef; k=l.degree, scale=l.RBF_σ) # spline(x)
-    post_spline = permutedims(copy(y), [1, 3, 2])
+    post_spline = permutedims(y, [1, 3, 2])
 
     # w_b*b(x) + w_s*spline(x)
     y = @tullio out[b, i, o] := (w_base[i, o] * base[b, i] + w_sp[i, o] * y[b, i, o]) * mask[i, o]
-    post_acts = permutedims(copy(y), [1, 3, 2])
+    post_acts = permutedims(y, [1, 3, 2])
     
     # Inner Kolmogorov-Arnold sum
     y = sum(y, dims=2)[:, 1, :]

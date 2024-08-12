@@ -16,7 +16,7 @@ using ConfParser
 using Lux
 using Plots
 
-conf = ConfParse("config/config.ini")
+conf = ConfParse("config/pred_pendulum_config.ini")
 parse_conf!(conf)
 
 use_gpu = parse(Bool, retrieve(conf, "CUDA", "use_gpu"))

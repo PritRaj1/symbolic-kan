@@ -27,13 +27,13 @@ STRING_VERSION = "sin(π x_1 + x_2^2)"
 FILE_NAME = "sine"
 
 ### Pipeline hyperparams ###
-max_iters = parse(Int, retrieve(conf, "PIPELINE", "max_iters"))
 N_train = parse(Int, retrieve(conf, "PIPELINE", "N_train"))
 N_test = parse(Int, retrieve(conf, "PIPELINE", "N_test"))
 normalise = parse(Bool, retrieve(conf, "PIPELINE", "normalise_data"))
 lower_lim = parse(Float32, retrieve(conf, "PIPELINE", "input_lower_lim"))
-upper_lim = parse(Float32, retrieve(conf, "PIPELINE", "input_upper_lim"))#
+upper_lim = parse(Float32, retrieve(conf, "PIPELINE", "input_upper_lim"))
 train_bias = parse(Bool, retrieve(conf, "PIPELINE", "trainable_bias"))
+batch_size = parse(Int, retrieve(conf, "PIPELINE", "batch_size"))
 lims = (lower_lim, upper_lim)
 
 ### Architecture hyperparams ###
@@ -50,14 +50,25 @@ w_scale = parse(Float32, retrieve(conf, "ARCHITECTURE", "base_init_scale"))
 base_act = retrieve(conf, "ARCHITECTURE", "base_activation")
 g_lims = (grid_lower_lim, grid_upper_lim)
 
-### Optimisation hyperparams ###
-type = retrieve(conf, "OPTIMIZER", "type")
-linesearch = retrieve(conf, "OPTIMIZER", "linesearch")
-m = parse(Int, retrieve(conf, "OPTIMIZER", "m"))
-c_1 = parse(Float64, retrieve(conf, "OPTIMIZER", "c_1"))
-c_2 = parse(Float64, retrieve(conf, "OPTIMIZER", "c_2"))
-ρ = parse(Float64, retrieve(conf, "OPTIMIZER", "ρ"))
-α0 = parse(Float64, retrieve(conf, "OPTIMIZER", "init_LR"))
+### Primiary optimisation hyperparams ###
+max_iters = parse(Int, retrieve(conf, "PRIMARY_OPTIMISER", "max_iters"))
+type = retrieve(conf, "PRIMARY_OPTIMISER", "type")
+linesearch = retrieve(conf, "PRIMARY_OPTIMISER", "linesearch")
+m = parse(Int, retrieve(conf, "PRIMARY_OPTIMISER", "m"))
+c_1 = parse(Float64, retrieve(conf, "PRIMARY_OPTIMISER", "c_1"))
+c_2 = parse(Float64, retrieve(conf, "PRIMARY_OPTIMISER", "c_2"))
+ρ = parse(Float64, retrieve(conf, "PRIMARY_OPTIMISER", "ρ"))
+α0 = parse(Float64, retrieve(conf, "PRIMARY_OPTIMISER", "init_LR"))
+
+### Secondary optimisation hyperparams ###
+max_iters_2 = parse(Int, retrieve(conf, "SECONDARY_OPTIMISER", "max_iters"))
+type_2 = retrieve(conf, "SECONDARY_OPTIMISER", "type")
+linesearch_2 = retrieve(conf, "SECONDARY_OPTIMISER", "linesearch")
+m_2 = parse(Int, retrieve(conf, "SECONDARY_OPTIMISER", "m"))
+c_1_2 = parse(Float64, retrieve(conf, "SECONDARY_OPTIMISER", "c_1"))
+c_2_2 = parse(Float64, retrieve(conf, "SECONDARY_OPTIMISER", "c_2"))
+ρ_2 = parse(Float64, retrieve(conf, "SECONDARY_OPTIMISER", "ρ"))
+α0_2 = parse(Float64, retrieve(conf, "SECONDARY_OPTIMISER", "init_LR"))
 
 ### Schedulers ###
 init_noise = parse(Float32, retrieve(conf, "SCHEDULES", "init_stochasticity"))
@@ -81,6 +92,7 @@ seed = Random.seed!(123)
 
 train_data, test_data = create_data(FUNCTION, N_var=2, x_range=lims, N_train=N_train, N_test=N_test, normalise_input=normalise, init_seed=seed)
 opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=α0)
+secondary_opt = create_optim_opt(type_2, linesearch_2; m=m_2, c_1=c_1_2, c_2=c_2_2, ρ=ρ_2, init_α=α0_2)
 
 model = KAN_model([2, 5, 1]; k=k, grid_interval=G, grid_range=g_lims, σ_scale=w_scale, bias_trainable=train_bias, base_act=activation)
 ps, st = Lux.setup(seed, model)
@@ -89,21 +101,21 @@ st = cpu_device()(st)
 
 plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[STRING_VERSION], title="KAN", file_name=FILE_NAME*"_before")
 
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=max_iters, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay)
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt, secondary_opt; max_iters=max_iters, verbose=true, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay, batch_size=batch_size)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff)
 model, ps, st = prune(seed, model, ps, st)
 
 # After training remember to reinit the trainer
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=max_iters, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay)
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt, secondary_opt; max_iters=max_iters, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay, batch_size=batch_size)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff)
 model, ps, st = prune(seed, model, ps, st)
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=max_iters, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay)
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt, secondary_opt; max_iters=max_iters, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay, batch_size=batch_size)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff)
 
 plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[STRING_VERSION], title="Pruned KAN", file_name=FILE_NAME*"_trained")
 
 model, ps, st = auto_symbolic(model, ps, st; α_range = (-40, 40), β_range = (-40, 40), lib=lib=["x^2", "sin", "exp"])
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=1, verbose=true) # Don't forget to re-init after pruning!
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt, secondary_opt; max_iters=5, verbose=true) # Don't forget to re-init after pruning!
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff)
 
 formula, x0, st = symbolic_formula(model, ps, st)

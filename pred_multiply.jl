@@ -27,15 +27,14 @@ STRING_VERSION = "x1 * x2"
 FILE_NAME = "multiply"
 
 ### Pipeline hyperparams ###
-epochs = parse(Int, retrieve(conf, "PIPELINE", "max_iters"))
+max_iters = parse(Int, retrieve(conf, "PIPELINE", "max_iters"))
 N_train = parse(Int, retrieve(conf, "PIPELINE", "N_train"))
 N_test = parse(Int, retrieve(conf, "PIPELINE", "N_test"))
-num_grid_updates = parse(Int, retrieve(conf, "PIPELINE", "num_grid_updates"))
-final_grid_epoch = parse(Int, retrieve(conf, "PIPELINE", "final_grid_epoch"))
 normalise = parse(Bool, retrieve(conf, "PIPELINE", "normalise_data"))
 lower_lim = parse(Float32, retrieve(conf, "PIPELINE", "input_lower_lim"))
 upper_lim = parse(Float32, retrieve(conf, "PIPELINE", "input_upper_lim"))
 train_bias = parse(Bool, retrieve(conf, "PIPELINE", "trainable_bias"))
+batch_size = parse(Int, retrieve(conf, "PIPELINE", "batch_size"))
 lims = (lower_lim, upper_lim)
 
 ### Architecture hyperparams ###
@@ -86,13 +85,13 @@ opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=�
 
 model = KAN_model([2, 5, 1]; k=k, grid_interval=G, grid_range=g_lims, σ_scale=w_scale, bias_trainable=train_bias, base_act=activation)
 ps, st = Lux.setup(seed, model)
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=max_iters, verbose=true, update_grid_bool=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay)
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=max_iters, verbose=true, update_grid_bool=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay, batch_size=batch_size)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff)
 
 plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[STRING_VERSION], title="Trained KAN", file_name=FILE_NAME*"_trained")
 model, ps, st = prune(Random.default_rng(), model, ps, st)
 
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=max_iters, verbose=true, update_grid_bool=false, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay)
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=max_iters, verbose=true, update_grid_bool=false, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay, batch_size=batch_size)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff)
 
 plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=["x_1 * x_2"], title="Pruned KAN", file_name=FILE_NAME*"_pruned")

@@ -45,9 +45,14 @@ function test_opt()
     loss_val, grad = Zygote.withgradient(loss, ps)
     grad_2 = Zygote.gradient(p -> loss(p), pars)[1]
 
-    println(grad[1])
-    println("======================================")
-    println(grad_2)
+    # println(grad[1])
+    # println("======================================")
+    # println(grad_2)
+
+    grads = gradient(ps) do θ
+        loss(Zygote.@showgrad(θ))
+    end
+
     @test abs(loss_val) > 0
 end
 

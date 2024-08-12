@@ -61,7 +61,7 @@ function opt_get(o)
         "newton" => Newton(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=o.init_α), linesearch=o.line_search),
         "interior-point" => IPNewton(linesearch=o.line_search),
         "neldermead" => NelderMead(),
-        "adam" => OptimizationOptimisers.Adam(o.init_α),
+        "adam" => ADAM(o.init_α),
     )
 
     return optimiser_map[o.type]

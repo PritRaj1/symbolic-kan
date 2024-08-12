@@ -59,11 +59,12 @@ c_1 = parse(Float64, retrieve(conf, "OPTIMIZER", "c_1"))
 c_2 = parse(Float64, retrieve(conf, "OPTIMIZER", "c_2"))
 ρ = parse(Float64, retrieve(conf, "OPTIMIZER", "ρ"))
 α0 = parse(Float64, retrieve(conf, "OPTIMIZER", "α0"))
+LR_decay = parse(Float64, retrieve(conf, "OPTIMIZER", "LR_decay"))
 
 seed = Random.seed!(123)
 
 train_data, test_data = create_data(FUNCTION, N_var=2, x_range=lims, N_train=N_train, N_test=N_test, normalise_input=normalise, init_seed=seed)
-opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=α0)
+opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=α0, decay=LR_decay)
 
 model = KAN_model([2, 5, 1]; k=k, grid_interval=G, grid_range=g_lims, σ_scale=w_scale, bias_trainable=train_bias)
 ps, st = Lux.setup(seed, model)

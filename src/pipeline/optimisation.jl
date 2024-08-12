@@ -10,9 +10,10 @@ struct optim_opt
     line_search
     m::Int
     init_α::Float32
+    γ::Float32
 end
 
-function create_optim_opt(type="l-bfgs", line_search="strongwolfe"; m=10, c_1=1e-4, c_2=0.9, ρ=0.5, init_α=0.1)
+function create_optim_opt(type="l-bfgs", line_search="strongwolfe"; m=10, c_1=1e-4, c_2=0.9, ρ=0.5, init_α=0.1, decay=0.9)
     """
     Create optimiser.
 
@@ -39,10 +40,10 @@ function create_optim_opt(type="l-bfgs", line_search="strongwolfe"; m=10, c_1=1e
 
     fcn = linesearch_map[line_search]
     line_fcn = (a...) -> fcn(a...) # Needed or else: ERROR: LoadError: TypeError: in keyword argument linesearch, expected Function, got a value of type LineSearches.StrongWolfe{Float32}
-    return optim_opt(type, line_fcn, m, init_α)
+    return optim_opt(type, line_fcn, m, init_α, decay)
 end
 
-function opt_get(o)
+function opt_get(o; α=nothing)
     """
     Get optimiser.
 
@@ -52,13 +53,15 @@ function opt_get(o)
     Returns:
     - optimiser: optimiser.
     """
+
+    init_α = isnothing(α) ? o.init_α : α
     
     optimiser_map = Dict(
-        "bfgs" => BFGS(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=o.init_α), linesearch=o.line_search),
-        "l-bfgs" => LBFGS(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=o.init_α), m=o.m, linesearch=o.line_search),
-        "cg" => ConjugateGradient(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=o.init_α), linesearch=o.line_search),
-        "gd" => GradientDescent(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=o.init_α), linesearch=o.line_search),
-        "newton" => Newton(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=o.init_α), linesearch=o.line_search),
+        "bfgs" => BFGS(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=init_α), linesearch=o.line_search),
+        "l-bfgs" => LBFGS(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=init_α), m=o.m, linesearch=o.line_search),
+        "cg" => ConjugateGradient(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=init_α), linesearch=o.line_search),
+        "gd" => GradientDescent(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=init_α), linesearch=o.line_search),
+        "newton" => Newton(alphaguess=LineSearches.InitialHagerZhang{Float32}(α0=init_α), linesearch=o.line_search),
         "interior-point" => IPNewton(linesearch=o.line_search),
         "neldermead" => NelderMead(),
     )

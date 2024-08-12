@@ -32,9 +32,14 @@ mutable struct optim_trainer
     log_time::Bool
     x::AbstractArray{Float32}
     y::AbstractArray{Float32}
+    ε::Float32
+    ε_decay::Float32
+    grid_update_freq::Int
+    grid_update_decay::Float32
+    seed::Int
 end
 
-function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, optim_optimiser; batch_size=nothing, loss_fn=nothing, max_iters=1e5, update_grid_bool=true, verbose=true, log_time=true)
+function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, optim_optimiser; batch_size=nothing, loss_fn=nothing, max_iters=1e5, noise=0f0, noise_decay=1f0, grid_update_freq=5, grid_update_decay=1f0, update_grid_bool=true, verbose=true, log_time=true)
     """
     Initialise trainer for training symbolic model.
 
@@ -60,10 +65,11 @@ function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, opti
     x = device(x)
     y = device(y)
     batch_size = isnothing(batch_size) ? size(x, 1) : batch_size
-    return optim_trainer(model, params, state, train_data, test_data, batch_size, optim_optimiser, loss_fn, 0, max_iters, update_grid_bool, verbose, log_time, x, y)
+
+    return optim_trainer(model, params, state, train_data, test_data, batch_size, optim_optimiser, loss_fn, 0, max_iters, update_grid_bool, verbose, log_time, x, y, noise, noise_decay, grid_update_freq, grid_update_decay, 1)
 end
 
-function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_update_num=10, stop_grid_update_step=50, reg_factor=1.0, mag_threshold=1e-16, 
+function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_factor=1.0, mag_threshold=1e-16, 
     λ=0.0, λ_l1=1.0, λ_entropy=0.0, λ_coef=0.0, λ_coefdiff=0.0, plot_bool=true, img_loc="training_plots/")
     """
     Train symbolic model.
@@ -92,7 +98,6 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     reg_factor = Float32(reg_factor)
     mag_threshold = Float32(mag_threshold)
 
-    grid_update_freq = fld(stop_grid_update_step, grid_update_num)
     x_train, y_train = t.train_data
     x_test, y_test = t.test_data
     
@@ -102,7 +107,9 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     y_test = device(y_test)
 
     N_train = size(x_train, 1)
-    train_idx = shuffle(Random.seed!(1), Vector(1:N_train))[1:t.b_size]
+    rng = Random.seed!(t.seed)
+    t.seed += 1
+    train_idx = shuffle(rng, Vector(1:N_train))[1:t.b_size]
     t.x = device(x_train[train_idx, :])
     t.y = device(y_train[train_idx, :])
 
@@ -143,29 +150,72 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
         return reg_
     end
 
+    if isnothing(t.loss_fn)
+        t.loss_fn = (pred, real) -> mean(sum((pred - real).^2; dims=2))
+    end
 
     # l1 regularisation loss
     function reg_loss(ps, s)
         ŷ, scales, st = t.model(t.x, ps, t.state)
-        l2 = mean(sum((ŷ - t.y).^2; dims=2))
+        l2 = t.loss_fn(ŷ, t.y)
         reg_ = reg(ps, scales)
         reg_ = λ * reg_
 
         t.state = st
-        t.params = ps
 
         return l2 + reg_
     end
 
-    if isnothing(t.loss_fn)
-        t.loss_fn = reg_loss
+    # Single train step
+    function grad_fcn(G, u, p)
+
+        t.params = u
+
+        rng = Random.seed!(t.seed)
+        t.seed += 1
+        train_idx = shuffle(rng, Vector(1:N_train))[1:t.b_size]
+        t.x = device(x_train[train_idx, :])
+        t.y = device(y_train[train_idx, :]) 
+
+        # Update grid once per epoch if it's time
+        if (t.grid_update_freq > 0) && (t.epoch % t.grid_update_freq == 0) && t.update_grid_bool
+            
+            if t.verbose
+                println("Updating grid at epoch $(t.epoch)")
+            end
+
+            new_model, new_p = update_grid(t.model, t.x, u, st)
+            t.params = new_p
+            t.model = new_model
+
+            t.grid_update_freq = floor(t.grid_update_freq * (2 - t.grid_update_decay))
+            t.update_grid_bool = false
+        end
+
+        grads = Zygote.gradient(pars -> reg_loss(pars, nothing), t.params)[1]
+
+        rng = Random.seed!(t.seed)
+        t.seed += 1
+        noises = randn(rng, Float32, length(grads)) .* t.ε |> device
+        grads = grads .+ noises
+
+        if t.verbose
+            println("Epoch $(t.epoch): Loss: $(reg_loss(u, nothing)), Grid updates every: $(t.grid_update_freq), ε: $(t.ε)")
+        end
+
+        copy!(G, grads)
+        return grads
     end
 
     start_time = time()
 
+    # Callback function for logging
     function log_callback!(state::Optimization.OptimizationState, obj)
         t.params = state.u
-        grid_updated = false
+        t.update_grid_bool = true
+
+        # Update stochasticity
+        t.ε = t.ε > 0f0 ? t.ε .* t.ε_decay : 0f0
 
         if any(isnan.(state.grad))
             println("NaN in gradients")
@@ -180,30 +230,12 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
 
         t.x = x_test
         t.y = y_test
-        test_loss = t.loss_fn(state.u, nothing)
+        test_loss = reg_loss(state.u, nothing)
         ŷ, scales, st = t.model(t.x, state.u, t.state)
         reg_ = reg(state.u, scales)
 
-        train_idx = shuffle(Random.seed!(t.epoch+1), Vector(1:N_train))[1:t.b_size]
-        t.x = device(x_train[train_idx, :])
-        t.y = device(y_train[train_idx, :]) 
-
         t.params = state.u
         t.state = st
-
-        # Update grid once per epoch if it's time
-        if (t.epoch % grid_update_freq == 0) && (t.epoch < stop_grid_update_step) && t.update_grid_bool
-            
-            if t.verbose
-                println("Updating grid")
-            end
-
-            new_model, new_p = update_grid(t.model, t.x, state.u, st)
-            t.params = new_p
-            t.model = new_model
-
-            grid_updated = true # Cut optimization to set up new params
-        end
  
         log_csv(t.epoch, time() - start_time, obj, test_loss, reg_, file_name; log_time=t.log_time)
 
@@ -213,7 +245,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
 
         t.epoch = t.epoch + 1
 
-        return grid_updated
+        return false
     end
     
     # Create folders
@@ -228,24 +260,13 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
     end
     println("Created log at $file_name")
 
+    # Problem setup - see SciML docs
     pars = ComponentVector(t.params)
-    optf = Optimization.OptimizationFunction(t.loss_fn, Optimization.AutoZygote())
+    optf = Optimization.OptimizationFunction(reg_loss; grad=grad_fcn)
     optprob = Optimization.OptimizationProblem(optf, pars)
     res = Optimization.solve(optprob, opt_get(t.opt); 
     maxiters=t.max_iters, callback=log_callback!, abstol=0f0, reltol=0f0, allow_f_increases=true, allow_outer_f_increases=true, x_tol=0f0, x_abstol=0f0, x_reltol=0f0, f_tol=0f0, f_abstol=0f0, f_reltol=0f0, g_tol=0f0, g_abstol=0f0, g_reltol=0f0,
     outer_x_abstol=0f0, outer_x_reltol=0f0, outer_f_abstol=0f0, outer_f_reltol=0f0, outer_g_abstol=0f0, outer_g_reltol=0f0, successive_f_tol=t.max_iters)
-
-    while t.epoch < t.max_iters
-
-        if t.verbose
-            println("Grid updated at epoch $(t.epoch)")
-        end
-
-        optprob = remake(optprob; u0=t.params, p=optprob.p)
-        res = Optimization.solve(optprob, opt_get(t.opt; α=t.opt.γ*t.opt.init_α);
-        maxiters=t.max_iters, callback=log_callback!, abstol=0f0, reltol=0f0, allow_f_increases=true, allow_outer_f_increases=true, x_tol=0f0, x_abstol=0f0, x_reltol=0f0, f_tol=0f0, f_abstol=0f0, f_reltol=0f0, g_tol=0f0, g_abstol=0f0, g_reltol=0f0,
-        outer_x_abstol=0f0, outer_x_reltol=0f0, outer_f_abstol=0f0, outer_f_reltol=0f0, outer_g_abstol=0f0, outer_g_reltol=0f0, successive_f_tol=t.max_iters)
-    end
     
     t.params = res.minimizer
     return t.model, cpu_device()(res.minimizer), cpu_device()(t.state)

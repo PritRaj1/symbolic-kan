@@ -46,10 +46,10 @@ julia --sysimage precompile.so pred_function.jl
 - **λ_entropy**: Entropy regularization parameter. Used to limit the number of active activations, promoting a more compact model.
 - **λ_coef**: Coefficient regularization parameter. Regularizes the coefficients to avoid overfitting.
 - **λ_coefdiff**: Coefficient difference regularization parameter. Helps in controlling the differences between coefficients, ensuring smoothness in the model.
-- **sparse_init**:
+- **sparse_init**: Whether to initialise the model sparsely or not.
 
 ### Optimizer
-- **type**: Optimization algorithm to use. Choices include `bfgs`, `l-bfgs`, `cg`, `newton`, or `interior-point`.
+- **type**: Optimization algorithm to use. Choices include `bfgs`, `l-bfgs`, `cg`, `newton`, `interior-point`
 - **linesearch**: Type of linesearch algorithm. Options are `strongwolfe`, `backtrack`, `hagerzhang`, `morethuente`, or `static`.
 - **m**: Number of previous iterations to store for the strong Wolfe linesearch method. Influences the history of past gradients used for better convergence.
 - **c_1**: Armijo condition parameter for linesearch. Used to ensure sufficient decrease in the objective function.

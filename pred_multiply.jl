@@ -59,8 +59,13 @@ m = parse(Int, retrieve(conf, "OPTIMIZER", "m"))
 c_1 = parse(Float64, retrieve(conf, "OPTIMIZER", "c_1"))
 c_2 = parse(Float64, retrieve(conf, "OPTIMIZER", "c_2"))
 ρ = parse(Float64, retrieve(conf, "OPTIMIZER", "ρ"))
-α0 = parse(Float64, retrieve(conf, "OPTIMIZER", "α0"))
-LR_decay = parse(Float64, retrieve(conf, "OPTIMIZER", "LR_decay"))
+α0 = parse(Float64, retrieve(conf, "OPTIMIZER", "init_LR"))
+
+### Schedulers ###
+init_noise = parse(Float64, retrieve(conf, "SCHEDULES", "init_stochasticity"))
+noise_decay = parse(Float64, retrieve(conf, "SCHEDULES", "stochasticity_decay"))
+init_grid_update_freq = parse(Int, retrieve(conf, "SCHEDULES", "init_grid_update_freq"))
+grid_update_freq_decay = parse(Float64, retrieve(conf, "SCHEDULES", "grid_update_freq_decay"))
 
 seed = Random.seed!(123)
 
@@ -81,14 +86,14 @@ opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=�
 
 model = KAN_model([2, 5, 1]; k=k, grid_interval=G, grid_range=g_lims, σ_scale=w_scale, bias_trainable=train_bias, base_act=activation)
 ps, st = Lux.setup(seed, model)
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true, update_grid_bool=true)
-model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, grid_update_num=num_grid_updates, stop_grid_update_step=final_grid_epoch)
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true, update_grid_bool=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay)
+model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff)
 
 plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[STRING_VERSION], title="Trained KAN", file_name=FILE_NAME*"_trained")
 model, ps, st = prune(Random.default_rng(), model, ps, st)
 
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true, update_grid_bool=false)
-model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, grid_update_num=num_grid_updates, stop_grid_update_step=final_grid_epoch)
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true, update_grid_bool=false, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay)
+model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff)
 
 plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=["x_1 * x_2"], title="Pruned KAN", file_name=FILE_NAME*"_pruned")
 ps, st = cpu_device()(ps), cpu_device()(st)

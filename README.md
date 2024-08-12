@@ -81,7 +81,8 @@ julia --sysimage precompile.so pred_function.jl
 ## TODO
 
 1. PINN
-2. Feynmann Dataset?
+2. Profile FLOPS/MEM
+3. Feynmann Dataset?
 
 
 

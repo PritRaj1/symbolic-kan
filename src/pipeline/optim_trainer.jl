@@ -111,6 +111,8 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
     t.x = device(x_train[train_idx, :])
     t.y = device(y_train[train_idx, :])
 
+    step = 1
+
     if !isnothing(ps)
         t.params = device(ps)
     end
@@ -176,19 +178,20 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
         t.y = device(y_train[train_idx, :]) 
 
         # Update grid once per epoch if it's time
-        if (t.grid_update_freq > 0) && (t.epoch % t.grid_update_freq == 0) && t.update_grid_bool
+        if (t.grid_update_freq > 0) && (step % t.grid_update_freq == 0) && t.update_grid_bool
             
             if t.verbose
-                println("Updating grid at epoch $(t.epoch)")
+                println("Updating grid at epoch $(t.epoch), step $step")
             end
 
             new_model, new_p = update_grid(t.model, t.x, u, st)
             t.params = new_p
             t.model = new_model
 
-            t.grid_update_freq = floor(t.grid_update_freq * (2 - t.grid_update_decay)^t.epoch)
-            t.update_grid_bool = false
+            t.grid_update_freq = floor(t.grid_update_freq * (2 - t.grid_update_decay)^step)
         end
+
+        step += 1
 
         grads = Zygote.gradient(pars -> reg_loss(pars, nothing), t.params)[1]
 
@@ -226,16 +229,20 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
             end
         end
 
+        ŷ, scales, st = t.model(t.x, state.u, t.state)
+        train_loss = t.loss_fn(ŷ, t.y)
+
         t.x = x_test
         t.y = y_test
-        test_loss = reg_loss(state.u, nothing)
         ŷ, scales, st = t.model(t.x, state.u, t.state)
+        test_loss = t.loss_fn(ŷ, t.y)
+
         reg_ = reg(state.u, scales)
 
         t.params = state.u
         t.state = st
  
-        log_csv(t.epoch, time() - start_time, obj, test_loss, reg_, file_name; log_time=t.log_time)
+        log_csv(t.epoch, time() - start_time, train_loss, test_loss, reg_, file_name; log_time=t.log_time)
 
         if plot_bool
             plot_kan(t.model, st; mask=true, title="Epoch $(t.epoch)", folder=img_loc, file_name="epoch_$(t.epoch)")

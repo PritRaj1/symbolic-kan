@@ -188,7 +188,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
             t.params = new_p
             t.model = new_model
 
-            t.grid_update_freq = floor(t.grid_update_freq * (2 - t.grid_update_decay))
+            t.grid_update_freq = floor(t.grid_update_freq * (2 - t.grid_update_decay)^t.epoch)
             t.update_grid_bool = false
         end
 

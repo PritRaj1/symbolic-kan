@@ -27,7 +27,7 @@ STRING_VERSION = "sin(π x_1 + x_2^2)"
 FILE_NAME = "sine"
 
 ### Pipeline hyperparams ###
-epochs = parse(Int, retrieve(conf, "PIPELINE", "num_epochs"))
+max_iters = parse(Int, retrieve(conf, "PIPELINE", "max_iters"))
 N_train = parse(Int, retrieve(conf, "PIPELINE", "N_train"))
 N_test = parse(Int, retrieve(conf, "PIPELINE", "N_test"))
 normalise = parse(Bool, retrieve(conf, "PIPELINE", "normalise_data"))
@@ -89,15 +89,15 @@ st = cpu_device()(st)
 
 plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[STRING_VERSION], title="KAN", file_name=FILE_NAME*"_before")
 
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay)
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=max_iters, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff)
 model, ps, st = prune(seed, model, ps, st)
 
 # After training remember to reinit the trainer
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay)
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=max_iters, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff)
 model, ps, st = prune(seed, model, ps, st)
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=epochs, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay)
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt; max_iters=max_iters, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff)
 
 plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[STRING_VERSION], title="Pruned KAN", file_name=FILE_NAME*"_trained")

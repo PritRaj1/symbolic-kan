@@ -58,7 +58,7 @@ julia --sysimage precompile.so pred_function.jl
 - **α0**: Initital step size for linesearch.
 
 ### Pipeline
-- **num_epochs**: Number of training epochs. Defines how many times the training process will iterate over the entire dataset.
+- **max_iters**: Total number of iterations permissible to thje optimisation algorithm. Not the same as epochs.
 - **num_grid_updates**: Number of times to update the grid. Indicates how frequently the grid used for interpolation or approximation will be updated during training.
 - **final_grid_epoch**: Epoch at which to stop updating the grid. Defines when to cease further updates to the grid.
 - **normalise_data**: Flag indicating whether to normalize the input data. `true` or `false` value determines if the input data should be scaled.

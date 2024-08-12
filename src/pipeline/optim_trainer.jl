@@ -101,8 +101,6 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
     x_train, y_train = t.train_data
     x_test, y_test = t.test_data
     
-    # x_train = device(x_train)
-    # y_train = device(y_train)
     x_test = device(x_test)
     y_test = device(y_test)
 

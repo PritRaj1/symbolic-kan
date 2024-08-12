@@ -132,7 +132,7 @@ function coef2curve(x_eval, grid, coef; k::Int64, scale=1f0)
     return y_eval
 end
 
-function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-3, rcond=1f-15)
+function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-4, rcond=1f-15)
     """
     Convert B-spline curves to B-spline coefficients using least squares.
 
@@ -152,30 +152,42 @@ function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-3, rcond=1f
 
     B = BasisFcn(x_eval, grid; degree=k, σ=scale)  # b_size x in_dim x n_coeff
 
-    coef = @tullio out[i, o, n] := pinv(B[b, i, n]) * y_eval[b, i, o]
+    # coef = @tullio out[i, o, n] := pinv(B[b, i, n]) * y_eval[b, i, o]
 
-    # n_coeff == size(B, 3) || println("Number of coefficients does not match the number of basis functions")
+    n_coeff == size(B, 3) || println("Number of coefficients does not match the number of basis functions")
 
-    # B = permutedims(B, [2, 1, 3])
-    # B = reshape(B, in_dim, 1, b_size, size(B, 3))
-    # B = repeat(B, 1, out_dim, 1, 1) # in_dim x out_dim x b_size x n_coeffs
+    B = permutedims(B, [2, 1, 3])
+    B = reshape(B, in_dim, 1, b_size, size(B, 3))
+    B = repeat(B, 1, out_dim, 1, 1) # in_dim x out_dim x b_size x n_coeffs
 
-    # y_eval = permutedims(y_eval, [2, 3, 1]) # in_dim x out_dim x b_size
+    y_eval = permutedims(y_eval, [2, 3, 1]) # in_dim x out_dim x b_size
+    y_eval = reshape(y_eval, size(y_eval)..., 1)
 
-    # # Get BtB and Bty
-    # Bt = permutedims(B, [1, 2, 4, 3])
+    # Get BtB and Bty
+    Bt = permutedims(B, [1, 2, 4, 3])
     
-    # BtB = @tullio out[i, j, m, p] := Bt[i, j, m, n] * B[i, j, n, p] # in_dim x out_dim x n_coeffs x n_coeffs
-    # n1, n2, n, _ = size(BtB)
-    # eye = Matrix{Float32}(I, n, n) .* ε |> device
-    # eye = reshape(eye, 1, 1, n, n)
-    # eye = repeat(eye, n1, n2, 1, 1)
-    # BtB = BtB + eye 
+    BtB = @tullio out[i, j, m, p] := Bt[i, j, m, n] * B[i, j, n, p] # in_dim x out_dim x n_coeffs x n_coeffs
+    n1, n2, n, _ = size(BtB)
+    eye = Matrix{Float32}(I, n, n) .* ε |> device
+    eye = reshape(eye, 1, 1, n, n)
+    eye = repeat(eye, n1, n2, 1, 1)
+    BtB = BtB + eye 
     
-    # Bty = @tullio out[i, j, m] := Bt[i, j, m, n] * y_eval[i, j, n]
+    Bty = @tullio out[i, j, m, p] := Bt[i, j, m, n] * y_eval[i, j, n, p]
     
-    # # x = (BtB)^-1 * Bty, rcond is the conditioning applied to the reciprocal of the singular values
-    # coef = @tullio out[i, j, m] := pinv(BtB[i, j, m, n]) * Bty[i, j, n]
+    # x = (BtB)^-1 * Bty, rcond is the conditioning applied to the reciprocal of the singular values
+    # coef = @tullio out[i, j, m, p] := qr(BtB[i, j, m, n], Val(true)) \ Bty[i, j, n, p]
+    coef = zeros(Float32, 0, out_dim, n_coeff) |> device
+    for i in 1:in_dim
+        coef_ = zeros(Float32, 0, n_coeff) |> device
+        for j in 1:out_dim
+            lstq = qr(BtB[i, j, :, :]) \ Bty[i, j, :, :]
+            lstq = lstq |> permutedims
+            coef_ = vcat(coef_, lstq)
+        end
+        coef_ = reshape(coef_, 1, size(coef_)...)
+        coef = vcat(coef, coef_)
+    end
 
     any(isnan.(coef)) && error("NaN in coef")
     return coef

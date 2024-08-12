@@ -241,9 +241,9 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", grid_
         if t.verbose
             println("Grid updated at epoch $(t.epoch)")
 
-            for i in 1:model.depth
-                println("Grid $i: ", model.act_fcns[Symbol("act_lyr_$i")].grid[1, :])
-                println("Coef $i: ", ps[Symbol("coef_$i")])
+            for i in 1:t.model.depth
+                println("Grid $i: ", t.model.act_fcns[Symbol("act_lyr_$i")].grid[1, :])
+                println("Coef $i: ", t.params[Symbol("coef_$i")])
             end
 
         end

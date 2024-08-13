@@ -32,7 +32,7 @@ end
 
 silu = x -> x .* NNlib.sigmoid.(x)
 
-function KAN_model(widths; k=3, grid_interval=3, ε_scale=0.1f0, μ_scale=1.0f0, σ_scale=1.0f0, base_act=silu, symbolic_enabled=true, grid_eps=1.0f0, grid_range=(-1f0, 1f0), bias_trainable=false)
+function KAN_model(widths; k=3, grid_interval=5, ε_scale=5f-1, μ_scale=1.0f0, σ_scale=1.0f0, base_act=silu, symbolic_enabled=true, grid_eps=2f-2, grid_range=(-1f0, 1f0), bias_trainable=false)
     depth = length(widths) - 1
 
     act_fcns = NamedTuple()
@@ -208,7 +208,7 @@ function remove_node(st, l, j; verbose=true)
     return st
 end
 
-function prune(rng::AbstractRNG, m, ps, st; threshold=1f-1, mode="auto", active_neurons_id=nothing, verbose=true)
+function prune(rng::AbstractRNG, m, ps, st; threshold=3f-2, mode="auto", active_neurons_id=nothing, verbose=true)
     """
     Prune the activation of neuron (l, i, j) based on the threshold.
     If the neuron has a small range of activation, shave off the neuron.
@@ -300,7 +300,7 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=1f-1, mode="auto", active_
 
         new_fcn, ps_new, new_symb_mask = get_symb_subset(m.symbolic_fcns[Symbol("symb_lyr_$i")], symb_ps, st_pruned[Symbol("symb_fcn_mask_$i")], active_neurons_id[i], active_neurons_id[i+1])
         @reset model_pruned.symbolic_fcns[i] = new_fcn
-
+        @reset ps_pruned[Symbol("affine_$i")] = ps_new
         @reset model_pruned.widths[i] = length(active_neurons_id[i])
 
         st_pruned = merge(

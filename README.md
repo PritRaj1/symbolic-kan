@@ -7,9 +7,9 @@ WORK IN PROGRESS
 Thank you to KindXiaoming and the rest of the KAN community for putting this awesome network out there for the world to see.
 
 <p align="center">
-<img src="figures/sin_before.png" alt="KAN Network" width="30%" style="padding-right: 20px;">
-<img src="figures/sin_trained.png" alt="Pruned KAN Network" width="30%" style="padding-right: 20px;">
-<img src="figures/sin_trained.png" alt="Pruned KAN Network" width="30%">
+<img src="figures/sine_before.png" alt="KAN Network" width="30%" style="padding-right: 20px;">
+<img src="figures/sine_trained.png" alt="Pruned KAN Network" width="30%" style="padding-right: 20px;">
+<img src="figures/sine_symbolic.png" alt="Symbolic KAN Network" width="30%">
 </p>
 
 
@@ -27,7 +27,7 @@ bash setup/setup.sh
 bash src/unit_tests/run_tests.sh
 ```
 
-3. [Setup config file.](config/config.ini) 
+3. [Setup config file.](config) 
 
 4. Run some files
 
@@ -36,7 +36,7 @@ bash src/unit_tests/run_tests.sh
 ```bash
 julia --sysimage precompile.so pred_function.jl
 ```
-## [Configuration File](config/config.ini) 
+## [Configuration Files](config) 
 
 ### Architecture
 - **k**: Degree of spline basis functions. Determines the smoothness of the spline functions used.

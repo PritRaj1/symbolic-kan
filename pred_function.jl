@@ -94,7 +94,7 @@ activation = Dict(
     "silu" => x -> x .* NNlib.sigmoid.(x)
 )[base_act]
 
-seed = Random.seed!(123)
+seed = Random.seed!(1234)
 
 train_data, test_data = create_data(FUNCTION, N_var=2, x_range=lims, N_train=N_train, N_test=N_test, normalise_input=normalise, init_seed=seed)
 opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=α0)

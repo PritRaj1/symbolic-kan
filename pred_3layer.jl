@@ -83,8 +83,6 @@ ENV["num_g"] = retrieve(conf, "PARAM_FITTING", "num_g")
 ENV["iters"] = retrieve(conf, "PARAM_FITTING", "iters")
 ENV["coeff_type"] = retrieve(conf, "PARAM_FITTING", "coeff_type")
 
-seed = Random.seed!(123)
-
 activation = Dict(
     "relu" => NNlib.relu,
     "leakyrelu" => NNlib.leakyrelu,
@@ -97,6 +95,8 @@ activation = Dict(
     "silu" => x -> x .* NNlib.sigmoid.(x),
 )[base_act]
 
+seed = Random.seed!(1234)
+
 train_data, test_data = create_data(FUNCTION, N_var=4, x_range=lims, N_train=N_train, N_test=N_test, normalise_input=normalise, init_seed=seed)
 opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=α0)
 secondary_opt = create_optim_opt(type_2, linesearch_2; m=m_2, c_1=c_1_2, c_2=c_2_2, ρ=ρ_2, init_α=α0_2)
@@ -106,18 +106,18 @@ ps, st = Lux.setup(seed, model)
 _, _, st = model(train_data[1], ps, st) # warmup for plotting
 st = cpu_device()(st)
 
-plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[STRING_VERSION], title="KAN", file_name=FILE_NAME*"_before")
+plot_kan(model, st; mask=true, in_vars=["x_1", "x_2", "x_3", "x_4"], out_vars=[STRING_VERSION], title="KAN", file_name=FILE_NAME*"_before")
 
 trainer = init_optim_trainer(seed, model, train_data, test_data, opt, secondary_opt; max_iters=max_iters, secondary_iters=max_iters_2, verbose=true, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay, batch_size=batch_size)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, img_loc=FILE_NAME*"_training_plots/")
 model, ps, st = prune(seed, model, ps, st)
 
-plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[STRING_VERSION], title="Trained KAN", file_name=FILE_NAME*"_trained")
+plot_kan(model, st; mask=true, in_vars=["x_1", "x_2", "x_3", "x_4"], out_vars=[STRING_VERSION], title="Trained KAN", file_name=FILE_NAME*"_trained")
 
 trainer = init_optim_trainer(seed, model, train_data, test_data, opt, nothing; max_iters=10, secondary_iters=max_iters_2, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay, batch_size=batch_size)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, img_loc=FILE_NAME*"_training_plots/")
 
-plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=["x_1 * x_2"], title="Pruned KAN", file_name=FILE_NAME*"_pruned")
+plot_kan(model, st; mask=true, in_vars=["x_1", "x_2", "x_3", "x_4"], out_vars=[STRING_VERSION], title="Pruned KAN", file_name=FILE_NAME*"_pruned")
 ps, st = cpu_device()(ps), cpu_device()(st)
 
 model, ps, st = auto_symbolic(model, ps, st; lib = ["x", "x^2", "sin", "exp"])
@@ -127,7 +127,7 @@ formula, x0, st = symbolic_formula(model, ps, st)
 formula = latexstring(formula[1])
 println("Formula: ", formula)
 
-plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[formula], title="Symbolic KAN", file_name=FILE_NAME*"_symbolic")
+plot_kan(model, st; mask=true, in_vars=["x_1", "x_2", "x_3", "x_4"], out_vars=[formula], title="Symbolic KAN", file_name=FILE_NAME*"_symbolic")
 
 println("Formula: ", formula)
 

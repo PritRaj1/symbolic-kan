@@ -130,7 +130,7 @@ function (m::KAN)(x, ps, st)
         merge(st, Dict(Symbol("acts_1") => copy(x)))
     end
 
-    # Forward pass - use explicit recursion to be more amenable to Zygote, i.e. Φ(Φ(Φ(x)))
+    # Forward pass, i.e. Φ(Φ(Φ(x)))
     y, scales_out, st = foldl(enumerate(1:m.depth), init=(x, scales_init, st)) do (z, scales, st), (i, _)
         coef = ps[Symbol("coef_$i")]
         w_base = ps[Symbol("w_base_$i")]
@@ -208,7 +208,7 @@ function remove_node(st, l, j; verbose=true)
     return st
 end
 
-function prune(rng::AbstractRNG, m, ps, st; threshold=3f-2, mode="auto", active_neurons_id=nothing, verbose=true)
+function prune(rng::AbstractRNG, m, ps, st; threshold=1f-2, mode="auto", active_neurons_id=nothing, verbose=true)
     """
     Prune the activation of neuron (l, i, j) based on the threshold.
     If the neuron has a small range of activation, shave off the neuron.
@@ -277,7 +277,7 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=3f-2, mode="auto", active_
             if m.bias_trainable
                 @reset ps_pruned[Symbol("bias_$i")] = ps[Symbol("bias_$i")][:, active_neurons_id[i+1]]
             else
-                st_pruned = merge(st, Dict(Symbol("bias_$i") => st[Symbol("bias_$i")][:, active_neurons_id[i+1]]))
+                st_pruned = merge(st_pruned, Dict(Symbol("bias_$i") => st[Symbol("bias_$i")][:, active_neurons_id[i+1]]))
             end
         end
 
@@ -291,14 +291,14 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=3f-2, mode="auto", active_
             affine = ps[Symbol("affine_$i")]
         )
 
-        new_fcn, ps_new, new_mask = get_subset(model_pruned.act_fcns[i], kan_ps, st_pruned[Symbol("act_fcn_mask_$i")], active_neurons_id[i], active_neurons_id[i+1])
+        new_fcn, ps_new, new_mask = get_subset(model_pruned.act_fcns[i], kan_ps, st[Symbol("act_fcn_mask_$i")], active_neurons_id[i], active_neurons_id[i+1])
         @reset model_pruned.act_fcns[i] = new_fcn
 
         @reset ps_pruned[Symbol("coef_$i")] = ps_new[:coef]
         @reset ps_pruned[Symbol("w_base_$i")] = ps_new[:w_base]
         @reset ps_pruned[Symbol("w_sp_$i")] = ps_new[:w_sp]
 
-        new_fcn, ps_new, new_symb_mask = get_symb_subset(m.symbolic_fcns[Symbol("symb_lyr_$i")], symb_ps, st_pruned[Symbol("symb_fcn_mask_$i")], active_neurons_id[i], active_neurons_id[i+1])
+        new_fcn, ps_new, new_symb_mask = get_symb_subset(m.symbolic_fcns[Symbol("symb_lyr_$i")], symb_ps, st[Symbol("symb_fcn_mask_$i")], active_neurons_id[i], active_neurons_id[i+1])
         @reset model_pruned.symbolic_fcns[i] = new_fcn
         @reset ps_pruned[Symbol("affine_$i")] = ps_new
         @reset model_pruned.widths[i] = length(active_neurons_id[i])

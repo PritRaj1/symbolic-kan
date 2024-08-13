@@ -473,9 +473,10 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
             yj = 0.0
             for i in 1:model.widths[l]
                 a, b, c, d = ps[Symbol("affine_$l")][j, i, :]
+                a, b, c, d = round(a, digits=floating_digit), round(b, digits=floating_digit), round(c, digits=floating_digit), round(d, digits=floating_digit)
                 sympy_fcn = model.symbolic_fcns[Symbol("symb_lyr_$l")].fcn_sympys[j][i]
                 try 
-                    yj += (c * sympy_fcn((a * x[i] + b)[1] + d))
+                    yj += c * sympy_fcn(a * x[i] + b)[1] + d
                 catch
                     println("Make sure all activations need to be converted to symbolic formulas first!")
                 end

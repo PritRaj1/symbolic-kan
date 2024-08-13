@@ -111,6 +111,8 @@ plot_kan(model, st; mask=true, in_vars=["x_1", "x_2", "x_3", "x_4"], out_vars=[S
 trainer = init_optim_trainer(seed, model, train_data, test_data, opt, secondary_opt; max_iters=max_iters, secondary_iters=max_iters_2, verbose=true, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay, batch_size=batch_size)
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, img_loc=FILE_NAME*"_training_plots/")
 model, ps, st = prune(seed, model, ps, st)
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt, nothing; max_iters=10, secondary_iters=max_iters_2, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay, batch_size=batch_size)
+model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, img_loc=FILE_NAME*"_training_plots/")
 
 plot_kan(model, st; mask=true, in_vars=["x_1", "x_2", "x_3", "x_4"], out_vars=[STRING_VERSION], title="Trained KAN", file_name=FILE_NAME*"_trained")
 
@@ -121,8 +123,8 @@ plot_kan(model, st; mask=true, in_vars=["x_1", "x_2", "x_3", "x_4"], out_vars=[S
 ps, st = cpu_device()(ps), cpu_device()(st)
 
 model, ps, st = auto_symbolic(model, ps, st; lib = ["x", "x^2", "sin", "exp"])
-@reset secondary_opt.init_α = 1f0
-trainer = init_optim_trainer(seed, model, train_data, test_data, secondary_opt, nothing; max_iters=10, verbose=true, update_grid_bool=false) # Don't forget to re-init after pruning!
+@reset opt.init_α = 1f0
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt, nothing; max_iters=10, verbose=true, update_grid_bool=false) # Don't forget to re-init after pruning!
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, img_loc=FILE_NAME*"_training_plots/")
 
 formula, x0, st = symbolic_formula(model, ps, st)

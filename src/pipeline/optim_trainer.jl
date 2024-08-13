@@ -137,7 +137,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
             vec = scales[i, 1:t.model.widths[i]*t.model.widths[i+1]]
             p = vec ./ sum(vec)
             l1 = sum(non_linear(vec))
-            entropy = -1 * sum(p .* log.(p .+ 1f-4))
+            entropy = -1 * sum(p .* log.(2, p .+ 1f-4))
             reg_ += (l1 * λ_l1) + (entropy * λ_entropy)
         end
 
@@ -199,12 +199,17 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
         noises = randn(rng, Float32, length(grads)) .* t.ε |> device
         grads = grads .+ noises
 
+        grad_norm = sqrt(sum(grads .* grads))
+
         if t.verbose
-            println("Epoch $(t.epoch): Loss: $(reg_loss(u, nothing)), Grid updates every: $(t.grid_update_freq), ε: $(t.ε)")
+            println("Epoch $(t.epoch): Reg loss: $(reg_loss(u, nothing)), Grad norm: $grad_norm, Grid updates every: $(t.grid_update_freq), ε: $(t.ε)")
         end
 
+        t.x = device(x_train)
+        t.y = device(y_train)
+
         copy!(G, grads)
-        return grads
+        return ComponentVector(grads)
     end
 
     start_time = time()
@@ -272,16 +277,19 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
     maxiters=t.max_iters, callback=log_callback!, abstol=0f0, reltol=0f0, allow_f_increases=true, allow_outer_f_increases=true, x_tol=0f0, x_abstol=0f0, x_reltol=0f0, f_tol=0f0, f_abstol=0f0, f_reltol=0f0, g_tol=0f0, g_abstol=0f0, g_reltol=0f0,
     outer_x_abstol=0f0, outer_x_reltol=0f0, outer_f_abstol=0f0, outer_f_reltol=0f0, outer_g_abstol=0f0, outer_g_reltol=0f0, successive_f_tol=t.max_iters)
     
-    if !isnothing(t.secondary_opt) && t.secondary_opt.type != "nothing"
+    if !isnothing(t.secondary_opt) 
+        if t.secondary_opt.type != "nothing"
 
-        if t.verbose
-            println("Starting fine-tuning with $(t.secondary_opt.type)")
+            if t.verbose
+                println("Starting fine-tuning with $(t.secondary_opt.type)")
+            end
+
+            optf = Optimization.OptimizationFunction(reg_loss, AutoZygote())
+            optprob = Optimization.OptimizationProblem(optf, res.minimizer)
+            res = Optimization.solve(optprob, opt_get(t.secondary_opt);
+            maxiters=t.secondary_iters, callback=log_callback!, abstol=0f0, reltol=0f0, allow_f_increases=true, allow_outer_f_increases=true, x_tol=0f0, x_abstol=0f0, x_reltol=0f0, f_tol=0f0, f_abstol=0f0, f_reltol=0f0, g_tol=0f0, g_abstol=0f0, g_reltol=0f0,
+            outer_x_abstol=0f0, outer_x_reltol=0f0, outer_f_abstol=0f0, outer_f_reltol=0f0, outer_g_abstol=0f0, outer_g_reltol=0f0, successive_f_tol=t.max_iters)
         end
-
-        optprob = remake(optprob; u0=res.minimizer)
-        res = Optimization.solve(optprob, opt_get(t.secondary_opt);
-        maxiters=t.secondary_iters, callback=log_callback!, abstol=0f0, reltol=0f0, allow_f_increases=true, allow_outer_f_increases=true, x_tol=0f0, x_abstol=0f0, x_reltol=0f0, f_tol=0f0, f_abstol=0f0, f_reltol=0f0, g_tol=0f0, g_abstol=0f0, g_reltol=0f0,
-        outer_x_abstol=0f0, outer_x_reltol=0f0, outer_f_abstol=0f0, outer_f_reltol=0f0, outer_g_abstol=0f0, outer_g_reltol=0f0, successive_f_tol=t.max_iters)
     end
 
     t.params = res.minimizer

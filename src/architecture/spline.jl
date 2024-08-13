@@ -128,7 +128,7 @@ function coef2curve(x_eval, grid, coef; k::Int64, scale=1f0)
     return y_eval
 end
 
-function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=1f-4)
+function curve2coef(x_eval, y_eval, grid; k::Int64, scale=1f0, ε=0f0)
     """
     Convert B-spline curves to B-spline coefficients using least squares.
 

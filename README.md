@@ -61,6 +61,8 @@ E.g., to help explore the non-convexity of functions, a stochastic optimisation 
 
 If a secondary optimisation isn't needed, set `type=nothing` under secondary optimiser in the config file.
 
+SECOND-ORDER OPTIMISATION IS ONLY SUPPORTED FOR THE SECONDARY OPTIMISER.
+
 - **type**: Optimization algorithm to use. Choices include `bfgs`, `l-bfgs`, `cg`, `newton`, `interior-point`
 - **linesearch**: Type of linesearch algorithm. Options are `strongwolfe`, `backtrack`, `hagerzhang`, `morethuente`, or `static`.
 - **m**: Number of previous iterations to store for the strong Wolfe linesearch method. Influences the history of past gradients used for better convergence.

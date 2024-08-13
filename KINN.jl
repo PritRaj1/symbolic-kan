@@ -115,8 +115,43 @@ disp_KAN = KAN_model([2,260,260,260,260,3]; k=k, grid_interval=G, grid_range=g_l
 stress_ps, stress_st = Lux.setup(seed, stress_KAN)
 disp_ps, disp_st = Lux.setup(seed, disp_KAN)
 
+num_stress_ps = length(stress_ps)
+num_stress_st = length(stress_st)
+
 all_ps = vcat(ComponentVector(stress_ps), ComponentVector(disp_ps))
+all_st = vcat(ComponentVector(stress_st), ComponetnVector(disp_st))
 
 opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=α0)
 secondary_opt = create_optim_opt(type_2, linesearch_2; m=m_2, c_1=c_1_2, c_2=c_2_2, ρ=ρ_2, init_α=α0_2)
 
+function loss_fcn(params, state)
+    σ_pred = stress_KAN(x_excl, params[1:num_stress_ps], state[1:num_stress_st])
+    s_pred = disp_KAN(x_excl, params[num_stress_ps+1:end], state[num_stress_st+1:end])
+
+    u = s_pred[:, 1] # Horizontal
+    v = s_pred[:, 2] # Vertical
+
+    # Compute derivatives
+    dudx = Zygote.jacobian(x -> disp_KAN(x, params[num_stress_ps+1:end], state[num_stress_st+1:end])[:, 1], x_excl)[1]
+    dvdx = Zygote.jacobian(x -> disp_KAN(x, params[num_stress_ps+1:end], state[num_stress_st+1:end])[:, 2], x_excl)[1]
+
+    # Extract diagonal elements (gradients at each point)
+    dudx = [J_u[i,i,:] for i in 1:size(J_u,1)]
+    dvdx = [J_v[i,i,:] for i in 1:size(J_v,1)]
+
+    # Define strain
+    e_11 = getindex.(dudx, 1)
+    e_22 = getindex.(dvdx, 2)
+    e_12 = 0.5 .* (getindex.(dudx, 2) .+ getindex.(dvdx, 1))
+
+    e = hcat(e_11, e_22, e_12)
+    e = reshape(e, (size(e,1), 3, 1))
+
+    # Define augment stress
+    sig_aug = batched_mul(stiff, e)
+    sig_aug = dropdims(sig_aug, dims=3)
+
+    # Define constitutive loss - forcing the augment stress to be equal to the neural network stress
+    loss_cons = mean(sum((sig_aug - σ_pred).^2, dims=1))
+
+end

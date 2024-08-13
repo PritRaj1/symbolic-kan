@@ -55,7 +55,11 @@ julia --sysimage precompile.so pred_function.jl
 
 ### Optimiser
 
-Note: there are two optimisers here: primary and secondary. The secondary optimsiation starts after the first has completed. This has been included to help explore the non-convexity of functions - a stochastic optimisation approach, like adam, can be adopted before any deterministic methods, like bfgs. If a secondary optimisation isn't needed, set `type=nothing` in the config file.
+Note: there are two optimisers here: primary and secondary. The secondary optimisation starts after the first has completed. This has been included to allow for chained optimisations. 
+
+E.g., to help explore the non-convexity of functions, a stochastic optimisation approach like adam could be adopted first before a secondary deterministic method, like bfgs. Or perhaps a second-order method could be adopted after a first-order method to refine the solution. 
+
+If a secondary optimisation isn't needed, set `type=nothing` under secondary optimiser in the config file.
 
 - **type**: Optimization algorithm to use. Choices include `bfgs`, `l-bfgs`, `cg`, `newton`, `interior-point`
 - **linesearch**: Type of linesearch algorithm. Options are `strongwolfe`, `backtrack`, `hagerzhang`, `morethuente`, or `static`.
@@ -86,10 +90,68 @@ Note: there are two optimisers here: primary and secondary. The secondary optims
 - **iters**: Number of iterations to run grid search for.
 - **coeff_type**: Either R2 or pearson to fit the inner affine parameters to.
 
+## Physics-informed Neural Network Data and Problem Setup
+
+The dataset has been sourced from the University of Cambridge Engineering Department's Part IIB course on [Data-Driven and Learning-Based Methods in Mechanics and Materials.](https://teaching.eng.cam.ac.uk/content/engineering-tripos-part-iib-4c11-data-driven-and-learning-based-methods-mechanics-and)
+
+
+The aim is to solve the following linear elastic boundary 2D 'Plate with a Hole' (under plane stress assumptions):
+
+<img src="figures/PINN_problem.png" alt="alt_text" width="50%">
+
+
+ **Young's Modulus (E)**: `E = 10 N/m²`  
+**Poisson's Ratio (ν)**: `ν = 0.3`  
+**Plate Thickness (t)**: `t = 1 m`  
+**Traction on Edge 1 (σ₁)**: `σ₁ = 0.1 N/m²`  
+**Traction on Edge 2 (σ₂)**: `σ₂ = 0 N/m²`  
+
+The governing PDE is the equation of linear elasticity under plane stress assumptions:
+
+$$ \nabla \cdot \sigma = 0 $$
+
+Here, σ is the stress tensor, expressed in terms of the displacement field $\bf{u}$ and material properties as:
+
+$$ \sigma = C\epsilon(\bf{u}) $$
+
+$$
+\epsilon = \begin{bmatrix}
+\epsilon_{xx} & \epsilon_{xy} \\
+\epsilon_{xy} & \epsilon_{yy}
+\end{bmatrix} = \begin{bmatrix}
+\frac{\partial u}{\partial x} & \frac{1}{2}\left(\frac{\partial v}{\partial x} + \frac{\partial u}{\partial y}\right) \\
+\frac{1}{2}\left(\frac{\partial v}{\partial x} + \frac{\partial u}{\partial y}\right) & \frac{\partial v}{\partial y}
+\end{bmatrix}
+$$
+
+
+Where $\bf{u} = \begin{bmatrix}u & v\end{bmatrix}^T$ are the displacements in the $x$ and $y$ directions.
+
+$C$ is the elasticity tensor for the material, which encapsulates its fundamental properties through its dependence on $E$, the Young's modulus, and $\nu$, its Poisson's ratio.
+
+### Boundary Conditions
+
+The boundary conditions are:
+
+1. Right edge ($x = 1$):
+    - $\sigma_{11} = \tau_R = 0.1$ (traction)
+    - $\sigma_{12} = 0$
+2. Top edge ($y = 1$):
+    - $\sigma_{22} = \tau_T = 0$ (traction)
+    - $\sigma_{12} = 0$
+3. Left edge ($x = 0$):
+    - $u = 0$ (symmetry)
+4. Bottom edge ($y = 0$):
+    - $v = 0$ (symmetry)
+5. Circle/hole boundary:
+    - Traction free, i.e., $\sigma \cdot n = 0$, where $n$ is the outward normal vector on the circle boundary.
+
+
 ## References
 
 - [Liu, Z., Wang, Y., Vaidya, S., Ruehle, F., Halverson, J., Soljačić, M., Hou, T. Y., & Tegmark, M. (2024). KAN: Kolmogorov-Arnold Networks.](https://arxiv.org/abs/2404.19756)
 - [Dixit, V. K., & Rackauckas, C. (2023). Optimization.jl: A Unified Optimization Package (v3.12.1).](https://doi.org/10.5281/zenodo.7738525)
+- [Liu, B., Cicirello, A. (2024). Cambridge University Engineering Department Part IIB Course on Data-Driven and Learning-Based Methods in Mechanics and Materials.](https://teaching.eng.cam.ac.uk/content/engineering-tripos-part-iib-4c11-data-driven-and-learning-based-methods-mechanics-and)
 
 
 ## TODO

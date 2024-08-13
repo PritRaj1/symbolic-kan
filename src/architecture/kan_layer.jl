@@ -29,7 +29,7 @@ end
 
 silu = x -> x .* NNlib.sigmoid.(x)
 
-function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=5f-1, σ_base=nothing, σ_sp=1f0, base_act=silu, grid_eps=2f-2, grid_range=(-1, 1))
+function KAN_Dense(in_dim::Int, out_dim::Int; num_splines=5, degree=3, ε_scale=1f-1, σ_base=nothing, σ_sp=1f0, base_act=silu, grid_eps=2f-2, grid_range=(-1, 1))
     grid = Float32.(range(grid_range[1], grid_range[2], length=num_splines + 1)) |> collect |> x -> reshape(x, 1, length(x)) |> device
     grid = repeat(grid, in_dim, 1) 
     grid = extend_grid(grid, degree) 

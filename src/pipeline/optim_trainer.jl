@@ -172,7 +172,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
         t.params = u
 
         # Update grid once per epoch if it's time
-        if (t.grid_update_freq > 0) && (step % t.grid_update_freq == 0) && t.update_grid_bool
+        if  ((t.grid_update_freq > 0 && step % t.grid_update_freq == 0) || step == 1) && t.update_grid_bool
             
             if t.verbose
                 println("Updating grid at epoch $(t.epoch), step $step")

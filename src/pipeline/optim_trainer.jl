@@ -23,6 +23,7 @@ mutable struct optim_trainer
     state
     train_data::Tuple{AbstractArray{Float32}, AbstractArray{Float32}}
     test_data::Tuple{AbstractArray{Float32}, AbstractArray{Float32}}
+    train_loader
     b_size::Int
     opt
     secondary_opt
@@ -69,7 +70,7 @@ function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, opti
     y = device(y)
     batch_size = isnothing(batch_size) ? size(x, 1) : batch_size
 
-    return optim_trainer(model, params, state, train_data, test_data, batch_size, optim_optimiser, secondary_optimiser, loss_fn, 0, max_iters, secondary_iters, update_grid_bool, verbose, log_time, x, y, noise, noise_decay, grid_update_freq, grid_update_decay, 1)
+    return optim_trainer(model, params, state, train_data, test_data, nothing, batch_size, optim_optimiser, secondary_optimiser, loss_fn, 0, max_iters, secondary_iters, update_grid_bool, verbose, log_time, x, y, noise, noise_decay, grid_update_freq, grid_update_decay, 1)
 end
 
 function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_factor=1.0, mag_threshold=1e-16, 
@@ -109,7 +110,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
 
     rng = Random.seed!(t.seed)
     t.seed += 1
-    train_loader = DataLoader((permutedims(x_train), permutedims(y_train)); batchsize=t.b_size, shuffle=true, rng=rng)
+    t.train_loader = DataLoader((permutedims(x_train), permutedims(y_train)); batchsize=t.b_size, shuffle=true, rng=rng)
 
     step = 1
 
@@ -188,7 +189,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
         step += 1
 
         grads = zeros(Float32, length(u)) |> device
-        for (x, y) in train_loader
+        for (x, y) in t.train_loader
             t.x = x |> permutedims |> device
             t.y = y |> permutedims |> device
             grads += Zygote.gradient(θ -> reg_loss(θ, nothing), t.params)[1]
@@ -284,6 +285,9 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
                 println("Starting fine-tuning with $(t.secondary_opt.type)")
             end
 
+            rng = Random.seed!(t.seed)
+            t.seed += 1
+            t.train_loader = DataLoader((permutedims(x_train), permutedims(y_train)); batchsize=size(x_train, 1), shuffle=true, rng=rng)
             optf = Optimization.OptimizationFunction(reg_loss, AutoZygote())
             optprob = Optimization.OptimizationProblem(optf, res.minimizer)
             res = Optimization.solve(optprob, opt_get(t.secondary_opt);

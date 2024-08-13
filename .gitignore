@@ -3,4 +3,5 @@ figures/splines/*.png
 precompile.so
 *.out
 *txt
-training_plots/*
+deep_kan_training_plots/*
+sine_training_plots/*

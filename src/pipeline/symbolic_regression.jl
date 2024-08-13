@@ -475,7 +475,7 @@ function symbolic_formula(model, ps, st; var=nothing, normaliser=nothing, output
                 a, b, c, d = ps[Symbol("affine_$l")][j, i, :]
                 sympy_fcn = model.symbolic_fcns[Symbol("symb_lyr_$l")].fcn_sympys[j][i]
                 try 
-                    yj += c * sympy_fcn(a * x[i] + b)[1] + d
+                    yj += (c * sympy_fcn(a * x[i] + b)[1] + d).evalf(floating_digit)
                 catch
                     println("Make sure all activations need to be converted to symbolic formulas first!")
                 end

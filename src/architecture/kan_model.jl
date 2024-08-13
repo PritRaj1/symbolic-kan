@@ -123,32 +123,31 @@ function (m::KAN)(x, ps, st)
     """
     x, ps, st = device(x), device(ps), device(st)
 
-    Zygote.ignore() do
-        @reset st[Symbol("acts_1")] = x
-    end
-
     max_width = maximum(m.widths)
-    x_init = x
     scales_init = zeros(Float32, 0, max_width * max_width) |> device
 
+    st = Zygote.ignore() do
+        merge(st, Dict(Symbol("acts_1") => copy(x)))
+    end
+
     # Forward pass - use explicit recursion to be more amenable to Zygote, i.e. Φ(Φ(Φ(x)))
-    x, scales, st = foldl(enumerate(1:m.depth), init=(x_init, scales_init, st)) do (x, scales, st), (i, _)
+    y, scales_out, st = foldl(enumerate(1:m.depth), init=(x, scales_init, st)) do (z, scales, st), (i, _)
         coef = ps[Symbol("coef_$i")]
         w_base = ps[Symbol("w_base_$i")]
         w_sp = ps[Symbol("w_sp_$i")]
         kan_layer = m.act_fcns[Symbol("act_lyr_$i")]
 
-        x_numerical, pre_acts, post_acts_num, post_spline = kan_layer(x, st[Symbol("act_fcn_mask_$i")];  coef=coef, w_base=w_base, w_sp=w_sp)
+        z_numerical, pre_acts, post_acts_num, post_spline = kan_layer(z, st[Symbol("act_fcn_mask_$i")];  coef=coef, w_base=w_base, w_sp=w_sp)
         
-        x_symbolic, symbolic_post_acts = 0f0, 0f0
+        z_symbolic, symbolic_post_acts = 0f0, 0f0
         if m.symbolic_enabled
             affine = ps[Symbol("affine_$i")]
             symbolic_layer = m.symbolic_fcns[Symbol("symb_lyr_$i")]
-            x_symbolic, symbolic_post_acts = symbolic_layer(x, affine, st[Symbol("symb_fcn_mask_$i")])
+            z_symbolic, symbolic_post_acts = symbolic_layer(z, affine, st[Symbol("symb_fcn_mask_$i")])
         end
 
         # φ(x) + φs(x)
-        x_new = x_numerical .+ x_symbolic
+        z_new = z_numerical .+ z_symbolic
         post_acts = post_acts_num .+ symbolic_post_acts
 
         # Scales for l1 regularisation
@@ -164,24 +163,23 @@ function (m::KAN)(x, ps, st)
         
         # Add (non-trainable) bias b(x)
         bias = m.bias_trainable ? ps[Symbol("bias_$i")] : st[Symbol("bias_$i")]
-        b = repeat(bias, size(x_new, 1), 1)
-        x_new = x_new + b
+        b = repeat(bias, size(z_new, 1), 1)
+        z_new = z_new + b
 
-        new_st = Zygote.@ignore begin
-            st_update = Dict(
-                Symbol("acts_$(i+1)") => x_new,
-                Symbol("pre_acts_$i") => pre_acts,
-                Symbol("post_acts_$i") => post_acts,
-                Symbol("post_splines_$i") => post_spline,
-                Symbol("act_scale_$i") => scale
-            )
-            merge(st, st_update)
+        st_new = Zygote.ignore() do
+            merge(st, Dict(
+                Symbol("acts_$(i+1)") => copy(z_new),
+                Symbol("pre_acts_$i") => copy(pre_acts),
+                Symbol("post_acts_$i") => copy(post_acts),
+                Symbol("post_splines_$i") => copy(post_spline),
+                Symbol("act_scale_$i") => copy(scale)
+            ))
         end
-
-        (x_new, new_scales, new_st)
+        
+        return z_new, new_scales, st_new
     end
 
-    return x, scales, st
+    return y, scales_out, st
 end
 
 function remove_node(st, l, j; verbose=true)
@@ -230,7 +228,7 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=1f-2, mode="auto", active_
         ps_pruned: Pruned parameters.
         st_pruned: Pruned state.
     """
-    @reset st[Symbol("mask_1")] = ones(Float32, m.widths[1],)
+    st = merge(st, Dict(Symbol("mask_1") => ones(Float32, m.widths[1],)))
     active_neurons_id = []
     push!(active_neurons_id, [1:m.widths[1]...])
     overall_important = nothing
@@ -248,13 +246,13 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=1f-2, mode="auto", active_
             overall_important[active_neurons_id[i+1]] .= 1f0
         end
 
-        @reset st[Symbol("mask_$(i+1)")] = overall_important
+        st = merge(st, Dict(Symbol("mask_$(i+1)") => overall_important))
         cart_ind = findall(x -> x > 0f0, overall_important)
         push!(active_neurons_id, [i[1] for i in cart_ind])
     end
     
     push!(active_neurons_id, [1:m.widths[end]...])
-    @reset st[Symbol("mask_$(m.depth+1)")] = ones(Float32, m.widths[end])
+    st = merge(st, Dict(Symbol("mask_$(m.depth+1)") => ones(Float32, m.widths[end])))
 
     if verbose
         println("Active neurons: ", active_neurons_id)
@@ -279,7 +277,7 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=1f-2, mode="auto", active_
             if m.bias_trainable
                 @reset ps_pruned[Symbol("bias_$i")] = ps[Symbol("bias_$i")][:, active_neurons_id[i+1]]
             else
-                @reset st_pruned[Symbol("bias_$i")] = st[Symbol("bias_$i")][:, active_neurons_id[i+1]]
+                st_pruned = merge(st, Dict(Symbol("bias_$i") => st[Symbol("bias_$i")][:, active_neurons_id[i+1]]))
             end
         end
 
@@ -299,18 +297,27 @@ function prune(rng::AbstractRNG, m, ps, st; threshold=1f-2, mode="auto", active_
         @reset ps_pruned[Symbol("coef_$i")] = ps_new[:coef]
         @reset ps_pruned[Symbol("w_base_$i")] = ps_new[:w_base]
         @reset ps_pruned[Symbol("w_sp_$i")] = ps_new[:w_sp]
-        @reset st_pruned[Symbol("act_fcn_mask_$i")] = new_mask
 
-        new_fcn, ps_new, new_mask = get_symb_subset(m.symbolic_fcns[Symbol("symb_lyr_$i")], symb_ps, st_pruned[Symbol("symb_fcn_mask_$i")], active_neurons_id[i], active_neurons_id[i+1])
+        new_fcn, ps_new, new_symb_mask = get_symb_subset(m.symbolic_fcns[Symbol("symb_lyr_$i")], symb_ps, st_pruned[Symbol("symb_fcn_mask_$i")], active_neurons_id[i], active_neurons_id[i+1])
         @reset model_pruned.symbolic_fcns[i] = new_fcn
-        @reset ps_pruned[Symbol("affine_$i")] = ps_new
-        @reset st_pruned[Symbol("symb_fcn_mask_$i")] = new_mask
 
         @reset model_pruned.widths[i] = length(active_neurons_id[i])
-        @reset st_pruned[Symbol("mask_$i")] = st[Symbol("mask_$i")]
+
+        st_pruned = merge(
+            st_pruned,
+            Dict(
+                Symbol("mask_$i") => st[Symbol("mask_$i")],
+                Symbol("act_fcn_mask_$i") => new_mask,
+                Symbol("symb_fcn_mask_$i") => new_symb_mask
+            )
+        )
     end
 
-    @reset st_pruned[Symbol("mask_$(m.depth+1)")] = st[Symbol("mask_$(m.depth+1)")]
+    st_pruned = merge(
+        st_pruned,
+        Dict(
+            Symbol("mask_$(m.depth+1)") => st[Symbol("mask_$(m.depth+1)")]
+    ))
     @reset model_pruned.depth = length(model_pruned.widths) - 1
 
     return model_pruned, ps_pruned, st_pruned

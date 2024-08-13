@@ -29,6 +29,7 @@ mutable struct optim_trainer
     loss_fn
     epoch::Int
     max_iters::Int
+    secondary_iters::Int
     update_grid_bool::Bool
     verbose::Bool
     log_time::Bool
@@ -41,7 +42,7 @@ mutable struct optim_trainer
     seed::Int
 end
 
-function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, optim_optimiser, secondary_optimiser; batch_size=nothing, loss_fn=nothing, max_iters=1e5, noise=0f0, noise_decay=1f0, grid_update_freq=5, grid_update_decay=1f0, update_grid_bool=true, verbose=true, log_time=true)
+function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, optim_optimiser, secondary_optimiser; batch_size=nothing, loss_fn=nothing, max_iters=1e2, secondary_iters=20, noise=0f0, noise_decay=1f0, grid_update_freq=5, grid_update_decay=1f0, update_grid_bool=true, verbose=true, log_time=true)
     """
     Initialise trainer for training symbolic model.
 
@@ -68,7 +69,7 @@ function init_optim_trainer(rng::AbstractRNG, model, train_data, test_data, opti
     y = device(y)
     batch_size = isnothing(batch_size) ? size(x, 1) : batch_size
 
-    return optim_trainer(model, params, state, train_data, test_data, batch_size, optim_optimiser, secondary_optimiser, loss_fn, 0, max_iters, update_grid_bool, verbose, log_time, x, y, noise, noise_decay, grid_update_freq, grid_update_decay, 1)
+    return optim_trainer(model, params, state, train_data, test_data, batch_size, optim_optimiser, secondary_optimiser, loss_fn, 0, max_iters, secondary_iters, update_grid_bool, verbose, log_time, x, y, noise, noise_decay, grid_update_freq, grid_update_decay, 1)
 end
 
 function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_factor=1.0, mag_threshold=1e-16, 
@@ -279,7 +280,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
 
         optprob = remake(optprob; u0=res.minimizer)
         res = Optimization.solve(optprob, opt_get(t.secondary_opt);
-        maxiters=t.max_iters, callback=log_callback!, abstol=0f0, reltol=0f0, allow_f_increases=true, allow_outer_f_increases=true, x_tol=0f0, x_abstol=0f0, x_reltol=0f0, f_tol=0f0, f_abstol=0f0, f_reltol=0f0, g_tol=0f0, g_abstol=0f0, g_reltol=0f0,
+        maxiters=t.secondary_iters, callback=log_callback!, abstol=0f0, reltol=0f0, allow_f_increases=true, allow_outer_f_increases=true, x_tol=0f0, x_abstol=0f0, x_reltol=0f0, f_tol=0f0, f_abstol=0f0, f_reltol=0f0, g_tol=0f0, g_abstol=0f0, g_reltol=0f0,
         outer_x_abstol=0f0, outer_x_reltol=0f0, outer_f_abstol=0f0, outer_f_reltol=0f0, outer_g_abstol=0f0, outer_g_reltol=0f0, successive_f_tol=t.max_iters)
     end
 

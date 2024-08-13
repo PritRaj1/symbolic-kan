@@ -48,6 +48,7 @@ grid_upper_lim = parse(Float32, retrieve(conf, "ARCHITECTURE", "grid_upper_lim")
 λ_coefdiff = parse(Float64, retrieve(conf, "ARCHITECTURE", "λ_coefdiff"))
 w_scale = parse(Float32, retrieve(conf, "ARCHITECTURE", "base_init_scale"))
 base_act = retrieve(conf, "ARCHITECTURE", "base_activation")
+ENV["sparse_init"] = retrieve(conf, "ARCHITECTURE", "sparse_init")
 g_lims = (grid_lower_lim, grid_upper_lim)
 
 ### Primiary optimisation hyperparams ###
@@ -76,6 +77,11 @@ noise_decay = parse(Float32, retrieve(conf, "SCHEDULES", "stochasticity_decay"))
 init_grid_update_freq = parse(Int, retrieve(conf, "SCHEDULES", "init_grid_update_freq"))
 grid_update_freq_decay = parse(Float32, retrieve(conf, "SCHEDULES", "grid_update_freq_decay"))
 
+### Symbolic reg fitting ###
+ENV["num_g"] = retrieve(conf, "PARAM_FITTING", "num_g")
+ENV["iters"] = retrieve(conf, "PARAM_FITTING", "iters")
+ENV["coeff_type"] = retrieve(conf, "PARAM_FITTING", "coeff_type")
+
 activation = Dict(
     "relu" => NNlib.relu,
     "leakyrelu" => NNlib.leakyrelu,
@@ -94,27 +100,28 @@ train_data, test_data = create_data(FUNCTION, N_var=2, x_range=lims, N_train=N_t
 opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=α0)
 secondary_opt = create_optim_opt(type_2, linesearch_2; m=m_2, c_1=c_1_2, c_2=c_2_2, ρ=ρ_2, init_α=α0_2)
 
-model = KAN_model([2, 3, 3, 1]; k=k, grid_interval=G, grid_range=g_lims, σ_scale=w_scale, bias_trainable=train_bias, base_act=activation)
+model = KAN_model([2, 5, 1]; k=k, grid_interval=G, grid_range=g_lims, σ_scale=w_scale, bias_trainable=train_bias, base_act=activation)
 ps, st = Lux.setup(seed, model)
 _, _, st = model(train_data[1], ps, st) # warmup for plotting
 st = cpu_device()(st)
 
 plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[STRING_VERSION], title="KAN", file_name=FILE_NAME*"_before")
 
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt, secondary_opt; max_iters=max_iters, verbose=true, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay, batch_size=batch_size)
-model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff)
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt, secondary_opt; max_iters=max_iters, secondary_iters=max_iters_2, verbose=true, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay, batch_size=batch_size)
+model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, img_loc=FILE_NAME*"_training_plots/")
 model, ps, st = prune(seed, model, ps, st)
 
-# After training remember to reinit the trainer
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt, secondary_opt; max_iters=max_iters, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay, batch_size=batch_size)
-model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff)
+# After pruning remember to reinit the trainer
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt, secondary_opt; max_iters=max_iters, secondary_iters=max_iters_2, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay, batch_size=batch_size)
+model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, img_loc=FILE_NAME*"_training_plots/")
 model, ps, st = prune(seed, model, ps, st)
-trainer = init_optim_trainer(seed, model, train_data, test_data, opt, secondary_opt; max_iters=max_iters, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay, batch_size=batch_size)
-model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff)
+
+trainer = init_optim_trainer(seed, model, train_data, test_data, opt, secondary_opt; max_iters=max_iters, secondary_iters=max_iters_2, verbose=true, noise=init_noise, noise_decay=noise_decay, grid_update_freq=init_grid_update_freq, grid_update_decay=grid_update_freq_decay, batch_size=batch_size)
+model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, img_loc=FILE_NAME*"_training_plots/")
 
 plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=[STRING_VERSION], title="Pruned KAN", file_name=FILE_NAME*"_trained")
 
-model, ps, st = auto_symbolic(model, ps, st; α_range = (-40, 40), β_range = (-40, 40), lib=lib=["x^2", "sin", "exp"])
+model, ps, st = auto_symbolic(model, ps, st; α_range = (-40, 40), β_range = (-40, 40), lib=lib=["x", "x^2", "sin", "exp"])
 trainer = init_optim_trainer(seed, model, train_data, test_data, secondary_opt, nothing; max_iters=10, verbose=true, update_grid_bool=false) # Don't forget to re-init after pruning!
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff)
 

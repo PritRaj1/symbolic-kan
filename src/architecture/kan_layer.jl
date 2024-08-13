@@ -50,10 +50,8 @@ function Lux.initialparameters(rng::AbstractRNG, l::kan_dense)
         mask = ones(Float32, l.in_dim, l.out_dim)
     end
     
-    w_base = randn(rng, Float32, l.in_dim, l.out_dim) .* l.σ_base .* mask
-
-    rng = Random.seed!(rng, 2)
-    w_sp = randn(rng, Float32, l.in_dim, l.out_dim) .* l.σ_sp .* mask
+    w_base = ones(Float32, l.in_dim, l.out_dim) .* l.σ_base .* mask
+    w_sp = ones(Float32, l.in_dim, l.out_dim) .* l.σ_sp .* mask
 
     return (coef=coef, w_base=w_base, w_sp=w_sp)
 end

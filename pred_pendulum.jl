@@ -15,6 +15,7 @@ using Statistics
 using ConfParser
 using Lux
 using Plots
+using Accessors
 
 conf = ConfParse("config/pred_pendulum_config.ini")
 parse_conf!(conf)
@@ -152,6 +153,7 @@ model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_
 plot_kan(model, st; mask=true, in_vars=["t", "θ1", "ω1", "ω2"], out_vars=["θ1", "θ2"], title="Pruned KAN", file_name=FILE_NAME*"_trained")
 
 model, ps, st = auto_symbolic(model, ps, st; α_range = (-40, 40), β_range = (-40, 40), lib=["x^2", "cos", "sin", "exp", "tan", "tanh"])
+@reset secondary_opt.init_α = 1f0
 trainer = init_optim_trainer(seed, model, train_data, test_data, secondary_opt, nothing; max_iters=10, verbose=true, update_grid_bool=false) # Don't forget to re-init after pruning!
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, img_loc=FILE_NAME*"_training_plots/")
 

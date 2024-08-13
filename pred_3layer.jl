@@ -1,4 +1,4 @@
-using ConfParser, Random, Lux, LaTeXStrings
+using ConfParser, Random, Lux, LaTeXStrings, Accessors
 
 conf = ConfParse("config/pred_3layer_config.ini")
 parse_conf!(conf)
@@ -121,6 +121,8 @@ plot_kan(model, st; mask=true, in_vars=["x_1", "x_2", "x_3", "x_4"], out_vars=[S
 ps, st = cpu_device()(ps), cpu_device()(st)
 
 model, ps, st = auto_symbolic(model, ps, st; lib = ["x", "x^2", "sin", "exp"])
+@reset secondary_opt.init_α = 1f0
+trainer = init_optim_trainer(seed, model, train_data, test_data, secondary_opt, nothing; max_iters=10, verbose=true, update_grid_bool=false) # Don't forget to re-init after pruning!
 model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, img_loc=FILE_NAME*"_training_plots/")
 
 formula, x0, st = symbolic_formula(model, ps, st)

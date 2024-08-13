@@ -32,7 +32,7 @@ end
 
 silu = x -> x .* NNlib.sigmoid.(x)
 
-function KAN_model(widths; k=3, grid_interval=5, ε_scale=5f-1, μ_scale=1.0f0, σ_scale=1.0f0, base_act=silu, symbolic_enabled=true, grid_eps=2f-2, grid_range=(-1f0, 1f0), bias_trainable=false)
+function KAN_model(widths; k=3, grid_interval=5, ε_scale=1f-1, μ_scale=0f0, σ_scale=1.0f0, base_act=silu, symbolic_enabled=true, grid_eps=2f-2, grid_range=(-1f0, 1f0), bias_trainable=false)
     depth = length(widths) - 1
 
     act_fcns = NamedTuple()

@@ -38,7 +38,7 @@ julia --sysimage precompile.so pred_function.jl
 ```
 ## [Configuration File](config/config.ini) 
 
-### Architectureps_pruned
+### Architecture
 - **k**: Degree of spline basis functions. Determines the smoothness of the spline functions used.
 - **G**: Grid number. Specifies the number of grid points in the grid used for splines.
 - **λ**: Overall regularization parameter. Controls the trade-off between fitting the data and regularizing the model.
@@ -47,8 +47,16 @@ julia --sysimage precompile.so pred_function.jl
 - **λ_coef**: Coefficient regularization parameter. Regularizes the coefficients to avoid overfitting.
 - **λ_coefdiff**: Coefficient difference regularization parameter. Helps in controlling the differences between coefficients, ensuring smoothness in the model.
 - **sparse_init**: Whether to initialise the model sparsely or not.
+- **grid_lower_lim**: Lower bound on spline grid during initialisation
+- **grid_upper_lim**: Upper bound on spline grid during initialisation
+- **method**: Type of spline: spline or RBF
+- **base_init_scale**: Sacling applied to base activation term
+- **base_activation**: Type of base activation. Choices include `silu`, `relu`, `selu`, `tanh`
 
-### Optimizer
+### Optimiser
+
+Note: there are two optimisers here: primary and secondary. The secondary optimsiation starts after the first has completed. This has been included to help explore the non-convexity of functions - a stochastic optimisation approach, like adam, can be adopted before any deterministic methods, like bfgs. If a secondary optimisation isn't needed, set `type=nothing` in the config file.
+
 - **type**: Optimization algorithm to use. Choices include `bfgs`, `l-bfgs`, `cg`, `newton`, `interior-point`
 - **linesearch**: Type of linesearch algorithm. Options are `strongwolfe`, `backtrack`, `hagerzhang`, `morethuente`, or `static`.
 - **m**: Number of previous iterations to store for the strong Wolfe linesearch method. Influences the history of past gradients used for better convergence.
@@ -56,16 +64,22 @@ julia --sysimage precompile.so pred_function.jl
 - **c_2**: Second Wolfe condition parameter. Ensures the step size satisfies the curvature condition.
 - **ρ**: Bracket expansion factor. Determines the factor by which the interval for the step size is expanded during the linesearch.
 - **α0**: Initital step size for linesearch.
+- **max_iters**: Total number of iterations permissible to this optimisation algorithm.
+
+### Schedulers
+- **init_stochasticity**: Initial value for noise term to add to gradients, (noise injection may help with exploration)
+- **stochasticity_decay**: How much to decay stochasticity per epoch, (i.e. term is multiplied by this each epoch)
+- **init_grid_update_freq**: Initial frequency of grid updates, (i.e. every `init_grid_update_freq` iterations in optimisation, spline grids are updated)
+- **grid_update_freq_decay**: Amount is multiplied to grid update frequency each time a grid update takes place.
 
 ### Pipeline
-- **max_iters**: Total number of iterations permissible to thje optimisation algorithm. Not the same as epochs.
-- **num_grid_updates**: Number of times to update the grid. Indicates how frequently the grid used for interpolation or approximation will be updated during training.
-- **final_grid_epoch**: Epoch at which to stop updating the grid. Defines when to cease further updates to the grid.
 - **normalise_data**: Flag indicating whether to normalize the input data. `true` or `false` value determines if the input data should be scaled.
 - **input_lower_lim**: Lower limit for input values. Specifies the minimum value of the input data.
 - **input_upper_lim**: Upper limit for input values. Specifies the maximum value of the input data.
 - **N_train**: Number of training samples. Specifies the size of the training dataset.
 - **N_test**: Number of testing samples. Specifies the size of the testing dataset.
+- **trainable_bias**: Determines whether the bias added to the output of the KAN model is trainable or not. Set to true when the problem function has a bias.
+- **batch_size**: Batch size. Set batch_size=*value assigned to `N_train`* to remove batching.
 
 ### Param fitting
 - **num_g**: Number of evaluation points used in grid search.

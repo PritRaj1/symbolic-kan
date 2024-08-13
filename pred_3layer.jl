@@ -121,6 +121,8 @@ plot_kan(model, st; mask=true, in_vars=["x_1", "x_2"], out_vars=["x_1 * x_2"], t
 ps, st = cpu_device()(ps), cpu_device()(st)
 
 model, ps, st = auto_symbolic(model, ps, st; lib = ["x", "x^2", "sin", "exp"])
+model, ps, st = train!(trainer; ps=ps, st=st, λ=λ, λ_l1=λ_l1, λ_entropy=λ_entropy, λ_coef=λ_coef, λ_coefdiff=λ_coefdiff, img_loc=FILE_NAME*"_training_plots/")
+
 formula, x0, st = symbolic_formula(model, ps, st)
 formula = latexstring(formula[1])
 println("Formula: ", formula)

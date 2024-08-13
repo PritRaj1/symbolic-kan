@@ -36,6 +36,13 @@ bash src/unit_tests/run_tests.sh
 ```bash
 julia --sysimage precompile.so pred_function.jl
 ```
+
+5. Profile various aspects:
+
+```bash
+julia --sysimage precompile.so profile_compute.jl
+```
+
 ## [Configuration Files](config) 
 
 ### Architecture

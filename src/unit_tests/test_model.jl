@@ -10,7 +10,7 @@ function test_fwd()
     st = Lux.initialstates(Random.default_rng(), model)
 
     x = randn(Float32, 100, 2)
-    y, st = model(x, ps, st)
+    y, _, st = model(x, ps, st)
     @test all(size(y) .== (100, 3))
 end
 

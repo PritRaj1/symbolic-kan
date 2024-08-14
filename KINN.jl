@@ -123,6 +123,8 @@ opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=�
 secondary_opt = create_optim_opt(type_2, linesearch_2; m=m_2, c_1=c_1_2, c_2=c_2_2, ρ=ρ_2, init_α=α0_2)
 
 function loss_fcn(params, nothing)
+    
+    ## Constitutive loss ##
     σ_pred, σ_scales, σ_st = stress_KAN(x_excl, params[1:num_σ_ps], σ_st)
     δ_pred, δ_scales, δ_st = disp_KAN(x_excl, params[num_σ_ps+1:end], δ_st)
 
@@ -134,8 +136,8 @@ function loss_fcn(params, nothing)
     dvdx = Zygote.jacobian(x -> disp_KAN(x, params[num_σ_ps+1:end], δ_st)[:, 2], x_excl)[1]
 
     # Extract diagonal elements (gradients at each point)
-    dudx = [J_u[i,i,:] for i in 1:size(J_u,1)]
-    dvdx = [J_v[i,i,:] for i in 1:size(J_v,1)]
+    dudx = [dudx[i,i,:] for i in eachindex(dudx[:,1,1])]
+    dvdx = [dvdx[i,i,:] for i in eachindex(dvdx[:,1,1])]
 
     # Strains
     ε_11 = getindex.(dudx, 1)
@@ -151,5 +153,33 @@ function loss_fcn(params, nothing)
 
     # Define constitutive loss - forcing the augment stress to be equal to the neural network stress
     loss_cons = mean(sum((σ_aug - σ_pred).^2, dims=1))
+
+    ## Boundary loss ##
+    σ_bc, σ_scales, σ_st = stress_KAN(Boundary, params[1:num_σ_ps], σ_st)
+    δ_bc, δ_scales, δ_st = disp_KAN(Boundary, params[num_σ_ps+1:end], δ_st)
+
+    u_bc = δ_bc[:, 1] # Horizontal
+    v_bc = δ_bc[:, 2] # Vertical
+
+    dudx_bc = Zygote.jacobian(x -> disp_KAN(x, params[num_σ_ps+1:end], δ_st)[:, 1], Boundary)[1]
+    dvdx_bc = Zygote.jacobian(x -> disp_KAN(x, params[num_σ_ps+1:end], δ_st)[:, 2], Boundary)[1]
+
+    dudx_bc = [dudx_bc[i,i,:] for i in eachindex(dudx_bc[:,1,1])]
+    dvdx_bc = [dvdx_bc[i,i,:] for i in eachindex(dvdx_bc[:,1,1])]
+
+    ε_11_bc = getindex.(dudx_bc, 1)
+    ε_22_bc = getindex.(dvdx_bc, 2)
+    ε_12_bc = 0.5 .* (getindex.(dudx_bc, 2) .+ getindex.(dvdx_bc, 1))
+
+    ε_bc = hcat(ε_11_bc, ε_22_bc, ε_12_bc)
+    ε_bc = reshape(ε_bc, (size(ε_bc,1), 3, 1))
+
+    σ_aug_bc = batched_mul(stiff_bc, ε_bc)
+    σ_aug_bc = dropdims(σ_aug_bc, dims=3)
+
+    loss_bc = mean(sum((σ_aug_bc - σ_bc).^2, dims=1))
+
+
+
 
 end

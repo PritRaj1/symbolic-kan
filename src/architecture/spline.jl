@@ -125,6 +125,7 @@ function B_batch_RSWAF(x, grid; degree=nothing, σ=1f0)
 
     # any(isnan.(B)) && error("NaN in B")
     return B
+end
 
 BasisFcn = Dict(
     "spline" => B_batch,

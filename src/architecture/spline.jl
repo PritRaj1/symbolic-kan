@@ -105,9 +105,19 @@ function B_batch_RBF(x, grid; degree=nothing, σ=1f0)
     return B
 end
 
+function B_batch_RSWAF(x, grid; degree=nothing, σ=1f0)
+    x = reshape(x, size(x)..., 1)
+    grid = reshape(grid, 1, size(grid)...)
+
+    diff = @tullio res[d, n, m] := x[d, n, 1] - grid[1, n, m]
+    B = @tullio res[d, n, m] := 1 - tanh(diff[d, n, m] / σ)^2
+
+    return B
+
 BasisFcn = Dict(
     "spline" => B_batch,
-    "RBF" => B_batch_RBF
+    "RBF" => B_batch_RBF,
+    "RSWAF" => B_batch_RSWAF
 )[method]
 
 function coef2curve(x_eval, grid, coef; k::Int64, scale=1f0)

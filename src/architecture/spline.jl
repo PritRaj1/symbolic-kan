@@ -106,12 +106,24 @@ function B_batch_RBF(x, grid; degree=nothing, σ=1f0)
 end
 
 function B_batch_RSWAF(x, grid; degree=nothing, σ=1f0)
+    """
+    Compute the RSWAF basis functions for a batch of points x and a grid of knots.
+
+    Args:
+        x: A matrix of size (b, i) containing the points at which to evaluate the RSWAF basis functions.
+        grid: A matrix of size (i, g) containing the grid of knots.
+        σ: Tuning for the bandwidth (standard deviation) of the RSWAF kernel.
+
+    Returns:
+        A matrix of size (b, i, g) containing the RSWAF basis functions evaluated at the points x.
+    """
     x = reshape(x, size(x)..., 1)
     grid = reshape(grid, 1, size(grid)...)
 
     diff = @tullio res[d, n, m] := x[d, n, 1] - grid[1, n, m]
     B = @tullio res[d, n, m] := 1 - tanh(diff[d, n, m] / σ)^2
 
+    # any(isnan.(B)) && error("NaN in B")
     return B
 
 BasisFcn = Dict(

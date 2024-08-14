@@ -125,6 +125,10 @@ all_ps = vcat(ComponentVector(σ_ps), ComponentVector(δ_ps))
 opt = create_optim_opt(type, linesearch; m=m, c_1=c_1, c_2=c_2, ρ=ρ, init_α=α0)
 secondary_opt = create_optim_opt(type_2, linesearch_2; m=m_2, c_1=c_1_2, c_2=c_2_2, ρ=ρ_2, init_α=α0_2)
 
+# Data sample
+rand_idx = rand(seed, 1:length(x_full), 50)
+δ_fix = δ[rand_idx, :]
+
 function loss_fcn(params, nothing)
     
     ### 1. Constitutive loss ###
@@ -213,5 +217,9 @@ function loss_fcn(params, nothing)
     loss_BC_C = mean(sum(((σ_C[:,1]*C_boundary[:,1] + σ_C[:,3]*C_boundary[:,2]) .- 0f0).^2, dims=1))
 
     ### 5. Data loss ###
-        
+    x_fix = x_full[rand_idx, :]
+    u_fix, δ_scales, δ_st = disp_KAN(x_fix, params[num_σ_ps+1:end], δ_st)
+    loss_fix = mean(sum((u_fix - δ_fix).^2, dims=1))
+
+    return loss_cons + loss_bc + loss_eq + loss_BC_L + loss_BC_B + loss_BC_R + loss_BC_T + loss_BC_C + loss_fix
 end

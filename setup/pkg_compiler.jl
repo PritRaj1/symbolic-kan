@@ -7,7 +7,7 @@ create_sysimage(
         "Zygote", "ProgressBars", "CSV", "Dates", "Printf", "Makie", "GLMakie", "FileIO","IntervalSets", 
         "LineSearches", "FluxOptTools", "Plots", "DifferentialEquations", "Accessors", "Optimisers", 
         "ComponentArrays", "ConfParser", "LuxCUDA", "SpecialFunctions", "LaTeXStrings", "ProfileView",
-        "MAT", "Optimization", "HypothesisTests"
+        "MAT", "Optimization", "HypothesisTests", "OptimizationOptimisers"
     ],
     sysimage_path="precompile.so",
     precompile_execution_file="setup/precompile.jl"

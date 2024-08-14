@@ -39,3 +39,4 @@ using ProfileView
 using MAT
 using Optimization
 using HypothesisTests
+using OptimizationOptimisers

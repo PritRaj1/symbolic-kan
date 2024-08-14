@@ -216,7 +216,7 @@ function train!(t::optim_trainer; ps=nothing, st=nothing, log_loc="logs/", reg_f
     start_time = time()
 
     # Callback function for logging
-    function log_callback!(state::Optimization.OptimizationState, obj)
+    function log_callback!(state, obj)
         t.params = state.u
         t.update_grid_bool = true
 

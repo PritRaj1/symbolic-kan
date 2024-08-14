@@ -37,3 +37,5 @@ using SpecialFunctions
 using LaTeXStrings
 using ProfileView
 using MAT
+using Optimization
+using HypothesisTests

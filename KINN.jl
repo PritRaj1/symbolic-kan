@@ -82,6 +82,7 @@ L_boundary = data["L_boundary"]
 R_boundary = data["R_boundary"]
 T_boundary = data["T_boundary"]
 B_boundary = data["B_boundary"]
+C_boundary = data["C_boundary"]
 Boundary = data["Boundary"]
 
 # True displacement
@@ -95,8 +96,10 @@ x_full = data["p_full"] # All
 x_excl = data["p"] # Excluding boundary
 
 # Material properties
-E = 10
-μ = 0.3
+E = 10 # Young's modulus
+μ = 0.3 # Poisson's ratio
+τ_R = 0.1 # Traction on the right boundary
+τ_T = 0.0 # Traction on the top boundary
 
 # Hooke's law for plane stress
 stiff = (E / (1 - μ^2)) * [1 μ 0; μ 1 0; 0 0 (1-μ)/2]
@@ -124,7 +127,7 @@ secondary_opt = create_optim_opt(type_2, linesearch_2; m=m_2, c_1=c_1_2, c_2=c_2
 
 function loss_fcn(params, nothing)
     
-    ## Constitutive loss ##
+    ### 1. Constitutive loss ###
     σ_pred, σ_scales, σ_st = stress_KAN(x_excl, params[1:num_σ_ps], σ_st)
     δ_pred, δ_scales, δ_st = disp_KAN(x_excl, params[num_σ_ps+1:end], δ_st)
 
@@ -154,7 +157,7 @@ function loss_fcn(params, nothing)
     # Define constitutive loss - forcing the augment stress to be equal to the neural network stress
     loss_cons = mean(sum((σ_aug - σ_pred).^2, dims=1))
 
-    ## Boundary loss ##
+    ### 2. Boundary loss ###
     σ_bc, σ_scales, σ_st = stress_KAN(Boundary, params[1:num_σ_ps], σ_st)
     δ_bc, δ_scales, δ_st = disp_KAN(Boundary, params[num_σ_ps+1:end], δ_st)
 
@@ -179,7 +182,36 @@ function loss_fcn(params, nothing)
 
     loss_bc = mean(sum((σ_aug_bc - σ_bc).^2, dims=1))
 
+    ### 3. Equilibrium loss ###
+    σ_11 = σ_pred[:, 1]
+    σ_22 = σ_pred[:, 2]
+    σ_12 = σ_pred[:, 3]
 
+    # Enforce equilibrium in x and y planes
+    dσ_11dx = Zygote.jacobian(x -> stress_KAN(x, params[1:num_σ_ps], σ_st)[:, 1], x_excl)[1]
+    dσ_22dx = Zygote.jacobian(x -> stress_KAN(x, params[1:num_σ_ps], σ_st)[:, 2], x_excl)[1]
+    dσ_12dx = Zygote.jacobian(x -> stress_KAN(x, params[1:num_σ_ps], σ_st)[:, 3], x_excl)[1]
 
+    eq_x1 = dσ_11dx[:,1] + dσ_12dx[:,2]
+    eq_x2 = dσ_12dx[:,1] + dσ_22dx[:,2]
 
+    # Enforce equilibrium - zero body forces
+    loss_eq = mean(sum((eq_x1 .- 0f0).^2, dims=1)) + mean(sum((eq_x2 .- 0f0).^2, dims=1))
+
+    ### 4. Boundary conditions ###
+    u_L, δ_scales, δ_st  = disp_KAN(L_boundary, params[num_σ_ps+1:end], δ_st)
+    u_B, δ_scales, δ_st  = disp_KAN(B_boundary, params[num_σ_ps+1:end], δ_st)
+
+    σ_R, σ_scales, σ_st = stress_KAN(R_boundary, params[1:num_σ_ps], σ_st)
+    σ_T, σ_scales, σ_st = stress_KAN(T_boundary, params[1:num_σ_ps], σ_st)
+    σ_C, σ_scales, σ_st = stress_KAN(C_boundary, params[1:num_σ_ps], σ_st)
+
+    loss_BC_L = mean(sum((u_L[:,1] .- 0f0).^2, dims=1)) 
+    loss_BC_B = mean(sum((u_B[:,2] .- 0f0).^2, dims=1))
+    loss_BC_R = mean(sum((σ_R[:,1] .- τ_R).^2, dims=1)) + mean(sum((σ_R[:,2] .- 0f0).^2, dims=1))
+    loss_BC_T = mean(sum((σ_T[:,2] .- τ_T).^2, dims=1)) + mean(sum((σ_T[:,3] .- 0f0).^2, dims=1))
+    loss_BC_C = mean(sum(((σ_C[:,1]*C_boundary[:,1] + σ_C[:,3]*C_boundary[:,2]) .- 0f0).^2, dims=1))
+
+    ### 5. Data loss ###
+        
 end

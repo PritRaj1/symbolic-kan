@@ -1,6 +1,6 @@
 # symbolicKAN
 
-Julia implementation of B-spline KAN for symbolic regression - recreated pretty much as is from [pykan](https://github.com/KindXiaoming/pykan) on a smaller scale to develop understanding.
+Julia implementation of B-spline KAN for symbolic regression - recreated pretty much as is from [pykan](https://github.com/KindXiaoming/pykan) for investigative purposes.
 
 WORK IN PROGRESS 
 
